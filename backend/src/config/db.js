@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-require('dotenv').config();
+require('dotenv').config(); // Loaded for DB Config
 
 const getConnectionString = () => {
     // For develop branch, prioritize production URL if in production mode
