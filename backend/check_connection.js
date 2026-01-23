@@ -9,9 +9,7 @@ if (!connectionString) {
     if (process.env.DB_USER && process.env.DB_HOST && process.env.DB_NAME) {
         console.log('ℹ️  DATABASE_URL not found, constructing from DB_* variables...');
         connectionString = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME}`;
-        if (process.env.DB_SSL_MODE === 'require') {
-            connectionString += '?sslmode=require';
-        }
+        // Do NOT append ?sslmode=require to string, rely on object config below
     } else {
         console.error('❌ Missing Database Configuration!');
         console.error('   Please set DATABASE_URL or (DB_USER, DB_PASSWORD, DB_HOST, DB_NAME)');
@@ -23,6 +21,7 @@ console.log('Target URL:', connectionString.replace(/:[^:/@]+@/, ':****@')); // 
 
 const client = new Client({
     connectionString: connectionString,
+    // EXACTLY matching db.js logic:
     ssl: process.env.DB_SSL_MODE === 'disable' ? false : { rejectUnauthorized: false }
 });
 
