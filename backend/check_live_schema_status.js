@@ -11,9 +11,23 @@ async function checkSchemaStatus() {
         const tablesToCheck = [
             { table: 'expenditures', column: 'created_at' },
             { table: 'library_books', column: 'created_at' },
-            { table: 'announcements', column: 'created_at' },
+            { table: 'announcements', column: 'created_at' }, // V2
             { table: 'leaves', column: 'created_at' },
-            { table: 'notifications', column: 'created_at' }
+            { table: 'notifications', column: 'created_at' },
+
+            // V5 Checks (Teacher Assignments)
+            { table: 'sections', column: 'class_teacher_id' },
+            { table: 'classes', column: 'class_teacher_id' },
+
+            // V6 Checks (Grades & Marks)
+            { table: 'grades', column: 'grade_point' },
+            { table: 'marks', column: 'year' },
+
+            // V7 Checks (The Big Ones)
+            { table: 'students', column: 'roll_number' },
+            { table: 'students', column: 'admission_no' },
+            { table: 'teachers', column: 'salary_per_day' },
+            { table: 'staff', column: 'role' }
         ];
 
         let allGood = true;
