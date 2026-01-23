@@ -14,6 +14,8 @@ async function fixEverything() {
         console.log('🔧 Fixing User Tables (Students, Teachers, Staff)...');
 
         // Students
+        await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS class_id INTEGER`);
+        await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS section_id INTEGER`);
         await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS name VARCHAR(255)`);
         await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS academic_year VARCHAR(50)`);
         await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_name VARCHAR(255)`); // Hostel dependency
