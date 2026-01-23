@@ -20,6 +20,11 @@ exports.addStudent = async (req, res) => {
         } = req.body;
         const school_id = req.user.schoolId;
 
+        // Split name into first and last name for DB compatibility
+        const nameParts = (name || '').trim().split(' ');
+        const first_name = nameParts[0] || name;
+        const last_name = nameParts.slice(1).join(' ') || '';
+
         // Convert empty section_id to null
         const safe_section_id = (section_id === '' || section_id === 'null' || section_id === undefined) ? null : section_id;
 
@@ -61,10 +66,10 @@ exports.addStudent = async (req, res) => {
         // 1. Insert Student
         const result = await client.query(
             `INSERT INTO students 
-            (school_id, name, admission_no, roll_number, gender, dob, age, class_id, section_id, 
+            (school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, age, class_id, section_id, 
              father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
-            [school_id, name, admission_no, roll_number, gender, dob, age, class_id, safe_section_id,
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
+            [school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, age, class_id, safe_section_id,
                 father_name, mother_name, contact_number, email, address, attendance_id, admission_date || new Date()]
         );
         const newStudent = result.rows[0];
