@@ -41,7 +41,8 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
         'https://connect-to-campus-b56ac.web.app', // Firebase (Testing)
         process.env.FRONTEND_URL, // AWS S3/CloudFront (Production)
         'capacitor://localhost', // Mobile App (iOS)
-        'http://localhost', // Mobile App (Android)
+        'http://localhost', // Mobile App (Android - Debug)
+        'https://localhost', // Mobile App (Android - Release/Debug)
     ].filter(Boolean) // Remove undefined values
     : ['http://localhost:5173', 'http://localhost:5174', 'capacitor://localhost', 'http://localhost'];
 
@@ -132,8 +133,8 @@ app.get('/app-launch', (req, res) => {
 
 // Download App Route
 app.get(['/api/download-app', '/download-app'], (req, res) => {
-    const file = path.join(__dirname, '../public/SchoolApp.apk');
-    res.download(file, 'SchoolApp.apk', (err) => {
+    const file = path.join(__dirname, '../public/SchoolApp_NetworkFix.apk');
+    res.download(file, 'SchoolApp_NetworkFix.apk', (err) => {
         if (err) {
             console.error('Error downloading file:', err);
             res.status(404).send('App file not found on server.');

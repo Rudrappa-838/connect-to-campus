@@ -8,13 +8,9 @@ const DownloadApp = () => {
     const isProduction = import.meta.env.VITE_APP_ENV === 'production';
 
     // Dynamic Download URL Logic
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const PROD_URL = 'https://us-central1-connect-to-campus-b56ac.cloudfunctions.net/api';
-
-    // If local, use local backend (port 5000). If prod/LAN, use configured env or prod fallback
-    const downloadUrl = isLocal
-        ? 'http://localhost:5000/api/download-app'
-        : `${import.meta.env.VITE_API_URL || PROD_URL}/download-app`;
+    // Use direct access to public folder for both local and production
+    // This bypasses the backend API and serves the file directly from Hosting/Vite
+    const downloadUrl = '/SchoolApp_vFinal.apk';
 
 
     return (
@@ -81,7 +77,7 @@ const DownloadApp = () => {
                             {/* Force APK Download for now until Play Store launch */}
                             <a
                                 href={`${downloadUrl}?v=${new Date().getTime()}`}
-                                download="SchoolApp_Debug.apk"
+                                download="SchoolApp_NetworkFix.apk"
                                 className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-black font-bold rounded-xl shadow-lg shadow-yellow-400/30 transform transition-all hover:scale-105 text-lg"
                             >
                                 <Download size={24} />
@@ -128,7 +124,7 @@ const DownloadApp = () => {
                         {/* Note */}
                         <div className="mt-6 text-center">
                             <p className="text-gray-400 text-xs">
-                                {isProduction ? 'Official release for students and staff.' : 'Note: This is a test build for development purposes.'}
+                                {isProduction ? '' : 'Note: This is a test build for development purposes.'}
                             </p>
                         </div>
 

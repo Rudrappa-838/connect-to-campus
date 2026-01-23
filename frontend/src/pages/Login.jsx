@@ -234,10 +234,7 @@ const Login = () => {
                             </div>
                         )}
 
-                        <div className="text-center mt-2">
-                            <p className="text-white/30 text-[10px] font-cursive tracking-widest">Connect to Campus</p>
-                            <p className="text-red-400 text-[10px] mt-1 font-mono font-bold">DEBUG BUILD v9.1</p>
-                        </div>
+                        <p className="text-white/30 text-[10px] font-cursive tracking-widest">Connect to Campus</p>
                     </form>
 
                     {/* Mobile App Download Section */}

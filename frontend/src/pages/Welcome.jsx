@@ -164,8 +164,7 @@ const Welcome = ({ onComplete }) => {
                     </div>
                 </div>
             </div>
-            {/* Version Check */}
-            <div className="absolute bottom-1 right-1 z-30 text-[12px] text-red-500 font-bold bg-white/80 px-2 py-1 rounded">DEBUG BUILD v9.1</div>
+            {/* Version Check - Removed for Final Release */}
         </div>
     );
 };
