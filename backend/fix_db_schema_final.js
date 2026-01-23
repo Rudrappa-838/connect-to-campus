@@ -165,14 +165,14 @@ async function fixFinalSchema() {
         const now = new Date();
         const yStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1; // April start
         const yEnd = yStart + 1;
-        const yearLabel = \`\${yStart}-\${yEnd}\`;
-        
+        const yearLabel = `${yStart}-${yEnd}`;
+
         await client.query(`
-            INSERT INTO academic_years(school_id, year_label, start_date, end_date, status)
+            INSERT INTO academic_years (school_id, year_label, start_date, end_date, status)
             SELECT id, $1, $2, $3, 'active' 
             FROM schools
-            ON CONFLICT(school_id, year_label) DO NOTHING
-            `, [yearLabel, \`\${yStart}-04-01\`, \`\${yEnd}-03-31\`]);
+            ON CONFLICT (school_id, year_label) DO NOTHING
+        `, [yearLabel, `${yStart}-04-01`, `${yEnd}-03-31`]);
 
         console.log('🎉 ALL TABLES & COLUMNS (CORE, ACADEMIC, MODULES, YEARS) VERIFIED!');
         await client.query('COMMIT');
