@@ -224,7 +224,6 @@ exports.getStudentHostelDetails = async (req, res) => {
     const { admissionNo } = req.params;
     console.log(`Verifying student with Admission No: '${admissionNo}'`);
     try {
-        // Fetch basic student details + current hostel allocation if any
         const studentRes = await pool.query(`
             SELECT s.id, s.name, s.admission_no, 
                    s.parent_name, s.contact_number,
@@ -237,10 +236,7 @@ exports.getStudentHostelDetails = async (req, res) => {
             LEFT JOIN hostel_allocations a ON s.id = a.student_id AND a.status = 'Active'
             LEFT JOIN hostel_rooms r ON a.room_id = r.id
             LEFT JOIN hostels h ON r.hostel_id = h.id
-
-            WHERE (s.admission_no ILIKE '%' || $1 || '%' 
-               OR s.name ILIKE '%' || $1 || '%' 
-               OR CAST(s.id AS TEXT) = $1)
+            WHERE (s.admission_no ILIKE '%' || $1 || '%' OR CAST(s.id AS TEXT) = $1)
                AND s.school_id = $2
             LIMIT 1
         `, [admissionNo, req.user.schoolId]);
@@ -255,7 +251,6 @@ exports.getStudentHostelDetails = async (req, res) => {
             return res.json({ ...studentData, is_allocated: false });
         }
 
-        // Fetch Financials
         const paymentsRes = await pool.query(
             "SELECT * FROM hostel_payments WHERE student_id = $1 ORDER BY payment_date DESC",
             [studentData.id]
@@ -272,7 +267,6 @@ exports.getStudentHostelDetails = async (req, res) => {
             payments: paymentsRes.rows,
             bills: billsRes.rows
         });
-
     } catch (error) {
         console.error('Error fetching student hostel details:', error);
         res.status(500).json({ error: 'Server error' });
