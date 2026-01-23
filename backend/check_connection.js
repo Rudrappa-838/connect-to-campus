@@ -3,11 +3,27 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 console.log('--- Database Connection Check ---');
-console.log('Target URL:', process.env.DATABASE_URL ? 'Found (Starts with ' + process.env.DATABASE_URL.substring(0, 20) + '...)' : 'MISSING');
+
+let connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+    if (process.env.DB_USER && process.env.DB_HOST && process.env.DB_NAME) {
+        console.log('ℹ️  DATABASE_URL not found, constructing from DB_* variables...');
+        connectionString = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME}`;
+        if (process.env.DB_SSL_MODE === 'require') {
+            connectionString += '?sslmode=require';
+        }
+    } else {
+        console.error('❌ Missing Database Configuration!');
+        console.error('   Please set DATABASE_URL or (DB_USER, DB_PASSWORD, DB_HOST, DB_NAME)');
+        process.exit(1);
+    }
+}
+
+console.log('Target URL:', connectionString.replace(/:[^:/@]+@/, ':****@')); // Hide password
 
 const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    connectionString: connectionString,
+    ssl: process.env.DB_SSL_MODE === 'disable' ? false : { rejectUnauthorized: false }
 });
 
 async function check() {
@@ -26,6 +42,13 @@ async function check() {
         await client.end();
     } catch (err) {
         console.error('❌ Connection Failed:', err.message);
+        if (err.message.includes('password')) {
+            console.error('   -> Check DB_PASSWORD in .env');
+        } else if (err.message.includes('does not exist')) {
+            console.error('   -> Check DB_NAME in .env');
+        } else {
+            console.error('   -> Check DB_HOST and Security Group settings');
+        }
     }
 }
 
