@@ -23,6 +23,26 @@ async function fixFinalV7() {
         await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS fees_paid DECIMAL(10,2) DEFAULT 0`);
         await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS fees_pending DECIMAL(10,2) DEFAULT 0`);
 
+        // 1.1 Fix Teachers Table
+        console.log('👉 Fixing Teachers...');
+        await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS employee_id VARCHAR(50)`);
+        await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS salary_per_day DECIMAL(10, 2) DEFAULT 0`);
+        await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS transport_route_id INTEGER`);
+        await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`);
+        await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subject_specialization VARCHAR(100)`);
+        await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS gender VARCHAR(20)`);
+        await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS join_date DATE`);
+
+        // 1.2 Fix Staff Table
+        console.log('👉 Fixing Staff...');
+        await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS employee_id VARCHAR(50)`);
+        await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS salary_per_day DECIMAL(10, 2) DEFAULT 0`);
+        await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS transport_route_id INTEGER`);
+        await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`);
+        await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS role VARCHAR(50)`);
+        await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS gender VARCHAR(20)`);
+        await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS join_date DATE`);
+
         // 2. Fix Announcements (Double Check for school_id)
         console.log('👉 Fixing Announcements...');
         await client.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS school_id INTEGER`);
