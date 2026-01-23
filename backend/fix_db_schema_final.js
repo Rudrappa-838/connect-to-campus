@@ -5,7 +5,7 @@ const { pool } = require('./src/config/db');
 async function fixFinalSchema() {
     const client = await pool.connect();
     try {
-        console.log('🏗️ Starting FINAL DB SCHEMA REPAIR...');
+        console.log('🏗️ Starting FINAL DB SCHEMA REPAIR (v2 - with Academic Years)...');
         await client.query('BEGIN');
 
         // ==========================================
@@ -70,7 +70,30 @@ async function fixFinalSchema() {
 
 
         // ==========================================
-        // 3. MODULES (The Missing Pieces)
+        // 3. ACADEMIC YEARS (CRITICAL FIX)
+        // ==========================================
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS academic_years (
+                id SERIAL PRIMARY KEY,
+                school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+                year_label VARCHAR(20) NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                status VARCHAR(20) DEFAULT 'upcoming',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT unique_school_year UNIQUE(school_id, year_label)
+            );
+        `);
+
+        // Add academic_year_id to related tables
+        const ayTables = ['attendance', 'marks', 'fee_payments', 'salary_payments', 'expenditures', 'exam_schedules'];
+        for (const t of ayTables) {
+            // Create table first if referenced (attendance, marks etc created below usually, but we need ensure cols exist if table exists)
+            // We will handle this by creating tables below first, then altering.
+        }
+
+        // ==========================================
+        // 4. MODULES
         // ==========================================
 
         // Calendar
@@ -129,7 +152,29 @@ async function fixFinalSchema() {
         await client.query(`CREATE TABLE IF NOT EXISTS teacher_attendance (id SERIAL PRIMARY KEY, school_id INTEGER REFERENCES schools(id), teacher_id INTEGER REFERENCES teachers(id), date DATE, status VARCHAR(20), UNIQUE(teacher_id, date));`);
         await client.query(`CREATE TABLE IF NOT EXISTS staff_attendance (id SERIAL PRIMARY KEY, school_id INTEGER REFERENCES schools(id), staff_id INTEGER REFERENCES staff(id), date DATE, status VARCHAR(20), UNIQUE(staff_id, date));`);
 
-        console.log('🎉 ALL TABLES & COLUMNS (CORE, ACADEMIC, MODULES) VERIFIED!');
+        // ==========================================
+        // 5. LINK ACADEMIC YEARS
+        // ==========================================
+        for (const t of ['attendance', 'marks', 'fee_payments', 'salary_payments', 'expenditures', 'exam_schedules']) {
+            await client.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS academic_year_id INTEGER REFERENCES academic_years(id) ON DELETE SET NULL;`);
+        }
+
+        // ==========================================
+        // 6. SEED DEFAULT ACADEMIC YEAR (2025-2026)
+        // ==========================================
+        const now = new Date();
+        const yStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1; // April start
+        const yEnd = yStart + 1;
+        const yearLabel = \`\${yStart}-\${yEnd}\`;
+        
+        await client.query(`
+            INSERT INTO academic_years(school_id, year_label, start_date, end_date, status)
+            SELECT id, $1, $2, $3, 'active' 
+            FROM schools
+            ON CONFLICT(school_id, year_label) DO NOTHING
+            `, [yearLabel, \`\${yStart}-04-01\`, \`\${yEnd}-03-31\`]);
+
+        console.log('🎉 ALL TABLES & COLUMNS (CORE, ACADEMIC, MODULES, YEARS) VERIFIED!');
         await client.query('COMMIT');
 
     } catch (e) {
