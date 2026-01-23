@@ -98,6 +98,23 @@ app.use(['/api/salary', '/salary'], require('./routes/salaryRoutes'));
 app.use(['/api/holidays', '/holidays'], require('./routes/holidayRoutes'));
 app.use(['/api/timetable', '/timetable'], require('./routes/timetableRoutes'));
 app.use(['/api/marks', '/marks'], require('./routes/marksRoutes'));
+
+// ==========================================
+// 🚀 MOUNTING MISSING ROUTES (FIXED)
+// ==========================================
+app.use(['/api/hostel', '/hostel'], require('./routes/hostelRoutes'));
+app.use(['/api/transport', '/transport'], require('./routes/transportRoutes'));
+app.use(['/api/admissions', '/admissions'], require('./routes/admissionsRoutes'));
+app.use(['/api/finance', '/finance'], require('./routes/financeRoutes'));
+app.use(['/api/calendar', '/calendar'], require('./routes/calendarRoutes')); // Events & Announcements
+app.use(['/api/biometric', '/biometric'], require('./routes/biometricRoutes'));
+app.use(['/api/ai', '/ai'], require('./routes/aiRoutes'));
+app.use(['/api/notifications', '/notifications'], require('./routes/notificationRoutes'));
+app.use(['/api/certificates', '/certificates'], require('./routes/certificateRoutes'));
+app.use(['/api/exams', '/exams'], require('./routes/examScheduleRoutes'));
+app.use(['/api/years', '/years'], require('./routes/academicYearRoutes'));
+app.use(['/api/doubts', '/doubts'], require('./routes/doubtRoutes'));
+
 app.use(['/api/exam-schedule', '/exam-schedule'], require('./routes/examScheduleRoutes'));
 app.use(['/api/hostel', '/hostel'], require('./routes/hostelRoutes'));
 app.use(['/api/finance', '/finance'], require('./routes/financeRoutes'));
