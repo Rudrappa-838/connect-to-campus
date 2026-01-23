@@ -58,6 +58,24 @@ const startServer = async () => {
             await client.query(`
                 ALTER TABLE schools ADD COLUMN IF NOT EXISTS logo TEXT;
             `);
+
+            // Fix: Add missing columns to users table (Session & Security)
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users') THEN
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'current_session_token') THEN
+                            ALTER TABLE users ADD COLUMN current_session_token TEXT;
+                        END IF;
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'must_change_password') THEN
+                            ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE;
+                        END IF;
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'fcm_token') THEN
+                            ALTER TABLE users ADD COLUMN fcm_token TEXT;
+                        END IF;
+                    END IF;
+                END $$;
+            `);
             console.log('✅ Database schema verified.');
         } catch (migError) {
             console.warn('⚠️ Some migrations could not be applied automatically:', migError.message);
