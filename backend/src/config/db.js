@@ -18,10 +18,11 @@ console.log(`🌿 Environment: ${process.env.NODE_ENV || 'development'} | 🌐 D
 const pool = new Pool({
     connectionString: connectionString || `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`,
     // Force allow self-signed certs (AWS RDS uses them by default)
+    // Force allow self-signed certs (AWS RDS uses them by default)
     ssl: { rejectUnauthorized: false },
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    max: 10, // Reduced max connections to avoid overloading (Free Tier limits)
+    idleTimeoutMillis: 10000, // Close idle clients faster (10s) to avoid "terminated unexpectedly"
+    connectionTimeoutMillis: 60000, // Wait longer (60s) for a new connection
     keepAlive: true,
 });
 
