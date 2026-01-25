@@ -573,8 +573,8 @@ const MarksManagement = ({ config }) => {
     };
 
     // Filter subjects to show only those in the Exam Schedule
-    const scheduledSubjectIds = new Set(examSchedule?.map(s => s.subject_id) || []);
-    const displaySubjects = subjects.filter(sub => scheduledSubjectIds.has(sub.id));
+    const scheduledSubjectIds = new Set(examSchedule?.map(s => parseInt(s.subject_id)) || []);
+    const displaySubjects = subjects.filter(sub => scheduledSubjectIds.has(parseInt(sub.id)));
 
     return (
         <div className="space-y-6 animate-in fade-in">
