@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "start:prod": "set NODE_ENV=production&& node src/server.js",
+    "prod-start": "NODE_ENV=production pm2 start src/server.js --name school-backend",
+    "prod-stop": "pm2 stop school-backend && pm2 delete school-backend",
     "dev": "nodemon src/server.js",
     "dev:test": "set NODE_ENV=test&& nodemon src/server.js",
     "dev:prod": "set NODE_ENV=production&& nodemon src/server.js",

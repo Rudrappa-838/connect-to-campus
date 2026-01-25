@@ -20,9 +20,9 @@ const pool = new Pool({
     // Force allow self-signed certs (AWS RDS uses them by default)
     // Force allow self-signed certs (AWS RDS uses them by default)
     ssl: { rejectUnauthorized: false },
-    max: 10, // Reduced max connections to avoid overloading (Free Tier limits)
-    idleTimeoutMillis: 10000, // Close idle clients faster (10s) to avoid "terminated unexpectedly"
-    connectionTimeoutMillis: 60000, // Wait longer (60s) for a new connection
+    max: 5, // Reduced to 5 for Free Tier stability
+    idleTimeoutMillis: 30000, // 30s idle timeout
+    connectionTimeoutMillis: 10000, // 10s to establish connection
     keepAlive: true,
 });
 
