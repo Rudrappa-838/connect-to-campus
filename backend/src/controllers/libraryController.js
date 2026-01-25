@@ -225,8 +225,8 @@ exports.issueBook = async (req, res) => {
 
         await client.query(
             `INSERT INTO library_transactions 
-             (school_id, book_id, patron_type, patron_id, patron_name, due_date)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
+             (school_id, book_id, patron_type, patron_id, patron_name, due_date, issue_date, status)
+             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, 'Issued')`,
             [schoolId, book.id, patron_type, patron_id, patronName, dueDate]
         );
 
