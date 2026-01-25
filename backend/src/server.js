@@ -61,8 +61,6 @@ const startServer = async () => {
 
             // Fix: Add missing columns to users table (Session & Security)
             await client.query(`
-                DO $$ 
-                BEGIN 
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users') THEN
                         IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'current_session_token') THEN
                             ALTER TABLE users ADD COLUMN current_session_token TEXT;
@@ -73,6 +71,19 @@ const startServer = async () => {
                         IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'fcm_token') THEN
                             ALTER TABLE users ADD COLUMN fcm_token TEXT;
                         END IF;
+                    END IF;
+                END $$;
+            `);
+
+            // Fix: Ensure grades table allows decimals (critical for '89.99' error)
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'grades') THEN
+                        -- We use explicit casting to allow integer -> numeric conversion if needed
+                        ALTER TABLE grades ALTER COLUMN min_percentage TYPE NUMERIC(5,2);
+                        ALTER TABLE grades ALTER COLUMN max_percentage TYPE NUMERIC(5,2);
+                        ALTER TABLE grades ALTER COLUMN grade_point TYPE NUMERIC(3,1);
                     END IF;
                 END $$;
             `);

@@ -29,13 +29,13 @@ exports.getExamSchedule = async (req, res) => {
             paramIndex++;
         }
 
-        if (class_id) {
+        if (class_id && !isNaN(parseInt(class_id))) {
             query += ` AND es.class_id = $${paramIndex}`;
             params.push(parseInt(class_id)); // Ensure integer
             paramIndex++;
         }
 
-        if (section_id) {
+        if (section_id && !isNaN(parseInt(section_id))) {
             // Intelligent Section Filtering: Match specific section OR global class exams (NULL section)
             query += ` AND (es.section_id = $${paramIndex} OR es.section_id IS NULL)`;
             params.push(parseInt(section_id)); // Ensure integer
@@ -79,18 +79,23 @@ exports.saveExamSchedule = async (req, res) => {
                 const sectionId = sid === 'NULL' ? null : sid;
 
                 // 1. Fetch ALL existing schedules for this block (including soft deleted)
+                // 1. Fetch ALL existing schedules for this block (including soft deleted)
                 let fetchQuery = `
                     SELECT id, subject_id 
                     FROM exam_schedules 
-                    WHERE school_id = $1 AND class_id = $2 AND exam_type_id = $4
+                    WHERE school_id = $1 AND class_id = $2
                 `;
-                const fetchParams = [school_id, cid, sectionId, eid];
+                const fetchParams = [school_id, cid];
 
                 if (sectionId) {
-                    fetchQuery += ` AND section_id = $3`;
+                    fetchParams.push(sectionId);
+                    fetchQuery += ` AND section_id = $${fetchParams.length}`;
                 } else {
                     fetchQuery += ` AND section_id IS NULL`;
                 }
+
+                fetchParams.push(eid);
+                fetchQuery += ` AND exam_type_id = $${fetchParams.length}`;
 
                 const existing = await client.query(fetchQuery, fetchParams);
                 const existingMap = new Map(); // subject_id -> schedule_id
