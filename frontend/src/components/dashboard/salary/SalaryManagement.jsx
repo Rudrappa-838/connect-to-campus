@@ -518,32 +518,7 @@ const SalaryManagement = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 mb-6">
-                                    <div className="grid grid-cols-2 gap-4 text-center mb-3">
-                                        <div>
-                                            <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Working Days</p>
-                                            <p className="font-bold text-slate-800">{selectedSlip.total_marked_days || 0} Days</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Present</p>
-                                            <p className="font-bold text-emerald-600">{selectedSlip.days_present || 0} Days</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4 text-center">
-                                        <div>
-                                            <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Absent</p>
-                                            <p className="font-bold text-rose-600">{selectedSlip.days_absent || 0} Days</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Leave</p>
-                                            <p className="font-bold text-blue-600">{selectedSlip.days_leave || 0} Days</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Holidays</p>
-                                            <p className="font-bold text-purple-600">{selectedSlip.days_holiday || 0} Days</p>
-                                        </div>
-                                    </div>
-                                </div>
+                                { /* Attendance Stats Removed as per User Request */}
 
                                 <div className="space-y-3 border-t border-slate-100 pt-4">
                                     <div className="flex justify-between items-center text-sm">

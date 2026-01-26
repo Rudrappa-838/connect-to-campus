@@ -193,18 +193,7 @@ const StaffSalarySlips = () => {
                                         </div>
                                     </div>
 
-                                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 mb-6">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Working Days</p>
-                                                <p className="font-bold text-slate-800">{selectedSlip.stats?.working || 0} Days</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Absent</p>
-                                                <p className="font-bold text-rose-600">{selectedSlip.stats?.absent || 0} Days</p>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    { /* Attendance Stats Removed */}
 
                                     <div className="space-y-3 border-t border-slate-100 pt-4">
                                         <div className="flex justify-between items-center text-sm">
