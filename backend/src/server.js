@@ -61,6 +61,8 @@ const startServer = async () => {
 
             // Fix: Add missing columns to users table (Session & Security)
             await client.query(`
+                DO $$ 
+                BEGIN 
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users') THEN
                         IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'current_session_token') THEN
                             ALTER TABLE users ADD COLUMN current_session_token TEXT;
