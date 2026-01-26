@@ -182,9 +182,18 @@ const TimetableManagement = ({ config }) => {
         try {
             // Save all pending changes
             for (const change of pendingChanges) {
+                console.log('🚀 Sending Update Payload:', {
+                    id: change.id,
+                    subject_id: change.subject_id,
+                    teacher_id: change.teacher_id,
+                    start_time: change.start_time,
+                    end_time: change.end_time
+                }); // DEBUG LOG
                 await api.put(`/timetable/${change.id}`, {
                     subject_id: change.subject_id,
-                    teacher_id: change.teacher_id
+                    teacher_id: change.teacher_id,
+                    start_time: change.start_time,
+                    end_time: change.end_time
                 });
             }
 
@@ -193,6 +202,7 @@ const TimetableManagement = ({ config }) => {
             setHasUnsavedChanges(false);
             fetchTimetable(); // Refresh to get latest data
         } catch (error) {
+            console.error('🔥 SAVE ERROR (DETAILS):', error.response?.data); // DEBUG LOG
             toast.error(error.response?.data?.message || 'Failed to save changes');
             console.error(error);
         } finally {

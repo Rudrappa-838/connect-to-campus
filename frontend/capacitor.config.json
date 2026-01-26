@@ -1,6 +1,6 @@
 {
   "appId": "com.school.app",
-  "appName": "SchoolApp",
+  "appName": "Connect to Campus",
   "webDir": "dist",
   "plugins": {
     "PushNotifications": {

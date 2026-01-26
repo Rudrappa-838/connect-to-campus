@@ -3,16 +3,22 @@ import toast from 'react-hot-toast';
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 
-const PROD_URL = import.meta.env.VITE_API_URL;
+// Production API URL
+const PROD_URL = "http://52.66.13.31/api";
 
 // Dynamic URL for local development (Laptop)
 const DEV_URL = `http://${window.location.hostname}:5000/api`;
 
-// Use Localhost in Development MODE, else use the resolved PROD_URL
-const baseURL = import.meta.env.MODE === 'development' ? DEV_URL : PROD_URL;
+// Use VITE_API_URL if defined, BUT if it points to Firebase, ignore it and use AWS PROD_URL
+let baseURL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'development' ? DEV_URL : PROD_URL);
+
+if (baseURL && baseURL.includes('cloudfunctions.net')) {
+    console.warn('⚠️ Legacy Firebase URL detected, switching to AWS Prod URL');
+    baseURL = PROD_URL;
+}
 
 // Debug: Log the API URL being used
-console.log('🔗 API Base URL (v2):', baseURL, '| Mode:', import.meta.env.MODE);
+console.log('🔗 API Base URL (v3):', baseURL, '| Mode:', import.meta.env.MODE);
 
 const api = axios.create({
     baseURL: baseURL,
@@ -86,6 +92,11 @@ api.interceptors.response.use(
 
             const msg = error.response.data?.message;
 
+            // Debug for native
+            if (Capacitor.isNativePlatform()) {
+                toast.error(`Debug: API Error ${error.response.status}. Msg: ${msg}`);
+            }
+
             // Specific check for Service Disabled (403) or Session Invalid (401)
             if (msg === 'School Service Disabled. Contact Super Admin.' || error.response.status === 401) {
                 // Clear storage (use Capacitor Preferences on mobile, localStorage on web)
@@ -96,6 +107,7 @@ api.interceptors.response.use(
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                 }
+
                 // Force reload to login if not already there
                 // Don't redirect if on super-admin-login page
                 if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/super-admin-login')) {

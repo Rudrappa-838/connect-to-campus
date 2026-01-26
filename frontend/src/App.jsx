@@ -38,14 +38,23 @@ const ProtectedRoute = ({ children, role }) => {
 
   if (loading) return <SplashScreen />;
 
-  if (!user) return <Navigate to="/login" />;
+  if (!user) {
+    if (Capacitor.isNativePlatform()) toast.error("Debug: ProtectedRoute - No User");
+    return <Navigate to="/login" />;
+  }
 
   // Create checks
   if (role) {
     if (Array.isArray(role)) {
-      if (!role.includes(user.role)) return <Navigate to="/login" />;
+      if (!role.includes(user.role)) {
+        if (Capacitor.isNativePlatform()) toast.error(`Debug: Role Mismatch (Array). User:${user.role} Req:${role.join(',')}`);
+        return <Navigate to="/login" />;
+      }
     } else {
-      if (user.role !== role) return <Navigate to="/login" />;
+      if (user.role !== role) {
+        if (Capacitor.isNativePlatform()) toast.error(`Debug: Role Mismatch. User:${user.role} Req:${role}`);
+        return <Navigate to="/login" />;
+      }
     }
   }
 

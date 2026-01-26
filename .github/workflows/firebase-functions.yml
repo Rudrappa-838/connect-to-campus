@@ -30,6 +30,9 @@ jobs:
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > backend/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> backend/.env
           echo "NODE_ENV=production" >> backend/.env
+          echo "DB_SSL_MODE=disable" >> backend/.env
+          # CRITICAL: Remove .env from .gitignore so Firebase CLI uploads it!
+          sed -i '/.env/d' .gitignore
 
       - name: Deploy to Firebase Functions
         uses: w9jds/firebase-action@master
@@ -38,9 +41,9 @@ jobs:
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SCHOOL_SOFTWARE }}
           PROJECT_ID: connect-to-campus-b56ac
-          # Pass secrets directly to the deploy command if needed or rely on .env file creation
-          # For consistency with other platforms, we can set them here:
+          # Ensure env vars are passed to the function environment
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          # Alternatively, use Firebase CLI to set them (this would require a custom step)
+          NODE_ENV: production
+          DB_SSL_MODE: disable
 

@@ -203,7 +203,11 @@ const login = async (req, res) => {
 
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ message: 'Server error during login' });
+        // DEBUG: Return 400 instead of 500 to bypass the "Strict 500 Mask" in the old APK code.
+        res.status(400).json({
+            message: 'Server Error (Revealed): ' + error.message,
+            stack: process.env.NODE_ENV === 'production' ? error.stack : undefined
+        });
     }
 };
 

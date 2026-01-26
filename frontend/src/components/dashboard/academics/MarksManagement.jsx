@@ -384,7 +384,11 @@ const MarksManagement = ({ config }) => {
             let totalObtained = 0;
             let totalMax = 0;
 
-            subjects.forEach(sub => {
+            // Filter subjects for marksheet as well
+            const scheduledSubjectIds = new Set(examSchedule?.map(s => s.subject_id) || []);
+            const subjectsToDisplay = subjects.filter(sub => scheduledSubjectIds.has(sub.id));
+
+            subjectsToDisplay.forEach(sub => {
                 let subObtained = 0;
                 let subMax = 0;
                 let subMin = 0;
@@ -393,11 +397,15 @@ const MarksManagement = ({ config }) => {
                 const key = `${student.id}-${sub.id}`;
                 const markEntry = marks[key];
                 const scheduleItem = examSchedule.find(s => s.subject_id === sub.id);
-                const componentsConfig = scheduleItem?.components || [];
+                let componentsConfig = scheduleItem?.components || [];
+                // Handle if components is a JSON string
+                if (typeof componentsConfig === 'string') {
+                    try { componentsConfig = JSON.parse(componentsConfig); } catch (e) { componentsConfig = []; }
+                }
                 const hasComponentsForSubject = componentsConfig.length > 0;
 
                 // Get min marks from schedule
-                subMin = scheduleItem?.min_marks || selectedExamType?.min_marks || 35;
+                subMin = parseFloat(scheduleItem?.min_marks || selectedExamType?.min_marks || 35);
 
                 if (hasComponentsForSubject) {
                     // Calculate max marks by summing components
@@ -416,7 +424,7 @@ const MarksManagement = ({ config }) => {
                     }
                 } else {
                     subObtained = parseFloat(markEntry) || 0;
-                    subMax = scheduleItem?.max_marks || selectedExamType?.max_marks || 100;
+                    subMax = parseFloat(scheduleItem?.max_marks || selectedExamType?.max_marks || 100);
                 }
 
                 totalObtained += subObtained;
@@ -564,8 +572,14 @@ const MarksManagement = ({ config }) => {
         window.print();
     };
 
+    // Filter subjects to show only those in the Exam Schedule
+    const scheduledSubjectIds = new Set(examSchedule?.map(s => parseInt(s.subject_id)) || []);
+    const displaySubjects = subjects.filter(sub => scheduledSubjectIds.has(parseInt(sub.id)));
+
     return (
         <div className="space-y-6 animate-in fade-in">
+
+
             {/* Header - Same as before */}
             <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl shadow-lg p-6 text-white print:hidden">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -652,7 +666,7 @@ const MarksManagement = ({ config }) => {
             </div>
 
             {/* Marks Entry Grid - ENHANCED FOR COMPONENTS */}
-            {students.length > 0 && subjects.length > 0 && selectedExam ? (
+            {students.length > 0 && displaySubjects.length > 0 && selectedExam ? (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm border-collapse">
@@ -660,11 +674,15 @@ const MarksManagement = ({ config }) => {
                                 <tr>
                                     <th className="border border-amber-200 p-3 font-bold text-amber-900 sticky left-0 bg-amber-50">Roll</th>
                                     <th className="border border-amber-200 p-3 font-bold text-amber-900">Student</th>
-                                    {subjects.map(subject => {
+                                    {displaySubjects.map(subject => {
                                         // Check for Schedule Components
                                         const scheduleItem = examSchedule.find(s => s.subject_id === subject.id);
-                                        const components = scheduleItem?.components || [];
-                                        const hasComponents = components.length > 0;
+                                        let components = scheduleItem?.components || [];
+                                        // Handle if components is a JSON string
+                                        if (typeof components === 'string') {
+                                            try { components = JSON.parse(components); } catch (e) { components = []; }
+                                        }
+                                        const hasComponents = Array.isArray(components) && components.length > 0;
 
                                         // If components exist, render a column for each component? No, render sub-columns or inputs in same cell.
                                         // Table Header is dynamic? No, we are mapping rows.
@@ -695,11 +713,15 @@ const MarksManagement = ({ config }) => {
                                     <tr key={student.id} className="hover:bg-slate-50">
                                         <td className="border border-slate-200 p-3 text-center font-mono sticky left-0 bg-white">{student.roll_number}</td>
                                         <td className="border border-slate-200 p-3 font-medium">{student.name}</td>
-                                        {subjects.map(subject => {
+                                        {displaySubjects.map(subject => {
                                             const key = `${student.id}-${subject.id}`;
                                             const scheduleItem = examSchedule.find(s => s.subject_id === subject.id);
-                                            const components = scheduleItem?.components || [];
-                                            const hasComponents = components.length > 0;
+                                            let components = scheduleItem?.components || [];
+                                            // Handle if components is a JSON string
+                                            if (typeof components === 'string') {
+                                                try { components = JSON.parse(components); } catch (e) { components = []; }
+                                            }
+                                            const hasComponents = Array.isArray(components) && components.length > 0;
 
                                             const markValue = marks[key];
                                             // Handle display value

@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-require('dotenv').config();
+require('dotenv').config(); // Loaded for DB Config
 
 const getConnectionString = () => {
     // For develop branch, prioritize production URL if in production mode
@@ -17,11 +17,11 @@ console.log(`🌿 Environment: ${process.env.NODE_ENV || 'development'} | 🌐 D
 
 const pool = new Pool({
     connectionString: connectionString || `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`,
-    ssl: { rejectUnauthorized: false }, // Force allow self-signed for ALL environments
-
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    // Force allow self-signed certs (AWS RDS uses them by default)
+    ssl: { rejectUnauthorized: false },
+    max: 5, // Reduced to 5 for Free Tier stability
+    idleTimeoutMillis: 30000, // 30s idle timeout
+    connectionTimeoutMillis: 10000, // 10s to establish connection
     keepAlive: true,
 });
 

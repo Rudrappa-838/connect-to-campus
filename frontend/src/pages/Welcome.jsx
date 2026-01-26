@@ -164,8 +164,7 @@ const Welcome = ({ onComplete }) => {
                     </div>
                 </div>
             </div>
-            {/* Version Check */}
-            <div className="absolute bottom-1 right-1 z-30 opacity-50 text-[10px] text-slate-500">v1.1 (Patch 2026-01-06)</div>
+            {/* Version Check - Removed for Final Release */}
         </div>
     );
 };

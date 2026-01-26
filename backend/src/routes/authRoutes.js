@@ -11,6 +11,10 @@ router.post('/verify-otp', verifyOTP);
 router.post('/reset-password', resetPassword);
 router.post('/change-password', authenticateToken, changePassword);
 router.post('/register-fcm', authenticateToken, registerFcmToken);
+router.post('/register-fcm', authenticateToken, registerFcmToken);
 router.post('/setup-admin', require('../controllers/authController').setupSuperAdmin);
+
+// Canary Route to check if Auth Routes are reachable
+router.get('/canary', (req, res) => res.json({ status: 'Canary Alive', time: new Date() }));
 
 module.exports = router;

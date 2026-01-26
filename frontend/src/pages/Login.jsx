@@ -11,7 +11,8 @@ const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [role, setRole] = useState('SCHOOL_ADMIN');
+    const isMobileApp = Capacitor.isNativePlatform() || new URLSearchParams(window.location.search).get('is_mobile_app') === 'true';
+    const [role, setRole] = useState(isMobileApp ? 'TEACHER' : 'SCHOOL_ADMIN');
     const [errorMessage, setErrorMessage] = useState('');
     const [showQR, setShowQR] = useState(false);
     const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -20,7 +21,7 @@ const Login = () => {
     const location = useLocation();
 
     // Detect if running in mobile app (Capacitor or WebView with param)
-    const isMobileApp = Capacitor.isNativePlatform() || new URLSearchParams(window.location.search).get('is_mobile_app') === 'true';
+
 
     const roles = [
         { id: 'SCHOOL_ADMIN', label: 'School Admin', icon: School },
@@ -233,10 +234,7 @@ const Login = () => {
                             </div>
                         )}
 
-                        <div className="text-center mt-2">
-                            <p className="text-white/30 text-[10px] font-cursive tracking-widest">Connect to Campus</p>
-                            <p className="text-white/10 text-[8px] mt-1 font-mono">v1.2 (Latest)</p>
-                        </div>
+                        <p className="text-white/30 text-[10px] font-cursive tracking-widest">Connect to Campus</p>
                     </form>
 
                     {/* Mobile App Download Section */}

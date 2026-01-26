@@ -146,7 +146,7 @@ exports.deleteExamType = async (req, res) => {
 exports.getMarks = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
-        const { class_id, section_id, exam_type_id, year, month } = req.query;
+        const { class_id, section_id, exam_type_id, year, month, subject_id } = req.query;
 
         if (!class_id || !exam_type_id) {
             return res.status(400).json({ message: 'Class and Exam Type are required' });
@@ -169,19 +169,21 @@ exports.getMarks = async (req, res) => {
 
         const params = [school_id, class_id, exam_type_id];
 
-        // Handle section_id properly - if provided, filter by it; if not, get all or NULL sections
-        if (section_id) {
+        // Handle section_id properly
+        if (section_id && section_id !== 'null' && section_id !== 'undefined') {
             params.push(section_id);
             query += ` AND m.section_id = $${params.length}`;
-        } else {
-            // If no section_id provided, include marks with NULL section_id
-            // This handles classes without sections
-            query += ` AND (m.section_id IS NULL OR m.section_id = 0)`;
         }
+        // If no section_id provided, we fetch marks for ALL sections in this class (Standard behavior)
 
         if (year) {
             params.push(year);
             query += ` AND m.year = $${params.length}`;
+        }
+
+        if (subject_id) {
+            params.push(subject_id);
+            query += ` AND m.subject_id = $${params.length}`;
         }
 
         query += ` ORDER BY st.roll_number, sub.name`;

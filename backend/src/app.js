@@ -38,10 +38,11 @@ app.use(helmet({
 // Configure CORS with environment-based whitelist
 const allowedOrigins = process.env.NODE_ENV === 'production'
     ? [
-        'https://connecttocampus-c98e4.web.app', // Firebase (Testing)
-        'http://school-app-frontend-prod.s3-website-us-east-1.amazonaws.com', // AWS S3 (Production)
+        'https://connect-to-campus-b56ac.web.app', // Firebase (Testing)
+        process.env.FRONTEND_URL, // AWS S3/CloudFront (Production)
         'capacitor://localhost', // Mobile App (iOS)
-        'http://localhost', // Mobile App (Android)
+        'http://localhost', // Mobile App (Android - Debug)
+        'https://localhost', // Mobile App (Android - Release/Debug)
     ].filter(Boolean) // Remove undefined values
     : ['http://localhost:5173', 'http://localhost:5174', 'capacitor://localhost', 'http://localhost'];
 
@@ -97,6 +98,23 @@ app.use(['/api/salary', '/salary'], require('./routes/salaryRoutes'));
 app.use(['/api/holidays', '/holidays'], require('./routes/holidayRoutes'));
 app.use(['/api/timetable', '/timetable'], require('./routes/timetableRoutes'));
 app.use(['/api/marks', '/marks'], require('./routes/marksRoutes'));
+
+// ==========================================
+// 🚀 MOUNTING MISSING ROUTES (FIXED)
+// ==========================================
+app.use(['/api/hostel', '/hostel'], require('./routes/hostelRoutes'));
+app.use(['/api/transport', '/transport'], require('./routes/transportRoutes'));
+app.use(['/api/admissions', '/admissions'], require('./routes/admissionsRoutes'));
+app.use(['/api/finance', '/finance'], require('./routes/financeRoutes'));
+app.use(['/api/calendar', '/calendar'], require('./routes/calendarRoutes')); // Events & Announcements
+app.use(['/api/biometric', '/biometric'], require('./routes/biometricRoutes'));
+app.use(['/api/ai', '/ai'], require('./routes/aiRoutes'));
+app.use(['/api/notifications', '/notifications'], require('./routes/notificationRoutes'));
+app.use(['/api/certificates', '/certificates'], require('./routes/certificateRoutes'));
+app.use(['/api/exams', '/exams'], require('./routes/examScheduleRoutes'));
+app.use(['/api/years', '/years'], require('./routes/academicYearRoutes'));
+app.use(['/api/doubts', '/doubts'], require('./routes/doubtRoutes'));
+
 app.use(['/api/exam-schedule', '/exam-schedule'], require('./routes/examScheduleRoutes'));
 app.use(['/api/hostel', '/hostel'], require('./routes/hostelRoutes'));
 app.use(['/api/finance', '/finance'], require('./routes/financeRoutes'));
@@ -110,7 +128,9 @@ app.use(['/api/doubts', '/doubts'], require('./routes/doubtRoutes'));
 app.use(['/api/notifications', '/notifications'], require('./routes/notificationRoutes'));
 app.use(['/api/ai', '/ai'], require('./routes/aiRoutes'));
 app.use(['/api/grades', '/grades'], require('./routes/gradeRoutes'));
+app.use(['/api/grades', '/grades'], require('./routes/gradeRoutes'));
 app.use(['/api/academic-years', '/academic-years'], require('./routes/academicYearRoutes'));
+app.use(['/api/debug', '/debug'], require('./routes/debugRoutes'));
 
 // --- ADMS / Biometric Device Default Routes ---
 // Many devices (Secureye, ZKTeco) hardcode these paths if "Request URL" isn't configurable.
@@ -124,13 +144,14 @@ app.all('/iclock/options', (req, res) => res.send('OK'));    // Configuration ch
 // The APK points here. We redirect it to wherever the frontend is currently hosted.
 // If we change hosting, we just update this URL. No APK rebuild needed!
 app.get('/app-launch', (req, res) => {
-    res.redirect('https://connecttocampus-c98e4.web.app');
+    // Redirect to the currently active frontend hosting URL
+    res.redirect(`https://connect-to-campus-b56ac.web.app?t=${Date.now()}`);
 });
 
 // Download App Route
 app.get(['/api/download-app', '/download-app'], (req, res) => {
-    const file = path.join(__dirname, '../public/SchoolApp.apk');
-    res.download(file, 'SchoolApp.apk', (err) => {
+    const file = path.join(__dirname, '../public/SchoolApp_NetworkFix.apk');
+    res.download(file, 'SchoolApp_NetworkFix.apk', (err) => {
         if (err) {
             console.error('Error downloading file:', err);
             res.status(404).send('App file not found on server.');
@@ -141,13 +162,11 @@ app.get(['/api/download-app', '/download-app'], (req, res) => {
 // Health Check (Handles both prefixed and non-prefixed roots)
 app.get(['/api', '/'], (req, res) => {
     res.json({
-        message: 'School API is live 🚀',
-        version: '1.3.0',
-        timestamp: new Date().toISOString()
+        status: 'OK',
+        message: 'School Management API is running',
+        timestamp: new Date()
     });
 });
-
-
 
 // Global Error Handler
 app.use((err, req, res, next) => {

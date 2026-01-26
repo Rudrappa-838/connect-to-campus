@@ -7,6 +7,11 @@ const DownloadApp = () => {
 
     const isProduction = import.meta.env.VITE_APP_ENV === 'production';
 
+    // Dynamic Download URL Logic
+    // Use direct access to public folder for both local and production
+    // This bypasses the backend API and serves the file directly from Hosting/Vite
+    const downloadUrl = '/SchoolApp_vFinal.apk';
+
 
     return (
         <div className="relative min-h-screen w-full overflow-hidden">
@@ -69,26 +74,15 @@ const DownloadApp = () => {
 
                         {/* Download Button */}
                         <div className="text-center mb-8 flex flex-col items-center gap-4">
-                            {isProduction ? (
-                                <a
-                                    href="https://play.google.com/store/apps/details?id=com.school.app"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-black font-bold rounded-xl shadow-lg shadow-yellow-400/30 transform transition-all hover:scale-105 text-lg"
-                                >
-                                    <Smartphone size={24} />
-                                    Get it on Play Store
-                                </a>
-                            ) : (
-                                <a
-                                    href="/SchoolApp.apk?v=1.3"
-                                    download="SchoolApp.apk"
-                                    className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-black font-bold rounded-xl shadow-lg shadow-yellow-400/30 transform transition-all hover:scale-105 text-lg"
-                                >
-                                    <Download size={24} />
-                                    Download APK
-                                </a>
-                            )}
+                            {/* Force APK Download for now until Play Store launch */}
+                            <a
+                                href={`${downloadUrl}?v=${new Date().getTime()}`}
+                                download="SchoolApp_NetworkFix.apk"
+                                className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-black font-bold rounded-xl shadow-lg shadow-yellow-400/30 transform transition-all hover:scale-105 text-lg"
+                            >
+                                <Download size={24} />
+                                Download Live APK (Debug v2)
+                            </a>
 
                             <button
                                 onClick={() => navigate('/')}
@@ -130,7 +124,7 @@ const DownloadApp = () => {
                         {/* Note */}
                         <div className="mt-6 text-center">
                             <p className="text-gray-400 text-xs">
-                                {isProduction ? 'Official release for students and staff.' : 'Note: This is a test build for development purposes.'}
+                                {isProduction ? '' : 'Note: This is a test build for development purposes.'}
                             </p>
                         </div>
 

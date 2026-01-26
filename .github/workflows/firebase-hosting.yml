@@ -1,8 +1,7 @@
 name: Deploy to Firebase Hosting on merge
 on:
-  push:
     branches:
-      - develop
+      - disabled-develop # Disabled to prevent conflict with AWS
     paths:
       - 'frontend/**'
       - '.github/workflows/firebase-hosting.yml'

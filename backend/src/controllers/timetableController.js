@@ -203,11 +203,10 @@ exports.updateTimetableSlot = async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Timetable slot not found' });
         }
-
         res.json({ message: 'Slot updated successfully', slot: result.rows[0] });
     } catch (error) {
         console.error('Error updating timetable slot:', error);
-        res.status(500).json({ message: 'Server error updating slot' });
+        res.status(500).json({ message: 'Server error updating slot', error: error.message });
     }
 };
 
