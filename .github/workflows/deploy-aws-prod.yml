@@ -52,7 +52,18 @@ jobs:
       - name: Sync to S3
         run: |
           aws s3 sync dist/ s3://${{ env.S3_BUCKET_NAME }} --delete
-        # optional: --acl public-read if bucket isn't public by policy (but Policy is better)
+        continue-on-error: true # Don't fail if S3 bucket missing (User is using EC2)
+
+      - name: 🚀 Deploy to EC2 (Nginx)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ env.EC2_USER }}
+          key: ${{ secrets.AWS_EC2_KEY }}
+          port: 22
+          source: "dist/*"
+          target: "/var/www/school_app"
+          strip_components: 1
 
   deploy-backend:
     name: 🚀 Deploy Backend to EC2
