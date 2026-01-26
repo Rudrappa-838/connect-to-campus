@@ -379,8 +379,8 @@ exports.recordPayment = async (req, res) => {
         console.log('Generated Receipt No:', receiptNo);
 
         const result = await client.query(
-            `INSERT INTO fee_payments (school_id, student_id, fee_structure_id, amount_paid, payment_method, remarks, receipt_no)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            `INSERT INTO fee_payments (school_id, student_id, fee_structure_id, amount_paid, payment_method, remarks, receipt_no, payment_date)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE) RETURNING *`,
             [school_id, student_id, fee_structure_id, amount, method, remarks, receiptNo]
         );
 
@@ -418,7 +418,9 @@ exports.getPaymentHistory = async (req, res) => {
         const { student_id } = req.params;
 
         const result = await pool.query(`
-            SELECT fp.*, fs.title as fee_title
+            SELECT fp.*, 
+                   COALESCE(fp.payment_date, fp.created_at) as payment_date,
+                   fs.title as fee_title
             FROM fee_payments fp
             JOIN fee_structures fs ON fp.fee_structure_id = fs.id
             WHERE fp.school_id = $1 AND fp.student_id = $2
@@ -443,7 +445,7 @@ exports.updateFeePayment = async (req, res) => {
         // We'll allow editing payment_date if provided.
         const result = await pool.query(
             `UPDATE fee_payments 
-             SET amount_paid = $1, payment_method = $2, remarks = $3, payment_date = COALESCE($4, payment_date)
+             SET amount_paid = $1, payment_method = $2, remarks = $3, payment_date = COALESCE($4, payment_date, CURRENT_DATE)
              WHERE id = $5 AND school_id = $6 RETURNING *`,
             [amount, method, remarks, date, id, school_id]
         );
