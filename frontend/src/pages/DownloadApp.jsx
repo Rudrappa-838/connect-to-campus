@@ -8,9 +8,12 @@ const DownloadApp = () => {
     const isProduction = import.meta.env.VITE_APP_ENV === 'production';
 
     // Dynamic Download URL Logic
-    // Use direct access to public folder for both local and production
-    // This bypasses the backend API and serves the file directly from Hosting/Vite
-    const downloadUrl = '/SchoolApp_vFinal.apk';
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    // Local gets the NetworkFix (Test) APK, Production gets the official SchoolApp.apk
+    const downloadUrl = isLocal ? '/SchoolApp_NetworkFix.apk' : '/SchoolApp.apk';
+    const downloadFilename = isLocal ? 'SchoolApp_NetworkFix.apk' : 'SchoolApp.apk';
+    const buttonText = isLocal ? 'Download Test APK (Debug)' : 'Download Official App';
 
 
     return (
@@ -41,14 +44,14 @@ const DownloadApp = () => {
                                 <Smartphone size={40} className="text-black" />
                             </div>
                             <h1 className="text-4xl md:text-5xl font-cursive text-white mb-3 drop-shadow-lg">
-                                {isProduction ? 'Get the App' : 'Download Test App'}
+                                {!isLocal ? 'Get the App' : 'Download Test App'}
                             </h1>
                             <p className="text-gray-300 text-lg">
                                 Complete School Management System
                             </p>
                             <div className="inline-block mt-4 px-4 py-2 bg-green-500/20 border border-green-500/50 rounded-full">
                                 <p className="text-green-300 text-sm font-bold">
-                                    {isProduction ? 'v1.0 - Official Release' : 'v9.0 - Development Build'}
+                                    {!isLocal ? 'v1.0 - Official Release' : 'v9.0 - Development Build'}
                                 </p>
                             </div>
                         </div>
@@ -77,11 +80,11 @@ const DownloadApp = () => {
                             {/* Force APK Download for now until Play Store launch */}
                             <a
                                 href={`${downloadUrl}?v=${new Date().getTime()}`}
-                                download="SchoolApp_NetworkFix.apk"
+                                download={downloadFilename}
                                 className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-black font-bold rounded-xl shadow-lg shadow-yellow-400/30 transform transition-all hover:scale-105 text-lg"
                             >
                                 <Download size={24} />
-                                Download Live APK (Debug v2)
+                                {buttonText}
                             </a>
 
                             <button
