@@ -405,7 +405,7 @@ const MarksManagement = ({ config }) => {
                 const hasComponentsForSubject = componentsConfig.length > 0;
 
                 // Get min marks from schedule
-                subMin = scheduleItem?.min_marks || selectedExamType?.min_marks || 35;
+                subMin = parseFloat(scheduleItem?.min_marks || selectedExamType?.min_marks || 35);
 
                 if (hasComponentsForSubject) {
                     // Calculate max marks by summing components
@@ -424,7 +424,7 @@ const MarksManagement = ({ config }) => {
                     }
                 } else {
                     subObtained = parseFloat(markEntry) || 0;
-                    subMax = scheduleItem?.max_marks || selectedExamType?.max_marks || 100;
+                    subMax = parseFloat(scheduleItem?.max_marks || selectedExamType?.max_marks || 100);
                 }
 
                 totalObtained += subObtained;
