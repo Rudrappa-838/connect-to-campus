@@ -578,17 +578,7 @@ const MarksManagement = ({ config }) => {
 
     return (
         <div className="space-y-6 animate-in fade-in">
-            {/* DEBUG BANNER - REMOVE LATER */}
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-                <strong className="font-bold">DEBUG INFO:</strong>
-                <span className="block sm:inline">
-                    Class: {selectedClass}, Exam: {selectedExam} <br />
-                    Total Subjects: {subjects.length} <br />
-                    Schedule Count: {examSchedule.length} <br />
-                    Filtered Subjects: {displaySubjects.length} <br />
-                    Schedule IDs: {Array.from(scheduledSubjectIds).join(', ')}
-                </span>
-            </div>
+
 
             {/* Header - Same as before */}
             <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl shadow-lg p-6 text-white print:hidden">
