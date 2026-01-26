@@ -418,16 +418,20 @@ exports.getPaymentHistory = async (req, res) => {
         const { student_id } = req.params;
 
         const result = await pool.query(`
-            SELECT fp.*, 
-                   COALESCE(fp.payment_date, fp.created_at) as payment_date,
-                   fs.title as fee_title
+            SELECT fp.*, fs.title as fee_title
             FROM fee_payments fp
             JOIN fee_structures fs ON fp.fee_structure_id = fs.id
             WHERE fp.school_id = $1 AND fp.student_id = $2
             ORDER BY fp.created_at DESC
         `, [school_id, student_id]);
 
-        res.json(result.rows);
+        // Explicitly fallback in JS to ensure date is never missing (fixes 1970 issue)
+        const historyData = result.rows.map(row => ({
+            ...row,
+            payment_date: row.payment_date || row.created_at
+        }));
+
+        res.json(historyData);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error fetching history' });
