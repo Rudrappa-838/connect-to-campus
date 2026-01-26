@@ -521,10 +521,7 @@ const SalaryManagement = () => {
                                 { /* Attendance Stats Removed as per User Request */}
 
                                 <div className="space-y-3 border-t border-slate-100 pt-4">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-500 font-medium">Rate per Day</span>
-                                        <span className="font-bold text-slate-800">₹{selectedSlip.salary_per_day || 0}</span>
-                                    </div>
+
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="text-slate-500 font-medium">Payment Mode</span>
                                         <span className="font-bold text-slate-800 capitalize">{selectedSlip.payment_mode || 'Pending'}</span>
