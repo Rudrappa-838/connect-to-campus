@@ -46,7 +46,10 @@ const NotificationBell = () => {
                         <div className="flex items-center gap-2">
                             {unreadCount > 0 && (
                                 <button
-                                    onClick={markAllAsRead}
+                                    onClick={() => {
+                                        markAllAsRead();
+                                        setIsOpen(false);
+                                    }}
                                     className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
                                 >
                                     Mark all read

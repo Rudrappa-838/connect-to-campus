@@ -122,7 +122,14 @@ const sendPushNotification = async (recipientId, title, body, roleHint = null) =
 
 const sendAttendanceNotification = async (user, status) => {
     try {
-        const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        // Force IST (Asia/Kolkata) regardless of server timezone
+        const now = new Intl.DateTimeFormat('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Kolkata'
+        }).format(new Date());
+
         let message = '';
         let title = 'Attendance Update';
 
