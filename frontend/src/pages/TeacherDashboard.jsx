@@ -21,6 +21,7 @@ import TeacherLibraryStatus from '../components/dashboard/teachers/TeacherLibrar
 import ViewAnnouncements from '../components/dashboard/calendar/ViewAnnouncements';
 import RecentAnnouncements from '../components/dashboard/calendar/RecentAnnouncements';
 import AdminLiveMap from '../components/dashboard/admin/AdminLiveMap';
+import TeacherProfile from '../components/dashboard/teachers/TeacherProfile';
 import { MobileHeader, MobileFooter } from '../components/layout/MobileAppFiles';
 import { Capacitor } from '@capacitor/core';
 
@@ -177,18 +178,28 @@ const TeacherDashboard = () => {
 
                 {/* Footer User Profile */}
                 <div className="p-4 border-t border-white/20 bg-black/10">
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors cursor-pointer group border border-white/10 hover:border-white/30">
-                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-blue-600 font-bold shadow-lg">
-                            {(teacherProfile?.name || user?.name || 'T')?.[0]?.toUpperCase()}
+                    <div
+                        onClick={() => setActiveTab('profile')}
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer group border flex-shrink-0
+                            ${activeTab === 'profile' ? 'bg-white/20 border-white/40 shadow-inner' : 'bg-white/10 hover:bg-white/20 border-white/10 hover:border-white/30'}`}
+                    >
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-blue-600 font-bold shadow-lg overflow-hidden border-2 border-white/20 flex-shrink-0">
+                            {teacherProfile?.profile_image ? (
+                                <img src={teacherProfile.profile_image} alt="Profile" className="w-full h-full object-cover" />
+                            ) : (
+                                (teacherProfile?.name || user?.name || 'T')?.[0]?.toUpperCase()
+                            )}
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-white truncate">{teacherProfile?.name || user?.name || 'Teacher'}</p>
                             <p className="text-[10px] text-blue-100 uppercase font-medium tracking-tight">
                                 {teacherProfile?.subject_specialization || 'Teacher'} • {teacherProfile?.employee_id || '--'}
                             </p>
-                            <p className="text-[10px] text-blue-200 truncate">{schoolName}</p>
                         </div>
-                        <button onClick={handleLogoutClick} className="text-blue-200 hover:text-white transition-colors">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleLogoutClick(); }}
+                            className="text-blue-200 hover:text-white transition-colors p-1"
+                        >
                             <LogOut size={18} />
                         </button>
                     </div>
@@ -227,8 +238,15 @@ const TeacherDashboard = () => {
                         </div>
                         <div className="flex items-center gap-4 py-2">
                             <NotificationBell />
-                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold border border-emerald-200">
-                                {user?.name?.[0]}
+                            <div
+                                onClick={() => setActiveTab('profile')}
+                                className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold border border-emerald-200 overflow-hidden cursor-pointer hover:ring-2 ring-emerald-300 transition-all"
+                            >
+                                {teacherProfile?.profile_image ? (
+                                    <img src={teacherProfile.profile_image} alt="Profile" className="w-full h-full object-cover" />
+                                ) : (
+                                    user?.name?.[0]
+                                )}
                             </div>
                         </div>
                     </header>
@@ -264,6 +282,7 @@ const TeacherDashboard = () => {
                                 {activeTab === 'leaves' && <TeacherLeaveApplication />}
                                 {activeTab === 'announcements' && <ViewAnnouncements />}
                                 {activeTab === 'calendar' && <SchoolCalendar />}
+                                {activeTab === 'profile' && <TeacherProfile profile={teacherProfile} onUpdate={fetchProfile} />}
                             </>
                         )}
                     </div>
@@ -329,29 +348,40 @@ const TeacherOverview = ({ profile, schoolName, user }) => {
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="col-span-full mb-6">
-                <div className="overflow-hidden w-full bg-white rounded-xl p-6 border border-slate-200 shadow-sm relative">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full mix-blend-multiply filter blur-3xl opacity-70 -translate-y-1/2 translate-x-1/2"></div>
-                    <div className="relative z-10">
-                        <h3 className="text-3xl font-black text-slate-800 tracking-tight font-serif italic mb-1">
-                            {schoolName}
-                        </h3>
-                        {user && (
-                            <div className="mt-4 flex flex-col gap-1">
-                                <h2 className="text-xl font-bold text-slate-700">{user.name}</h2>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500 font-medium">
-                                    <span className="flex items-center gap-1">
-                                        <BookOpen size={14} className="text-emerald-500" />
-                                        {profile?.subject_specialization || 'Teacher'}
-                                    </span>
-                                    {profile?.employee_id && (
-                                        <span className="flex items-center gap-1">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                            ID: {profile.employee_id}
-                                        </span>
-                                    )}
-                                </div>
+                <div className="overflow-hidden w-full bg-white rounded-xl p-6 border border-slate-200 shadow-sm relative group">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full mix-blend-multiply filter blur-3xl opacity-70 -translate-y-1/2 translate-x-1/2 group-hover:bg-blue-50 transition-colors"></div>
+                    <div className="relative z-10 flex items-center gap-6">
+                        {profile?.profile_image ? (
+                            <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-lg border-2 border-white flex-shrink-0">
+                                <img src={profile.profile_image} alt="Profile" className="w-full h-full object-cover" />
+                            </div>
+                        ) : (
+                            <div className="w-20 h-20 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-3xl shadow-inner flex-shrink-0">
+                                {profile?.name?.[0] || user?.name?.[0]}
                             </div>
                         )}
+                        <div className="flex-1">
+                            <h3 className="text-3xl font-black text-slate-800 tracking-tight font-serif italic mb-1 truncate">
+                                {schoolName}
+                            </h3>
+                            {user && (
+                                <div className="flex flex-col gap-1">
+                                    <h2 className="text-xl font-bold text-slate-700">{profile?.name || user.name}</h2>
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500 font-medium">
+                                        <span className="flex items-center gap-1">
+                                            <BookOpen size={14} className="text-emerald-500" />
+                                            {profile?.subject_specialization || 'Teacher'}
+                                        </span>
+                                        {profile?.employee_id && (
+                                            <span className="flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                                                ID: {profile.employee_id}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -423,6 +453,7 @@ const getTabTitle = (tab) => {
         case 'leaves': return 'Leave Applications';
         case 'calendar': return 'Academic Calendar';
         case 'announcements': return 'Announcements';
+        case 'profile': return 'My Profile Settings';
         default: return 'Dashboard';
     }
 };
