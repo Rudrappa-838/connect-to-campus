@@ -353,7 +353,6 @@ const forgotPassword = async (req, res) => {
                 }
             }
             else if (role === 'TEACHER') {
-                checkEmails.push(`${email}@teacher.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@teacher.school.com`);
                 // Use 'name' column as first_name/last_name might not exist
                 const tRes = await pool.query('SELECT email, employee_id, name FROM teachers WHERE employee_id ILIKE $1', [email]);
@@ -365,7 +364,6 @@ const forgotPassword = async (req, res) => {
                 }
             }
             else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
-                checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 // Use 'name' column as first_name/last_name might not exist
                 const stRes = await pool.query('SELECT email, employee_id, name FROM staff WHERE employee_id ILIKE $1', [email]);
