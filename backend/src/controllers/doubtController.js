@@ -112,8 +112,42 @@ exports.createDoubt = async (req, res) => {
             [student_id, teacher_id || null, subject_id || null, question]
         );
 
-        console.log('Doubt created successfully with ID:', result.rows[0].id);
-        res.status(201).json(result.rows[0]);
+        const newDoubt = result.rows[0];
+
+        // --- NOTIFICATION LOGIC ---
+        if (teacher_id) {
+            try {
+                // Find the user_id linked to this teacher to send notification
+                const teacherUserRes = await pool.query(
+                    `SELECT u.id, u.email 
+                     FROM users u 
+                     JOIN teachers t ON u.email = t.email 
+                     WHERE t.id = $1 AND u.role = 'TEACHER'`,
+                    [teacher_id]
+                );
+
+                if (teacherUserRes.rows.length > 0) {
+                    const userId = teacherUserRes.rows[0].id;
+                    const studentNameRes = await pool.query('SELECT name FROM students WHERE id = $1', [student_id]);
+                    const studentName = studentNameRes.rows[0]?.name || 'A student';
+
+                    const message = `New Doubt from ${studentName}: "${question.substring(0, 30)}${question.length > 30 ? '...' : ''}"`;
+
+                    await pool.query(
+                        `INSERT INTO notifications (user_id, title, message, type, link) 
+                         VALUES ($1, $2, $3, 'DOUBT', '/teacher-dashboard?tab=doubts')`,
+                        [userId, 'New Student Doubt', message]
+                    );
+                    console.log('Notification sent to teacher:', userId);
+                }
+            } catch (notifError) {
+                console.error('Failed to send doubt notification:', notifError);
+                // Don't fail the request, just log it
+            }
+        }
+
+        console.log('Doubt created successfully with ID:', newDoubt.id);
+        res.status(201).json(newDoubt);
     } catch (error) {
         console.error('Error creating doubt:', error);
         res.status(500).json({ message: 'Server error: ' + error.message });
