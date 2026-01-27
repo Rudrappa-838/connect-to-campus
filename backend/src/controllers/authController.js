@@ -354,7 +354,7 @@ const forgotPassword = async (req, res) => {
                 checkEmails.push(`${email}@teacher.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@teacher.school.com`);
                 // Use 'name' column as first_name/last_name might not exist
-                const tRes = await pool.query('SELECT email, employee_id, name FROM teachers WHERE employee_id = $1', [email]);
+                const tRes = await pool.query('SELECT email, employee_id, name FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) {
                     checkEmails.push(tRes.rows[0].email);
                     userDetails.id = tRes.rows[0].employee_id;
@@ -366,7 +366,7 @@ const forgotPassword = async (req, res) => {
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 // Use 'name' column as first_name/last_name might not exist
-                const stRes = await pool.query('SELECT email, employee_id, name FROM staff WHERE employee_id = $1', [email]);
+                const stRes = await pool.query('SELECT email, employee_id, name FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) {
                     checkEmails.push(stRes.rows[0].email);
                     userDetails.id = stRes.rows[0].employee_id;
@@ -507,7 +507,7 @@ const getUserDetails = async (req, res) => {
                 }
             }
             else if (role === 'TEACHER') {
-                const tRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM teachers WHERE employee_id = $1', [email]);
+                const tRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) {
                     const teacher = tRes.rows[0];
                     userInfo.name = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim();
@@ -516,7 +516,7 @@ const getUserDetails = async (req, res) => {
                 }
             }
             else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
-                const stRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM staff WHERE employee_id = $1', [email]);
+                const stRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) {
                     const staff = stRes.rows[0];
                     userInfo.name = `${staff.first_name || ''} ${staff.last_name || ''}`.trim();
@@ -573,13 +573,13 @@ const verifyOTP = async (req, res) => {
             else if (role === 'TEACHER') {
                 checkEmails.push(`${email}@teacher.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@teacher.school.com`);
-                const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id = $1', [email]);
+                const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) checkEmails.push(tRes.rows[0].email);
             }
             else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
-                const stRes = await pool.query('SELECT email FROM staff WHERE employee_id = $1', [email]);
+                const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) checkEmails.push(stRes.rows[0].email);
             }
         }
@@ -636,13 +636,13 @@ const resetPassword = async (req, res) => {
             else if (role === 'TEACHER') {
                 checkEmails.push(`${email}@teacher.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@teacher.school.com`);
-                const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id = $1', [email]);
+                const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) checkEmails.push(tRes.rows[0].email);
             }
             else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
-                const stRes = await pool.query('SELECT email FROM staff WHERE employee_id = $1', [email]);
+                const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) checkEmails.push(stRes.rows[0].email);
             }
         }
