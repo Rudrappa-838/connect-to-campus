@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Bell, Check, X } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
+import { useNavigate } from 'react-router-dom';
 
 const NotificationBell = () => {
     const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
     const [isOpen, setIsOpen] = useState(false);
+    const navigate = useNavigate();
 
     const toggleDropdown = () => setIsOpen(!isOpen);
 
@@ -74,7 +76,14 @@ const NotificationBell = () => {
                                 {notifications.map((notification) => (
                                     <li
                                         key={notification.id}
-                                        className={`p-4 hover:bg-gray-50 transition-colors ${!notification.is_read ? 'bg-blue-50/50' : ''}`}
+                                        onClick={() => {
+                                            if (notification.link) {
+                                                navigate(notification.link);
+                                            }
+                                            markAsRead(notification.id);
+                                            setIsOpen(false);
+                                        }}
+                                        className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${!notification.is_read ? 'bg-blue-50/50' : ''}`}
                                     >
                                         <div className="flex justify-between items-start">
                                             <div className="flex-1">

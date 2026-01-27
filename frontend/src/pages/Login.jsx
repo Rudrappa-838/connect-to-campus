@@ -83,7 +83,13 @@ const Login = () => {
                     return;
                 }
 
-                toast.success('Welcome back!');
+                if (result.user?.mustChangePassword) {
+                    toast('Please set a new password for security.', { icon: '🔒' });
+                    navigate('/change-password', { state: { email, role, oldPassword: password } });
+                    return;
+                }
+
+                // toast.success('Welcome back!'); // Removed as per request
                 switch (role) {
                     case 'SCHOOL_ADMIN': navigate('/school-admin'); break;
                     case 'TEACHER': navigate('/teacher'); break;
