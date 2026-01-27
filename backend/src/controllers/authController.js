@@ -328,6 +328,8 @@ const forgotPassword = async (req, res) => {
     if (!email || !role) return res.status(400).json({ message: 'ID and Role are required' });
 
     email = email.trim();
+    if (role) role = role.toUpperCase();
+
     const inputId = email; // Store original input (could be ID)
 
     try {
@@ -491,6 +493,7 @@ const getUserDetails = async (req, res) => {
     if (!email || !role) return res.status(400).json({ message: 'ID and Role are required' });
 
     email = email.trim();
+    if (role) role = role.toUpperCase();
 
     try {
         let userInfo = { name: '', email: '', id: email, role: role };
@@ -552,8 +555,9 @@ const getUserDetails = async (req, res) => {
 
 const verifyOTP = async (req, res) => {
     const { otp, role, email } = req.body;
+    let normalizedRole = role ? role.toUpperCase() : role;
 
-    if (!otp || !role || !email) {
+    if (!otp || !normalizedRole || !email) {
         return res.status(400).json({ message: 'OTP, Role, and ID are required' });
     }
 
@@ -615,8 +619,9 @@ const verifyOTP = async (req, res) => {
 
 const resetPassword = async (req, res) => {
     const { otp, newPassword, role, email } = req.body;
+    let normalizedRole = role ? role.toUpperCase() : role;
 
-    if (!otp || !newPassword || !role || !email) {
+    if (!otp || !newPassword || !normalizedRole || !email) {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
