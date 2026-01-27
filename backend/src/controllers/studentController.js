@@ -219,6 +219,9 @@ exports.updateStudent = async (req, res) => {
             last_name = parts.slice(1).join(' ');
         }
 
+        // Get Existing Student to check for email change
+        const existingStudent = await pool.query('SELECT email, admission_no FROM students WHERE id = $1', [id]);
+
         const result = await pool.query(
             `UPDATE students SET 
             name = $1, gender = $2, dob = $3, age = $4, class_id = $5, section_id = $6, 
@@ -236,6 +239,20 @@ exports.updateStudent = async (req, res) => {
         }
 
         const updatedStudent = result.rows[0];
+
+        // SYNC USER TABLE: If email changed, update the Login User record
+        if (existingStudent.rows.length > 0 && email && existingStudent.rows[0].email !== email) {
+            try {
+                // Try to find the user by OLD Email + Role
+                await pool.query(
+                    `UPDATE users SET email = $1 WHERE email = $2 AND role = 'STUDENT'`,
+                    [email, existingStudent.rows[0].email]
+                );
+                console.log(`[Sync] Updated User Login Email for Student ${updatedStudent.admission_no}`);
+            } catch (uErr) {
+                console.error('Failed to sync user email:', uErr.message);
+            }
+        }
 
         // Trigger Notification
         sendPushNotification(updatedStudent.id, "Profile Updated", "Your student profile has been updated by the administration.", "Student")

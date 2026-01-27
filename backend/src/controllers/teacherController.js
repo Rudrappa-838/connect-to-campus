@@ -220,6 +220,9 @@ exports.updateTeacher = async (req, res) => {
             }
         }
 
+        // Get Existing Teacher to check for email change
+        const existingTeacher = await client.query('SELECT email, employee_id FROM teachers WHERE id = $1', [id]);
+
         // Split Name
         let first_name = name;
         let last_name = '';
@@ -241,6 +244,21 @@ exports.updateTeacher = async (req, res) => {
         if (result.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({ message: 'Teacher not found' });
+        }
+
+        const updatedTeacher = result.rows[0];
+
+        // SYNC USER TABLE: If email changed, update the Login User record
+        if (existingTeacher.rows.length > 0 && email && existingTeacher.rows[0].email !== email) {
+            try {
+                await client.query(
+                    `UPDATE users SET email = $1 WHERE email = $2 AND role = 'TEACHER'`,
+                    [email, existingTeacher.rows[0].email]
+                );
+                console.log(`[Sync] Updated User Login Email for Teacher ${updatedTeacher.employee_id}`);
+            } catch (uErr) {
+                console.error('Failed to sync user email:', uErr.message);
+            }
         }
 
         // Handle Class Teacher Assignment Update
@@ -308,9 +326,7 @@ exports.updateTeacher = async (req, res) => {
             }
         }
 
-        await client.query('COMMIT');
-
-        const updatedTeacher = result.rows[0];
+        // const updatedTeacher = result.rows[0]; // Already defined earlier
 
         // Trigger Notification
         sendPushNotification(updatedTeacher.id, "Profile Updated", "Your teacher profile has been updated by the administration.", "Teacher")

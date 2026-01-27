@@ -18,10 +18,11 @@ const ForgotPassword = () => {
     const [otpVerified, setOtpVerified] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [inlineError, setInlineError] = useState('');
 
     const handleUserIdChange = async (value) => {
         setUserId(value);
-        setUserName('');
+        setInlineError('');
 
         // Fetch user details if ID is at least 3 characters
         if (value.trim().length >= 3) {
@@ -33,18 +34,24 @@ const ForgotPassword = () => {
                 });
                 if (response.data.success) {
                     setUserName(response.data.name);
+                    setInlineError('');
                 }
             } catch (error) {
+                // If 404, we can optionally clear name or keep it if it was previously valid? 
+                // Usually clear it if the new ID is invalid.
                 setUserName('');
             } finally {
                 setFetchingName(false);
             }
+        } else {
+            setUserName('');
         }
     };
 
     const handleSendOTP = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setInlineError('');
 
         try {
             const response = await axios.post('/auth/forgot-password', {
@@ -54,7 +61,12 @@ const ForgotPassword = () => {
             toast.success(response.data.message);
             setStep(2);
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to send OTP');
+            const msg = error.response?.data?.message || 'Failed to send OTP';
+            if (msg.includes('User not found') || error.response?.status === 404) {
+                setInlineError('User not found. Please check the ID and the selected Role.');
+            } else {
+                toast.error(msg);
+            }
         } finally {
             setLoading(false);
         }
@@ -206,6 +218,11 @@ const ForgotPassword = () => {
                                     <p className="text-sm text-green-400 ml-1 mt-2 flex items-center gap-1 animate-fade-in-up">
                                         <CheckCircle2 size={16} />
                                         <span className="font-medium">{userName}</span>
+                                    </p>
+                                )}
+                                {inlineError && (
+                                    <p className="text-sm text-red-400 ml-1 mt-2 animate-fade-in-up bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                                        {inlineError}
                                     </p>
                                 )}
                             </div>

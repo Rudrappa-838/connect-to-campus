@@ -166,6 +166,9 @@ exports.updateStaff = async (req, res) => {
             }
         }
 
+        // Get Existing Staff to check for email change
+        const existingStaff = await client.query('SELECT email, employee_id FROM staff WHERE id = $1', [id]);
+
         // Split Name
         let first_name = name;
         let last_name = '';
@@ -192,6 +195,19 @@ exports.updateStaff = async (req, res) => {
         await client.query('COMMIT');
 
         const updatedStaff = result.rows[0];
+
+        // SYNC USER TABLE: If email changed, update the Login User record
+        if (existingStaff.rows.length > 0 && email && existingStaff.rows[0].email !== email) {
+            try {
+                await client.query(
+                    `UPDATE users SET email = $1 WHERE email = $2 AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT')`,
+                    [email, existingStaff.rows[0].email]
+                );
+                console.log(`[Sync] Updated User Login Email for Staff ${updatedStaff.employee_id}`);
+            } catch (uErr) {
+                console.error('Failed to sync user email:', uErr.message);
+            }
+        }
 
         // Trigger Notification
         sendPushNotification(updatedStaff.id, "Profile Updated", "Your staff profile has been updated by the administration.", "Staff")
