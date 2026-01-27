@@ -205,18 +205,29 @@ exports.updateStudent = async (req, res) => {
             name, gender, dob, age,
             class_id, section_id,
             father_name, mother_name, contact_number, email, address,
-            attendance_id, admission_date
+            attendance_id, admission_date, status
         } = req.body;
 
         const safe_section_id = (section_id === '' || section_id === 'null' || section_id === undefined) ? null : section_id;
 
+        // Split Name
+        let first_name = name;
+        let last_name = '';
+        if (name && name.trim().includes(' ')) {
+            const parts = name.trim().split(' ');
+            first_name = parts[0];
+            last_name = parts.slice(1).join(' ');
+        }
+
         const result = await pool.query(
             `UPDATE students SET 
             name = $1, gender = $2, dob = $3, age = $4, class_id = $5, section_id = $6, 
-            father_name = $7, mother_name = $8, contact_number = $9, email = $10, address = $11, attendance_id = $12, admission_date = $13
-            WHERE id = $14 AND school_id = $15 RETURNING *`,
+            father_name = $7, mother_name = $8, contact_number = $9, email = $10, address = $11, attendance_id = $12, admission_date = $13,
+            first_name = $14, last_name = $15, status = $16
+            WHERE id = $17 AND school_id = $18 RETURNING *`,
             [name, gender, dob, age, class_id, safe_section_id,
                 father_name, mother_name, contact_number, email, address, attendance_id, admission_date,
+                first_name, last_name, status,
                 id, req.user.schoolId]
         );
 

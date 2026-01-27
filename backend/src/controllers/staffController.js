@@ -166,10 +166,22 @@ exports.updateStaff = async (req, res) => {
             }
         }
 
-        const result = await pool.query(
-            `UPDATE staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8
-             WHERE id = $9 AND school_id = $10 RETURNING *`,
-            [name, email, phone, role, gender, address, join_date, salary_per_day || 0, id, school_id]
+        // Split Name
+        let first_name = name;
+        let last_name = '';
+        if (name && name.trim().includes(' ')) {
+            const parts = name.trim().split(' ');
+            first_name = parts[0];
+            last_name = parts.slice(1).join(' ');
+        }
+
+        const result = await client.query(
+            `UPDATE staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
+             first_name = $9, last_name = $10
+             WHERE id = $11 AND school_id = $12 RETURNING *`,
+            [name, email, phone, role, gender, address, join_date, salary_per_day || 0,
+                first_name, last_name,
+                id, school_id]
         );
 
         if (result.rows.length === 0) {
