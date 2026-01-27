@@ -563,3 +563,60 @@ exports.getMyAttendanceHistory = async (req, res) => {
         res.status(500).json({ message: 'Server error fetching attendance history' });
     }
 };
+
+// Update Teacher Profile (Self)
+exports.updateMyProfile = async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const school_id = req.user.schoolId;
+        const email = req.user.email;
+        const { name, phone, gender, address, profile_image } = req.body;
+
+        await client.query('BEGIN');
+
+        // 1. Find the teacher record
+        let tRes = await pool.query(
+            'SELECT id, email, employee_id FROM teachers WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
+            [email, school_id]
+        );
+
+        if (tRes.rows.length === 0) {
+            if (email.endsWith('@teacher.school.com')) {
+                const potentialEmpId = email.split('@')[0].toUpperCase();
+                tRes = await pool.query(
+                    'SELECT id, email, employee_id FROM teachers WHERE employee_id = $1 AND school_id = $2',
+                    [potentialEmpId, school_id]
+                );
+            }
+        }
+
+        if (tRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Teacher profile not found' });
+        }
+
+        const teacherId = tRes.rows[0].id;
+
+        // 2. Update Teacher data
+        // For self-update, we typically don't allow changing email/employee_id/salary
+        const result = await client.query(
+            `UPDATE teachers 
+             SET name = COALESCE($1, name), 
+                 phone = COALESCE($2, phone), 
+                 gender = COALESCE($3, gender), 
+                 address = COALESCE($4, address),
+                 profile_image = COALESCE($5, profile_image)
+             WHERE id = $6 RETURNING *`,
+            [name, phone, gender, address, profile_image, teacherId]
+        );
+
+        await client.query('COMMIT');
+        res.json(result.rows[0]);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(error);
+        res.status(500).json({ message: 'Server error updating profile' });
+    } finally {
+        client.release();
+    }
+};
