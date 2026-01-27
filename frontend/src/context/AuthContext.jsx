@@ -46,10 +46,8 @@ export const AuthProvider = ({ children }) => {
                     try {
                         const parsedUser = JSON.parse(storedUser);
                         setUser(parsedUser);
-                        // DEBUG: Session Restore
-                        if (Capacitor.isNativePlatform()) {
-                            toast.success(`Debug: Session Restored. Role: ${parsedUser.role}`);
-                        }
+                        // DEBUG: Session Restore removed for production
+
                     } catch (e) {
                         console.error("Failed to parse stored user", e);
                         await removeStorageItem('token');
@@ -110,10 +108,8 @@ export const AuthProvider = ({ children }) => {
             await setStorageItem('user', JSON.stringify(user));
             setUser(user);
 
-            // DEBUG: Login Success
-            if (Capacitor.isNativePlatform()) {
-                toast.success(`Debug: Login OK. Token Saved. Role: ${user.role}`);
-            }
+            // DEBUG: Login Success removed for production
+
 
             // Broadcast (web only)
             if (!Capacitor.isNativePlatform()) {
@@ -165,10 +161,8 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async (isAutoLogout = false, isRemote = false) => {
         try {
-            // DEBUG: Logout Called
-            if (Capacitor.isNativePlatform()) {
-                toast.error(`Debug: Logout Called. Auto:${isAutoLogout}, Remote:${isRemote}`);
-            }
+            // DEBUG: Logout Called removed for production
+
 
             if (!isRemote && !isAutoLogout) {
                 // Broadcast
