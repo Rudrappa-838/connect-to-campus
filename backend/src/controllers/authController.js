@@ -337,7 +337,7 @@ const forgotPassword = async (req, res) => {
         checkEmails.push(email.toLowerCase());
 
         const isEmail = email.includes('@');
-        let userDetails = { id: inputId, role: role, schoolName: '' };
+        let userDetails = { id: inputId, role: role, schoolName: '', email: null };
 
         if (!isEmail && role) {
             if (role === 'STUDENT') {
@@ -347,26 +347,31 @@ const forgotPassword = async (req, res) => {
                     checkEmails.push(sRes.rows[0].email);
                     userDetails.id = sRes.rows[0].admission_no;
                     userDetails.name = `${sRes.rows[0].first_name || ''} ${sRes.rows[0].last_name || ''}`.trim();
+                    userDetails.email = sRes.rows[0].email;
                 }
             }
             else if (role === 'TEACHER') {
                 checkEmails.push(`${email}@teacher.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@teacher.school.com`);
-                const tRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM teachers WHERE employee_id = $1', [email]);
+                // Use 'name' column as first_name/last_name might not exist
+                const tRes = await pool.query('SELECT email, employee_id, name FROM teachers WHERE employee_id = $1', [email]);
                 if (tRes.rows.length > 0) {
                     checkEmails.push(tRes.rows[0].email);
                     userDetails.id = tRes.rows[0].employee_id;
-                    userDetails.name = `${tRes.rows[0].first_name || ''} ${tRes.rows[0].last_name || ''}`.trim();
+                    userDetails.name = tRes.rows[0].name;
+                    userDetails.email = tRes.rows[0].email;
                 }
             }
             else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
-                const stRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM staff WHERE employee_id = $1', [email]);
+                // Use 'name' column as first_name/last_name might not exist
+                const stRes = await pool.query('SELECT email, employee_id, name FROM staff WHERE employee_id = $1', [email]);
                 if (stRes.rows.length > 0) {
                     checkEmails.push(stRes.rows[0].email);
                     userDetails.id = stRes.rows[0].employee_id;
-                    userDetails.name = `${stRes.rows[0].first_name || ''} ${stRes.rows[0].last_name || ''}`.trim();
+                    userDetails.name = stRes.rows[0].name;
+                    userDetails.email = stRes.rows[0].email;
                 }
             }
         }
@@ -397,8 +402,8 @@ const forgotPassword = async (req, res) => {
             }
         }
 
-        // Use the FOUND user's email for sending, not the input (which might be an ID)
-        const recipientEmail = user.email;
+        // Use the FOUND profile email for sending if available (Priority to Real Email), else User Table email
+        const recipientEmail = userDetails.email || user.email;
 
         // Generate 6-digit OTP
         const crypto = require('crypto');
