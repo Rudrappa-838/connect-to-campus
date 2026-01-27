@@ -133,12 +133,14 @@ const TransportFees = ({ config }) => {
                                 .map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
                         </select>
                     </div>
-                    <div className="flex-1">
-                        <select className="input w-full" value={selectedSection} onChange={e => setSelectedSection(e.target.value)}>
-                            <option value="">All Sections</option>
-                            {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
+                    {sections.length > 0 && (
+                        <div className="flex-1">
+                            <select className="input w-full" value={selectedSection} onChange={e => setSelectedSection(e.target.value)}>
+                                <option value="">All Sections</option>
+                                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+                    )}
                     <div className="flex-1 relative">
                         <input
                             className="input w-full"

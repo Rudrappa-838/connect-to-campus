@@ -103,8 +103,8 @@ const TeacherMyTimetable = () => {
                                     <td key={period.num} className="p-2 border-r border-slate-50 last:border-0 align-top h-24">
                                         {slot ? (
                                             <div className={`h-full w-full rounded-lg p-2 flex flex-col justify-center items-center text-center gap-1 shadow-sm border transition-all hover:scale-105 ${viewMode === 'personal'
-                                                    ? 'bg-indigo-50 border-indigo-100 text-indigo-800' // Personal style
-                                                    : 'bg-emerald-50 border-emerald-100 text-emerald-800' // General style
+                                                ? 'bg-indigo-50 border-indigo-100 text-indigo-800' // Personal style
+                                                : 'bg-emerald-50 border-emerald-100 text-emerald-800' // General style
                                                 }`}>
                                                 <div className="font-bold text-sm line-clamp-2">{slot.subject_name}</div>
                                                 <div className="text-[10px] font-semibold opacity-70 bg-white/50 px-2 py-0.5 rounded-full">
@@ -191,20 +191,22 @@ const TeacherMyTimetable = () => {
                                 {classes.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
                             </select>
                         </div>
-                        <div className="flex-1 min-w-[200px]">
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Section</label>
-                            <select
-                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                value={searchParams.section_id}
-                                onChange={e => setSearchParams({ ...searchParams, section_id: e.target.value })}
-                                disabled={!searchParams.class_id}
-                            >
-                                <option value="">Select Section</option>
-                                {classes.find(c => c.class_id === parseInt(searchParams.class_id))?.sections.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
-                        </div>
+                        {classes.find(c => c.class_id === parseInt(searchParams.class_id))?.sections?.length > 0 && (
+                            <div className="flex-1 min-w-[200px]">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Section</label>
+                                <select
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                                    value={searchParams.section_id}
+                                    onChange={e => setSearchParams({ ...searchParams, section_id: e.target.value })}
+                                    disabled={!searchParams.class_id}
+                                >
+                                    <option value="">Select Section</option>
+                                    {classes.find(c => c.class_id === parseInt(searchParams.class_id))?.sections.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                         <button
                             onClick={handleSearch}
                             className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center gap-2"

@@ -608,13 +608,15 @@ const MarksManagement = ({ config }) => {
                         </select>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Section</label>
-                        <select value={selectedSection} onChange={(e) => { setSelectedSection(e.target.value); setSelectedExam(''); }} className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm" disabled={!selectedClass}>
-                            <option value="">{sections.length === 0 && selectedClass ? 'No Sections' : 'Select Section'}</option>
-                            {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
+                    {sections.length > 0 && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Section</label>
+                            <select value={selectedSection} onChange={(e) => { setSelectedSection(e.target.value); setSelectedExam(''); }} className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm" disabled={!selectedClass}>
+                                <option value="">Select Section</option>
+                                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+                    )}
 
                     <div className="md:col-span-2 lg:col-span-1">
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">

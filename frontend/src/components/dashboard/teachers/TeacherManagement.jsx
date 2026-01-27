@@ -375,19 +375,15 @@ const TeacherManagement = ({ config }) => {
                                                 {config?.classes?.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
                                             </select>
                                         </div>
-                                        <div>
-                                            <label className="label">Section <span className="text-red-500">*</span></label>
-                                            {assignSections.length > 0 ? (
+                                        {assignSections.length > 0 && (
+                                            <div>
+                                                <label className="label">Section <span className="text-red-500">*</span></label>
                                                 <select className="input" required={isClassTeacher} value={formData.assign_section_id} onChange={e => setFormData({ ...formData, assign_section_id: e.target.value })}>
                                                     <option value="">Select Section</option>
                                                     {assignSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                                 </select>
-                                            ) : (
-                                                <div className="py-2 text-sm text-gray-400 font-medium italic">
-                                                    {formData.assign_class_id ? 'No sections found. Default section will be auto-assigned.' : 'Select a class first'}
-                                                </div>
-                                            )}
-                                        </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

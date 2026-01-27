@@ -195,23 +195,25 @@ const StudentPromotionModal = ({ isOpen, onClose, selectedStudents, config, onSu
                             </select>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">
-                                Target Section {availableSections.length > 0 && <span className="text-red-500">*</span>}
-                            </label>
-                            <select
-                                className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                                value={toSectionId}
-                                onChange={e => setToSectionId(e.target.value)}
-                                disabled={!toClassId || availableSections.length === 0}
-                                required={availableSections.length > 0}
-                            >
-                                <option value="">{availableSections.length === 0 ? 'No Sections' : 'Select Section'}</option>
-                                {availableSections.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
-                        </div>
+                        {availableSections.length > 0 && (
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">
+                                    Target Section <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                                    value={toSectionId}
+                                    onChange={e => setToSectionId(e.target.value)}
+                                    disabled={!toClassId}
+                                    required
+                                >
+                                    <option value="">Select Section</option>
+                                    {availableSections.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     {/* Vacancy Check Warning */}

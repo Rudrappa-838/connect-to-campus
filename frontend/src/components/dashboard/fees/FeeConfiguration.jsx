@@ -180,10 +180,12 @@ const FeeConfiguration = ({ config }) => {
                             })
                             .map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
                     </select>
-                    <select className="input flex-1" value={selectedSection} onChange={e => setSelectedSection(e.target.value)}>
-                        <option value="">All Sections</option>
-                        {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    {sections.length > 0 && (
+                        <select className="input flex-1" value={selectedSection} onChange={e => setSelectedSection(e.target.value)}>
+                            <option value="">All Sections</option>
+                            {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    )}
                 </div>
 
                 {/* Lists Content */}

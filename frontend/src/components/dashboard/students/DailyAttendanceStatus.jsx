@@ -157,15 +157,17 @@ const DailyAttendanceStatus = ({ config }) => {
                             .sort((a, b) => a.class_name.localeCompare(b.class_name, undefined, { numeric: true }))
                             .map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
                     </select>
-                    <select
-                        className="input max-w-[200px] disabled:bg-slate-100 disabled:text-slate-400 bg-slate-50 border-slate-200"
-                        value={filterSection}
-                        onChange={e => setFilterSection(e.target.value)}
-                        disabled={availableSections.length === 0}
-                    >
-                        <option value="">{availableSections.length === 0 ? 'No Sections' : 'Select Section'}</option>
-                        {availableSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    {availableSections.length > 0 && (
+                        <select
+                            className="input max-w-[200px] disabled:bg-slate-100 disabled:text-slate-400 bg-slate-50 border-slate-200"
+                            value={filterSection}
+                            onChange={e => setFilterSection(e.target.value)}
+                            disabled={availableSections.length === 0}
+                        >
+                            <option value="">Select Section</option>
+                            {availableSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    )}
                 </div>
                 <button
                     onClick={handlePrint}

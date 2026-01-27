@@ -1276,17 +1276,19 @@ const ExamSchedule = () => {
                                     {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-sm font-bold mb-1">Select Section</label>
-                                <select
-                                    value={selectedNewSection}
-                                    onChange={(e) => setSelectedNewSection(e.target.value)}
-                                    className="w-full border p-2 rounded"
-                                >
-                                    <option value="">-- Section --</option>
-                                    {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
+                            {sections.length > 0 && (
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">Select Section</label>
+                                    <select
+                                        value={selectedNewSection}
+                                        onChange={(e) => setSelectedNewSection(e.target.value)}
+                                        className="w-full border p-2 rounded"
+                                    >
+                                        <option value="">-- Section --</option>
+                                        {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
                             <div className="bg-blue-50 text-blue-700 p-3 rounded text-xs">
                                 Note: This will copy scheduled subjects to the new class ONLY if the subjects match.
                             </div>
@@ -1477,18 +1479,20 @@ const ExamSchedule = () => {
                                         .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">Section</label>
-                                <select
-                                    value={selectedNewSection}
-                                    onChange={e => setSelectedNewSection(e.target.value)}
-                                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                    disabled={!selectedNewClass}
-                                >
-                                    <option value="">Select Section</option>
-                                    {newClassSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
+                            {newClassSections.length > 0 && (
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Section</label>
+                                    <select
+                                        value={selectedNewSection}
+                                        onChange={e => setSelectedNewSection(e.target.value)}
+                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                        disabled={!selectedNewClass}
+                                    >
+                                        <option value="">Select Section</option>
+                                        {newClassSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
                             <p className="text-xs text-slate-500">
                                 Only subjects common to the current schedule and the new class will be added.
                             </p>

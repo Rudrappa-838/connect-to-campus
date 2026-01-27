@@ -258,20 +258,22 @@ const TimetableManagement = ({ config }) => {
                         </select>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Section</label>
-                        <select
-                            value={selectedSection}
-                            onChange={(e) => setSelectedSection(e.target.value)}
-                            className="px-4 py-2 border border-slate-300 rounded-lg font-medium text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-                            disabled={!selectedClass}
-                        >
-                            <option value="">{sections.length === 0 && selectedClass ? 'No Sections' : 'Select Section'}</option>
-                            {sections.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                        </select>
-                    </div>
+                    {sections.length > 0 && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Section</label>
+                            <select
+                                value={selectedSection}
+                                onChange={(e) => setSelectedSection(e.target.value)}
+                                className="px-4 py-2 border border-slate-300 rounded-lg font-medium text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                disabled={!selectedClass}
+                            >
+                                <option value="">Select Section</option>
+                                {sections.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     <div className="ml-auto flex gap-2">
                         <button

@@ -121,7 +121,7 @@ const StudentAttendanceMarking = ({ config }) => {
                     </select>
                 )}
 
-                {availableSections.length > 1 && (
+                {availableSections.length > 0 && (
                     <select
                         className="input max-w-[200px] bg-slate-50 border-slate-200"
                         value={filterSection}

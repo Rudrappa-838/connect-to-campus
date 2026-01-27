@@ -505,7 +505,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     {sortedClasses.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
                                 </select>
                             </div>
-                            {filterClass && (
+                            {filterClass && availableSections.length > 0 && (
                                 <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors animate-in fade-in slide-in-from-left-2">
                                     <span className="text-slate-300 font-light">/</span>
                                     <select
@@ -938,19 +938,21 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     {sortedClasses.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
                                 </select>
                             </div>
-                            <div className="col-span-1">
-                                <label className="label">Section <span className="text-red-500">*</span></label>
-                                <select
-                                    className="input disabled:bg-gray-100 disabled:text-gray-400"
-                                    required={formSections.length > 0}
-                                    value={formData.section_id}
-                                    onChange={e => setFormData({ ...formData, section_id: e.target.value })}
-                                    disabled={formSections.length === 0}
-                                >
-                                    <option value="">{formSections.length === 0 ? 'No Sections' : 'Select Section'}</option>
-                                    {formSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
+                            {formSections.length > 0 && (
+                                <div className="col-span-1">
+                                    <label className="label">Section <span className="text-red-500">*</span></label>
+                                    <select
+                                        className="input disabled:bg-gray-100 disabled:text-gray-400"
+                                        required
+                                        value={formData.section_id}
+                                        onChange={e => setFormData({ ...formData, section_id: e.target.value })}
+                                        disabled={formSections.length === 0}
+                                    >
+                                        <option value="">Select Section</option>
+                                        {formSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
 
                             {/* Guardian & Contact */}
                             <div className="col-span-2 mt-2">

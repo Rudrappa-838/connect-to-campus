@@ -732,12 +732,14 @@ const FeeCollection = ({ config: initialConfig }) => {
                             .map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
                     </select>
                 </div>
-                <div className="w-full md:w-auto">
-                    <select className="input w-full md:min-w-[150px]" value={selectedSection} onChange={e => setSelectedSection(e.target.value)}>
-                        <option value="">All Sections</option>
-                        {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                </div>
+                {sections.length > 0 && (
+                    <div className="w-full md:w-auto">
+                        <select className="input w-full md:min-w-[150px]" value={selectedSection} onChange={e => setSelectedSection(e.target.value)}>
+                            <option value="">All Sections</option>
+                            {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+                )}
                 <div className="w-full md:w-auto">
                     <select className="input w-full md:min-w-[150px]" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                         <option value="All">All Status</option>

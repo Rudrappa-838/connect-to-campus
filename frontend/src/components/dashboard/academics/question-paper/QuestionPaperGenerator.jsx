@@ -385,20 +385,22 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
                                     ))}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Section</label>
-                                <select
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none font-medium"
-                                    value={paperConfig.sectionId}
-                                    onChange={(e) => setPaperConfig({ ...paperConfig, sectionId: e.target.value })}
-                                    disabled={!paperConfig.classId}
-                                >
-                                    <option value="">All Sections</option>
-                                    {availableSections.map(sec => (
-                                        <option key={sec.id} value={sec.id}>{sec.name}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            {availableSections.length > 0 && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Section</label>
+                                    <select
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none font-medium"
+                                        value={paperConfig.sectionId}
+                                        onChange={(e) => setPaperConfig({ ...paperConfig, sectionId: e.target.value })}
+                                        disabled={!paperConfig.classId}
+                                    >
+                                        <option value="">All Sections</option>
+                                        {availableSections.map(sec => (
+                                            <option key={sec.id} value={sec.id}>{sec.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Subject</label>
                                 <select
@@ -546,20 +548,22 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
                                                             ))}
                                                         </select>
                                                     </div>
-                                                    <div className="text-left">
-                                                        <label className="block text-xs font-bold text-slate-600 mb-1">Section</label>
-                                                        <select
-                                                            className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-medium"
-                                                            value={paperConfig.sectionId}
-                                                            onChange={(e) => setPaperConfig({ ...paperConfig, sectionId: e.target.value })}
-                                                            disabled={!paperConfig.classId}
-                                                        >
-                                                            <option value="">All Sections</option>
-                                                            {availableSections.map(sec => (
-                                                                <option key={sec.id} value={sec.id}>{sec.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
+                                                    {availableSections.length > 0 && (
+                                                        <div className="text-left">
+                                                            <label className="block text-xs font-bold text-slate-600 mb-1">Section</label>
+                                                            <select
+                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-medium"
+                                                                value={paperConfig.sectionId}
+                                                                onChange={(e) => setPaperConfig({ ...paperConfig, sectionId: e.target.value })}
+                                                                disabled={!paperConfig.classId}
+                                                            >
+                                                                <option value="">All Sections</option>
+                                                                {availableSections.map(sec => (
+                                                                    <option key={sec.id} value={sec.id}>{sec.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
                                                     <div className="text-left">
                                                         <label className="block text-xs font-bold text-slate-600 mb-1">Subject</label>
                                                         <select
