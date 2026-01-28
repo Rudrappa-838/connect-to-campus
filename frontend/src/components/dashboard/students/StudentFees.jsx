@@ -1,73 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { DollarSign, AlertCircle, CheckCircle, Clock, Eye } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { DollarSign, AlertCircle, CheckCircle, Clock, Eye, Printer, X } from 'lucide-react';
 import api from '../../../api/axios';
+import { useReactToPrint } from 'react-to-print';
 
 const StudentFees = ({ student, schoolName }) => {
     const [fees, setFees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [history, setHistory] = useState([]);
-
-    const handlePrintReceipt = (payment) => {
-        const printContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>Fee Receipt #${payment.receipt_no}</title>
-                <style>
-                    body { font-family: 'Courier New', Courier, monospace; background: #fff; padding: 20px; text-align: center; }
-                    .receipt { max-width: 400px; margin: 0 auto; border: 2px solid #333; padding: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-                    .header h1 { margin: 0; font-size: 22px; text-transform: uppercase; color: #333; }
-                    .school-name { font-size: 16px; font-weight: bold; margin: 5px 0 20px; color: #555; }
-                    .receipt-no { background: #333; color: white; display: inline-block; padding: 4px 12px; font-weight: bold; font-size: 14px; border-radius: 4px; margin-bottom: 20px; }
-                    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #ddd; text-align: left; }
-                    .label { font-weight: bold; color: #555; font-size: 12px; }
-                    .value { font-weight: bold; color: #222; font-size: 13px; }
-                    .amount-row { background: #f8f9fa; padding: 15px; margin: 20px 0; border: 1px dashed #333; }
-                    .amount { font-size: 24px; color: #16a34a; font-weight: bold; }
-                    .footer { margin-top: 20px; padding-top: 15px; font-size: 10px; color: #888; border-top: 1px solid #eee; }
-                    @media print {
-                        body { padding: 0; }
-                        .receipt { border: none; box-shadow: none; width: 100%; max-width: none; }
-                        button { display: none; }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="receipt">
-                    <div class="header">
-                        <h1>Payment Receipt</h1>
-                        <div class="school-name">${schoolName || 'School Name'}</div>
-                        <div class="receipt-no">RECEIPT #${payment.receipt_no || 'N/A'}</div>
-                    </div>
-                    <div class="row"><span class="label">Date:</span> <span class="value">${new Date(payment.date).toLocaleDateString('en-GB')}</span></div>
-                    <div class="row"><span class="label">Student Name:</span> <span class="value">${student?.name || 'N/A'}</span></div>
-                    <div class="row"><span class="label">Admission No:</span> <span class="value">${student?.admission_no || 'N/A'}</span></div>
-                    <div class="row"><span class="label">Class:</span> <span class="value">${student?.class_name || ''} ${student?.section_name || ''}</span></div>
-                    <div class="row"><span class="label">Fee Type:</span> <span class="value">${payment.feeType}</span></div>
-                    <div class="row"><span class="label">Payment Method:</span> <span class="value" style="text-transform: capitalize;">${payment.payment_method}</span></div>
-             
-                    <div class="amount-row">
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Total Amount Paid</div>
-                        <div class="amount">₹${parseFloat(payment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                    </div>
-                    <div class="footer">
-                        <p>This is a computer-generated receipt.</p>
-                        <p>Generated on: ${new Date().toLocaleString()}</p>
-                        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
-                            <button onclick="window.print()" style="padding: 10px 20px; background: #333; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Print Receipt</button>
-                            <button onclick="window.close()" style="padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Close</button>
-                        </div>
-                    </div>
-                </div>
-            </body>
-            </html>
-        `;
-
-        const printWindow = window.open('', '_blank', 'height=600,width=800');
-        printWindow.document.write(printContent);
-        printWindow.document.close();
-    };
+    // State for the selected receipt to show in the modal
+    const [selectedReceipt, setSelectedReceipt] = useState(null);
+    // Ref for the receipt content to be printed
+    const receiptRef = useRef();
 
     useEffect(() => {
         const fetchData = async () => {
@@ -98,6 +41,12 @@ const StudentFees = ({ student, schoolName }) => {
         const year = date.getFullYear();
         return `${day}-${month}-${year}`;
     };
+
+    // Print handler using react-to-print
+    const handlePrint = useReactToPrint({
+        content: () => receiptRef.current,
+        documentTitle: selectedReceipt ? `Receipt_${selectedReceipt.receipt_no}` : 'Receipt',
+    });
 
     if (loading) return <div className="p-8 text-center text-slate-500">Loading fee details...</div>;
 
@@ -220,7 +169,7 @@ const StudentFees = ({ student, schoolName }) => {
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <button
-                                                onClick={() => handlePrintReceipt(record)}
+                                                onClick={() => setSelectedReceipt(record)}
                                                 className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
                                                 title="View Receipt"
                                             >
@@ -244,6 +193,98 @@ const StudentFees = ({ student, schoolName }) => {
             <p className="text-center text-xs text-slate-400 mt-4">
                 Note: Online fee payment is currently disabled. Please visit the school office for payments.
             </p>
+
+            {/* Receipt Modal */}
+            {selectedReceipt && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:p-0 print:bg-white print:fixed print:inset-0">
+                    <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative flex flex-col max-h-[90vh] print:shadow-none print:w-full print:max-w-none print:h-auto print:rounded-none">
+
+                        {/* Modal Header - Hidden in Print */}
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center print:hidden">
+                            <h3 className="font-bold text-lg text-slate-800">Receipt Details</h3>
+                            <button
+                                onClick={() => setSelectedReceipt(null)}
+                                className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Receipt Content - Scrollable */}
+                        <div className="overflow-y-auto p-6 flex-1 bg-slate-50 print:p-0 print:bg-white print:overflow-visible">
+                            <div
+                                ref={receiptRef}
+                                className="bg-white p-8 shadow-sm border border-slate-200 mx-auto max-w-sm print:shadow-none print:border-none print:max-w-none"
+                                style={{ fontFamily: "'Courier New', Courier, monospace" }}
+                            >
+                                <div className="text-center mb-6">
+                                    <h1 className="text-xl font-bold uppercase text-slate-900 m-0">Payment Receipt</h1>
+                                    <div className="text-sm font-bold text-slate-600 mt-1 mb-4">{schoolName || 'School Name'}</div>
+                                    <div className="inline-block bg-slate-800 text-white px-3 py-1 text-xs font-bold rounded mb-4">
+                                        RECEIPT #{selectedReceipt.receipt_no || 'N/A'}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                        <span className="font-bold text-slate-500 text-xs">Date:</span>
+                                        <span className="font-bold text-slate-900">{new Date(selectedReceipt.date).toLocaleDateString('en-GB')}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                        <span className="font-bold text-slate-500 text-xs">Student Name:</span>
+                                        <span className="font-bold text-slate-900">{student?.name || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                        <span className="font-bold text-slate-500 text-xs">Admission No:</span>
+                                        <span className="font-bold text-slate-900">{student?.admission_no || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                        <span className="font-bold text-slate-500 text-xs">Class:</span>
+                                        <span className="font-bold text-slate-900">{student?.class_name || ''} {student?.section_name || ''}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                        <span className="font-bold text-slate-500 text-xs">Fee Type:</span>
+                                        <span className="font-bold text-slate-900">{selectedReceipt.feeType}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                        <span className="font-bold text-slate-500 text-xs">Payment Method:</span>
+                                        <span className="font-bold text-slate-900 capitalize">{selectedReceipt.payment_method}</span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50 p-4 border border-dashed border-slate-800 mt-6 mb-6">
+                                    <div className="text-xs text-slate-500 mb-1">Total Amount Paid</div>
+                                    <div className="text-2xl font-bold text-emerald-600">
+                                        ₹{parseFloat(selectedReceipt.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </div>
+                                </div>
+
+                                <div className="text-[10px] text-slate-400 border-t border-slate-100 pt-4 text-center">
+                                    <p>This is a computer-generated receipt.</p>
+                                    <p>Generated on: {new Date().toLocaleString()}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer - Hidden in Print */}
+                        <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 rounded-b-2xl print:hidden">
+                            <button
+                                onClick={() => setSelectedReceipt(null)}
+                                className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                Close
+                            </button>
+                            <button
+                                onClick={handlePrint}
+                                className="px-6 py-2 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
+                            >
+                                <Printer size={18} />
+                                Print Receipt
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
