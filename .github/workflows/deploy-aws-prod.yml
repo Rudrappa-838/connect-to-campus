@@ -54,16 +54,28 @@ jobs:
           aws s3 sync dist/ s3://${{ env.S3_BUCKET_NAME }} --delete
         continue-on-error: true # Don't fail if S3 bucket missing (User is using EC2)
 
-      - name: 🚀 Deploy to EC2 (Nginx)
+      - name: 🚀 Copy files to EC2 Temp
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.AWS_EC2_HOST }}
           username: ${{ env.EC2_USER }}
           key: ${{ secrets.AWS_EC2_KEY }}
           port: 22
-          source: "dist/*"
-          target: "/var/www/school_app"
-          strip_components: 1
+          source: "dist/"
+          target: "/home/ubuntu/temp_frontend"
+
+      - name: 🚀 Move to Nginx Root (Sudo)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ env.EC2_USER }}
+          key: ${{ secrets.AWS_EC2_KEY }}
+          port: 22
+          script: |
+            sudo rm -rf /var/www/school_app/*
+            sudo cp -r /home/ubuntu/temp_frontend/dist/* /var/www/school_app/
+            sudo chown -R www-data:www-data /var/www/school_app
+            rm -rf /home/ubuntu/temp_frontend
 
   deploy-backend:
     name: 🚀 Deploy Backend to EC2
