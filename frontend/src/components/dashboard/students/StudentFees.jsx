@@ -201,7 +201,7 @@ const StudentFees = ({ student, schoolName }) => {
 
                         {/* Modal Header - Hidden in Print */}
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center print:hidden">
-                            <h3 className="font-bold text-lg text-slate-800">Receipt Details</h3>
+                            <h3 className="font-bold text-lg text-slate-800">Receipt Details (v2)</h3>
                             <button
                                 onClick={() => setSelectedReceipt(null)}
                                 className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"

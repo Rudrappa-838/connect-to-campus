@@ -651,7 +651,7 @@ exports.getToppers = async (req, res) => {
 
         // Get all students in the class/section
         let studentsQuery = `
-            SELECT st.id, st.name, st.admission_no, st.roll_number, sec.name as section
+            SELECT st.id, st.name, st.admission_no, st.roll_number, st.father_name, sec.name as section
             FROM students st
             LEFT JOIN sections sec ON st.section_id = sec.id
             WHERE st.class_id = $1 AND st.school_id = $2 AND (st.status IS NULL OR st.status != 'Deleted')
@@ -725,6 +725,7 @@ exports.getToppers = async (req, res) => {
             studentsWithMarks.push({
                 student_id: student.id,
                 student_name: student.name,
+                father_name: student.father_name,
                 admission_number: student.admission_no,
                 roll_number: student.roll_number,
                 section: student.section,
