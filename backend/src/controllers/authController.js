@@ -601,6 +601,14 @@ const verifyOTP = async (req, res) => {
                 const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) checkEmails.push(stRes.rows[0].email);
             }
+            else if (role === 'SCHOOL_ADMIN') {
+                // Support school_code lookup for School Admins (Verify OTP)
+                const schoolRes = await pool.query('SELECT id FROM schools WHERE school_code ILIKE $1', [email]);
+                if (schoolRes.rows.length > 0) {
+                    const adminRes = await pool.query('SELECT email FROM users WHERE school_id = $1 AND role = $2', [schoolRes.rows[0].id, 'SCHOOL_ADMIN']);
+                    if (adminRes.rows.length > 0) checkEmails.push(adminRes.rows[0].email);
+                }
+            }
         }
 
         // Find user with matching OTP
@@ -664,6 +672,14 @@ const resetPassword = async (req, res) => {
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) checkEmails.push(stRes.rows[0].email);
+            }
+            else if (role === 'SCHOOL_ADMIN') {
+                // Support school_code lookup for School Admins (Reset Password)
+                const schoolRes = await pool.query('SELECT id FROM schools WHERE school_code ILIKE $1', [email]);
+                if (schoolRes.rows.length > 0) {
+                    const adminRes = await pool.query('SELECT email FROM users WHERE school_id = $1 AND role = $2', [schoolRes.rows[0].id, 'SCHOOL_ADMIN']);
+                    if (adminRes.rows.length > 0) checkEmails.push(adminRes.rows[0].email);
+                }
             }
         }
 
