@@ -374,89 +374,88 @@ const forgotPassword = async (req, res) => {
                     userDetails.email = stRes.rows[0].email;
                 }
             }
-        }
-        else if (role === 'SCHOOL_ADMIN') {
-            // Support school_code lookup for School Admins
-            const schoolRes = await pool.query('SELECT id, name, contact_email FROM schools WHERE school_code ILIKE $1', [email]);
-            if (schoolRes.rows.length > 0) {
-                userDetails.schoolName = schoolRes.rows[0].name;
-                userDetails.id = schoolRes.rows[0].school_code; // Input ID
-                userDetails.name = "School Administrator"; // Generic name
+            else if (role === 'SCHOOL_ADMIN') {
+                // Support school_code lookup for School Admins
+                const schoolRes = await pool.query('SELECT id, name, contact_email FROM schools WHERE school_code ILIKE $1', [email]);
+                if (schoolRes.rows.length > 0) {
+                    userDetails.schoolName = schoolRes.rows[0].name;
+                    userDetails.id = schoolRes.rows[0].school_code; // Input ID
+                    userDetails.name = "School Administrator"; // Generic name
 
-                // Find the ADMIN USER linked to this school
-                const adminUserRes = await pool.query('SELECT email FROM users WHERE school_id = $1 AND role = $2', [schoolRes.rows[0].id, 'SCHOOL_ADMIN']);
+                    // Find the ADMIN USER linked to this school
+                    const adminUserRes = await pool.query('SELECT email FROM users WHERE school_id = $1 AND role = $2', [schoolRes.rows[0].id, 'SCHOOL_ADMIN']);
 
-                if (adminUserRes.rows.length > 0) {
-                    checkEmails.push(adminUserRes.rows[0].email);
-                    userDetails.email = adminUserRes.rows[0].email;
+                    if (adminUserRes.rows.length > 0) {
+                        checkEmails.push(adminUserRes.rows[0].email);
+                        userDetails.email = adminUserRes.rows[0].email;
+                    }
                 }
             }
         }
-    }
 
         // Find user
         let query = `SELECT * FROM users WHERE email = ANY($1::text[])`;
-    let params = [checkEmails];
+        let params = [checkEmails];
 
-    if (role === 'STAFF') {
-        query += ` AND role IN ('STAFF', 'DRIVER')`;
-    } else {
-        query += ` AND role = $2`;
-        params.push(role);
-    }
-
-    const result = await pool.query(query, params);
-    const user = result.rows[0];
-
-    if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Get School Name
-    if (user.school_id) {
-        const schoolRes = await pool.query('SELECT name FROM schools WHERE id = $1', [user.school_id]);
-        if (schoolRes.rows.length > 0) {
-            userDetails.schoolName = schoolRes.rows[0].name;
+        if (role === 'STAFF') {
+            query += ` AND role IN ('STAFF', 'DRIVER')`;
+        } else {
+            query += ` AND role = $2`;
+            params.push(role);
         }
-    }
 
-    // Use the FOUND profile email for sending if available (Priority to Real Email), else User Table email
-    const recipientEmail = userDetails.email || user.email;
+        const result = await pool.query(query, params);
+        const user = result.rows[0];
 
-    // Generate 6-digit OTP
-    const crypto = require('crypto');
-    const otp = crypto.randomInt(100000, 999999).toString(); // 6-digit OTP
-    const otpExpires = Date.now() + 600000; // 10 minutes
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
 
-    await pool.query('UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE id = $3', [otp, otpExpires, user.id]);
+        // Get School Name
+        if (user.school_id) {
+            const schoolRes = await pool.query('SELECT name FROM schools WHERE id = $1', [user.school_id]);
+            if (schoolRes.rows.length > 0) {
+                userDetails.schoolName = schoolRes.rows[0].name;
+            }
+        }
 
-    // Log for development (always visible)
-    console.log('----- PASSWORD RESET OTP (Dev Mode) -----');
-    console.log(`Role: ${role}, ID: ${userDetails.id}, Sent To: ${recipientEmail}`);
-    console.log(`OTP: ${otp}`);
-    console.log('----------------------------------------');
+        // Use the FOUND profile email for sending if available (Priority to Real Email), else User Table email
+        const recipientEmail = userDetails.email || user.email;
 
-    // Attempt to send Real Email if configured
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        try {
-            const transporter = nodemailer.createTransport({
-                host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-                port: parseInt(process.env.SMTP_PORT) || 587,
-                secure: false, // Use STARTTLS
-                auth: {
-                    user: process.env.EMAIL_USER,
-                    pass: process.env.EMAIL_PASS
-                },
-                connectionTimeout: 30000,
-                greetingTimeout: 30000,
-                socketTimeout: 30000
-            });
+        // Generate 6-digit OTP
+        const crypto = require('crypto');
+        const otp = crypto.randomInt(100000, 999999).toString(); // 6-digit OTP
+        const otpExpires = Date.now() + 600000; // 10 minutes
 
-            const mailOptions = {
-                from: process.env.EMAIL_USER,
-                to: recipientEmail,
-                subject: 'Password Reset OTP - School Portal',
-                html: `
+        await pool.query('UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE id = $3', [otp, otpExpires, user.id]);
+
+        // Log for development (always visible)
+        console.log('----- PASSWORD RESET OTP (Dev Mode) -----');
+        console.log(`Role: ${role}, ID: ${userDetails.id}, Sent To: ${recipientEmail}`);
+        console.log(`OTP: ${otp}`);
+        console.log('----------------------------------------');
+
+        // Attempt to send Real Email if configured
+        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+            try {
+                const transporter = nodemailer.createTransport({
+                    host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
+                    port: parseInt(process.env.SMTP_PORT) || 587,
+                    secure: false, // Use STARTTLS
+                    auth: {
+                        user: process.env.EMAIL_USER,
+                        pass: process.env.EMAIL_PASS
+                    },
+                    connectionTimeout: 30000,
+                    greetingTimeout: 30000,
+                    socketTimeout: 30000
+                });
+
+                const mailOptions = {
+                    from: process.env.EMAIL_USER,
+                    to: recipientEmail,
+                    subject: 'Password Reset OTP - School Portal',
+                    html: `
                         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
                             <h2 style="color: #2563eb; text-align: center;">Password Reset Request</h2>
                             <hr style="border: 1px solid #e0e0e0;">
@@ -481,27 +480,27 @@ const forgotPassword = async (req, res) => {
                             <p style="text-align: center; color: #9ca3af; font-size: 12px;">School Management System - Secure Password Reset</p>
                         </div>
                     `
-            };
+                };
 
-            await transporter.sendMail(mailOptions);
-            console.log('OTP Email sent successfully to ' + recipientEmail);
-        } catch (emailErr) {
-            console.error('Failed to send OTP email:', emailErr.message);
-            // Don't fail the request
+                await transporter.sendMail(mailOptions);
+                console.log('OTP Email sent successfully to ' + recipientEmail);
+            } catch (emailErr) {
+                console.error('Failed to send OTP email:', emailErr.message);
+                // Don't fail the request
+            }
+        } else {
+            console.log('NOTE: Real email sending skipped. Add EMAIL_USER and EMAIL_PASS to .env to enable.');
         }
-    } else {
-        console.log('NOTE: Real email sending skipped. Add EMAIL_USER and EMAIL_PASS to .env to enable.');
+
+        res.json({
+            message: 'OTP sent to your registered email. Please check your inbox.',
+            debug_otp: process.env.NODE_ENV === 'development' || true ? otp : undefined // EXPOSED FOR DEBUGGING
+        });
+
+    } catch (error) {
+        console.error('Forgot Password Error:', error);
+        res.status(500).json({ message: 'Server error' });
     }
-
-    res.json({
-        message: 'OTP sent to your registered email. Please check your inbox.',
-        debug_otp: process.env.NODE_ENV === 'development' || true ? otp : undefined // EXPOSED FOR DEBUGGING
-    });
-
-} catch (error) {
-    console.error('Forgot Password Error:', error);
-    res.status(500).json({ message: 'Server error' });
-}
 };
 
 const getUserDetails = async (req, res) => {
