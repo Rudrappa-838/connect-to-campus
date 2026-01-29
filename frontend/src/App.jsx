@@ -24,6 +24,7 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import StaffDashboard from './pages/StaffDashboard';
 import Welcome from './pages/Welcome';
 import DownloadApp from './pages/DownloadApp';
+import DownloadDesktop from './components/DownloadDesktop';
 
 // Components
 import DriverTracking from './components/dashboard/transport/DriverTracking';
@@ -135,6 +136,7 @@ const AppContent = () => {
               <Route path="/welcome" element={<Welcome />} />
               <Route path="/login" element={<Login />} />
               <Route path="/download" element={<DownloadApp />} />
+              <Route path="/download-desktop" element={<DownloadDesktop />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
               <Route path="/change-password" element={<ChangePassword />} />

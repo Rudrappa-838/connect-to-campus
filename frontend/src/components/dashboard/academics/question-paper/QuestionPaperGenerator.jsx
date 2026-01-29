@@ -435,14 +435,17 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Number of Questions: {paperConfig.questionCount}</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Number of Questions</label>
                                     <input
-                                        type="range"
-                                        min="1" max="20"
+                                        type="number"
+                                        min="1"
+                                        max="50"
                                         value={paperConfig.questionCount}
-                                        onChange={(e) => setPaperConfig({ ...paperConfig, questionCount: parseInt(e.target.value) })}
-                                        className="w-full accent-indigo-600"
+                                        onChange={(e) => setPaperConfig({ ...paperConfig, questionCount: parseInt(e.target.value) || 1 })}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none font-medium text-slate-700 focus:bg-white transition-colors"
+                                        placeholder="e.g. 10"
                                     />
+                                    <p className="text-[10px] text-slate-400 mt-1">Enter desired number of questions (1-50)</p>
                                 </div>
                             </>
                         )}

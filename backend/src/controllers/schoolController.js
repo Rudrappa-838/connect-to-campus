@@ -293,12 +293,12 @@ const updateSchool = async (req, res) => {
         await client.query('BEGIN');
         console.log('[UPDATE SCHOOL] Transaction Started');
 
-        // 1. Update Basic Info
+        // 1. Update Basic Info including API Key (BYOK)
         const result = await client.query(
             `UPDATE schools 
-             SET name = $1, address = $2, contact_email = $3, contact_number = $4 
-             WHERE id = $5 RETURNING *`,
-            [name, address, contactEmail, contactNumber, id]
+             SET name = $1, address = $2, contact_email = $3, contact_number = $4, gemini_api_key = COALESCE($5, gemini_api_key)
+             WHERE id = $6 RETURNING *`,
+            [name, address, contactEmail, contactNumber, req.body.geminiApiKey, id]
         );
         console.log('[UPDATE SCHOOL] Basic Info Updated');
 

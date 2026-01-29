@@ -31,9 +31,15 @@ const authenticateToken = (req, res, next) => {
 
             const userData = dbRes.rows[0];
 
+            // RELAXED SECURITY: Allow multi-device login / persistent sessions
+            // We only check if the token is valid (via jwt.verify above).
+            // We DO NOT check current_session_token equality, because that forces single-session.
+
+            /* 
             if (userData.current_session_token !== token) {
                 return res.status(401).json({ message: 'Session expired or invalidated.' });
-            }
+            } 
+            */
 
             if (user.role !== 'SUPER_ADMIN' && userData.school_id && userData.is_active === false) {
                 return res.status(403).json({ message: 'School Service Disabled. Contact Super Admin.' });

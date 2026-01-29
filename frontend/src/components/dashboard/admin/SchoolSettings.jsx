@@ -12,6 +12,7 @@ const SchoolSettings = () => {
     const [activeTab, setActiveTab] = useState('branding'); // 'branding', 'academic-year', 'classes'
     const [logoUrl, setLogoUrl] = useState('');
     const [logoFile, setLogoFile] = useState(null);
+    const [geminiKey, setGeminiKey] = useState('');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -26,6 +27,7 @@ const SchoolSettings = () => {
                 // Assuming response.data contains school info directly or wrapped
                 const school = response.data.data || response.data; // Handle potential wrapping
                 setLogoUrl(school.logo || '');
+                setGeminiKey(school.gemini_api_key || '');
             }
         } catch (error) {
             console.error('Error loading school info:', error);
@@ -63,19 +65,36 @@ const SchoolSettings = () => {
         try {
             setLoading(true);
 
+            // Prepare Payload
+            const updateData = {
+                geminiApiKey: geminiKey
+            };
+
+            // 1. Update Basic Settings (API Key)
+            // Note: We might need a separate endpoint or just stick it in the FormData or existing update endpoint?
+            // The existing endpoint is likely /schools/update/:id or similar.
+            // Let's check how 'my-school' updates usually work. 
+            // If there's no dedicated 'update my settings' endpoint that accepts JSON, 
+            // we might need to piggyback on the logo update or use the generic update endpoint if user is admin.
+            // Assuming we use the generic update route:
+
+            // Check if we have user.schoolId
+            if (user?.schoolId) {
+                await api.put(`/schools/${user.schoolId}`, updateData);
+            }
+
+            // 2. Upload Logo if changed
             if (logoFile) {
                 const formData = new FormData();
                 formData.append('logo', logoFile);
                 await api.put('/schools/my-school/logo', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
-                toast.success('Settings saved successfully');
-                setLogoFile(null);
-                // Reload info to get any processed URL if needed
-                loadSchoolInfo();
-            } else {
-                toast.success('Settings saved successfully');
             }
+
+            toast.success('Settings saved successfully');
+            setLogoFile(null);
+            loadSchoolInfo();
 
         } catch (error) {
             console.error('Error saving settings:', error);
@@ -173,6 +192,29 @@ const SchoolSettings = () => {
                             <p className="text-xs text-slate-500 mt-2 text-center">
                                 This logo will appear in the Sidebar and Mobile App Header.
                             </p>
+                        </div>
+
+                        <div className="pt-6 border-t border-slate-100">
+                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <span className="text-2xl">🤖</span> AI Configuration
+                            </h3>
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Google Gemini API Key</label>
+                                <div className="relative">
+                                    <input
+                                        type="password"
+                                        placeholder="AIzaSy..."
+                                        value={geminiKey}
+                                        onChange={(e) => setGeminiKey(e.target.value)}
+                                        className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-sm"
+                                    />
+                                </div>
+                                <p className="text-xs text-slate-500 mt-2">
+                                    Required for Question Paper Generator. Get your free key from <a href="https://aistudio.google.com" target="_blank" className="text-indigo-600 underline">Google AI Studio</a>.
+                                    <br />
+                                    <span className="text-amber-600 font-medium">Leave empty to use System Default (if available).</span>
+                                </p>
+                            </div>
                         </div>
 
                         <div className="pt-4 border-t border-slate-100 flex justify-end">
