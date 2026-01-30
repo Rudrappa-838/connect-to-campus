@@ -219,8 +219,7 @@ exports.updateAcademicYear = async (req, res) => {
              SET year_label = COALESCE($1, year_label),
                  start_date = COALESCE($2, start_date),
                  end_date = COALESCE($3, end_date),
-                 status = COALESCE($4, status),
-                 updated_at = CURRENT_TIMESTAMP
+                 status = COALESCE($4, status)
              WHERE id = $5 AND school_id = $6
              RETURNING *`,
             [year_label, start_date, end_date, status, id, school_id]
