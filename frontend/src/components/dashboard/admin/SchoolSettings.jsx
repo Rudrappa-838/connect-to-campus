@@ -71,34 +71,27 @@ const SchoolSettings = () => {
             };
 
             // 1. Update Basic Settings (API Key)
-            // Note: We might need a separate endpoint or just stick it in the FormData or existing update endpoint?
-            // The existing endpoint is likely /schools/update/:id or similar.
-            // Let's check how 'my-school' updates usually work. 
-            // If there's no dedicated 'update my settings' endpoint that accepts JSON, 
-            // we might need to piggyback on the logo update or use the generic update endpoint if user is admin.
-            // Assuming we use the generic update route:
-
-            // Check if we have user.schoolId
             if (user?.schoolId) {
                 await api.put(`/schools/${user.schoolId}`, updateData);
             }
 
             // 2. Upload Logo if changed
-            if (logoFile) {
-                const formData = new FormData();
-                formData.append('logo', logoFile);
-                await api.put('/schools/my-school/logo', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+            // FIX: Backend expects JSON body with 'logo' key (Base64 string), NOT multipart/form-data
+            if (logoUrl && logoUrl.startsWith('data:image')) {
+                // If logoUrl is a data URL (Base64), it means it's a new upload or existing one being re-saved.
+                // We send the Base64 string directly.
+                await api.put('/schools/my-school/logo', { logo: logoUrl });
             }
 
             toast.success('Settings saved successfully');
-            setLogoFile(null);
+            setLogoFile(null); // Reset file input
             loadSchoolInfo();
 
         } catch (error) {
             console.error('Error saving settings:', error);
-            toast.error(error.response?.data?.message || 'Failed to save settings');
+            // safe access error message
+            const message = error.response?.data?.message || error.message || 'Failed to save settings';
+            toast.error(message);
         } finally {
             setLoading(false);
         }

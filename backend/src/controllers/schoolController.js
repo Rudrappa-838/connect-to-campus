@@ -689,10 +689,14 @@ const updateSchoolLogo = async (req, res) => {
     }
 
     try {
+        console.log(`[UPDATE LOGO] School ID: ${schoolId}`);
+        console.log(`[UPDATE LOGO] Payload Type: ${typeof logo}`);
+        console.log(`[UPDATE LOGO] Payload Length: ${logo ? logo.length : 'N/A'}`);
+
         await pool.query('UPDATE schools SET logo = $1 WHERE id = $2', [logo, schoolId]);
         res.json({ message: 'School logo updated successfully', logo });
     } catch (error) {
-        console.error('Error updating school logo:', error);
+        console.error('[UPDATE LOGO] Error updating school logo:', error);
         res.status(500).json({ message: 'Error updating logo', error: error.message });
     }
 };

@@ -36,6 +36,14 @@ exports.addEvent = async (req, res) => {
         const school_id = req.user.schoolId;
         const { title, event_type, start_date, end_date, description, audience } = req.body;
 
+        if (!title || !start_date || !end_date) {
+            return res.status(400).json({ message: 'Title, start date, and end date are required' });
+        }
+
+        if (new Date(end_date) < new Date(start_date)) {
+            return res.status(400).json({ message: 'End date cannot be before start date' });
+        }
+
         const result = await pool.query(
             `INSERT INTO events (school_id, title, event_type, start_date, end_date, description, audience)
              VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
