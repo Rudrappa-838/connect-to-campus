@@ -688,6 +688,16 @@ const updateSchoolLogo = async (req, res) => {
         return res.status(403).json({ message: 'Access denied' });
     }
 
+    // Safety check for missing body (e.g. old frontend sending multipart)
+    if (!req.body || Object.keys(req.body).length === 0) {
+        console.error('[UPDATE LOGO] req.body is missing/empty. Content-Type:', req.headers['content-type']);
+        return res.status(400).json({
+            message: 'Browser cache issue detected. Please HARD REFRESH your page (Ctrl+Shift+R) and try again.',
+            details: 'Server received empty body. Expected JSON.'
+        });
+    }
+
+    const { logo } = req.body;
     try {
         console.log(`[UPDATE LOGO] School ID: ${schoolId}`);
         console.log(`[UPDATE LOGO] Payload Type: ${typeof logo}`);
