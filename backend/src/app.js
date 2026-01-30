@@ -71,8 +71,8 @@ app.use((req, res, next) => {
 });
 
 app.use(morgan('dev')); // Logger
-app.use(express.json({ limit: '10mb' })); // Parse JSON bodies (Increased for Base64 Images)
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' })); // Parse JSON bodies (Increased for Base64 Images)
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, '../public'))); // Serve static files (APKs, etc.)
 
 // Rate Limiter (Prevent Crashing from DoS/Spam)

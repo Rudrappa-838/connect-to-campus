@@ -692,7 +692,11 @@ const updateSchoolLogo = async (req, res) => {
         console.error('[UPDATE LOGO] req.body is missing/empty. Content-Type:', req.headers['content-type']);
         return res.status(400).json({
             message: 'Browser cache issue detected. Please HARD REFRESH your page (Ctrl+Shift+R) and try again.',
-            details: 'Server received empty body. Expected JSON.'
+            details: 'Server received empty body. Expected JSON.',
+            debug: {
+                contentType: req.headers['content-type'],
+                contentLength: req.headers['content-length']
+            }
         });
     }
 
