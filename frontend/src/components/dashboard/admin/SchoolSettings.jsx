@@ -91,7 +91,13 @@ const SchoolSettings = () => {
             console.error('Error saving settings:', error);
             // safe access error message
             const message = error.response?.data?.message || error.message || 'Failed to save settings';
-            toast.error(message);
+
+            if (error.response?.data?.debug) {
+                const debugInfo = JSON.stringify(error.response.data.debug);
+                toast.error(`${message} | Debug: ${debugInfo}`, { duration: 10000 });
+            } else {
+                toast.error(message);
+            }
         } finally {
             setLoading(false);
         }

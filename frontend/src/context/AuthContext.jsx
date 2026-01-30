@@ -46,17 +46,21 @@ export const AuthProvider = ({ children }) => {
                     try {
                         const parsedUser = JSON.parse(storedUser);
                         setUser(parsedUser);
-                        // DEBUG: Session Restore removed for production
+                        // DEBUG: Visual confirmation
+                        if (Capacitor.isNativePlatform()) {
+                            toast.success(`Welcome back, ${parsedUser.first_name || 'User'}!`, { duration: 3000, icon: '👋' });
+                        }
 
                     } catch (e) {
                         console.error("Failed to parse stored user", e);
                         await removeStorageItem('token');
                         await removeStorageItem('user');
+                        if (Capacitor.isNativePlatform()) toast.error('Session corrupted. Please login again.');
                     }
                 } else {
                     // DEBUG: No Session
                     if (Capacitor.isNativePlatform()) {
-                        // toast('Debug: No session found on startup', { icon: 'ℹ️' });
+                        toast('Please Log In', { icon: '🔐', duration: 3000 });
                     }
                 }
             } catch (error) {

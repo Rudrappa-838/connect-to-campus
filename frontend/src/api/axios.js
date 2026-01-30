@@ -17,6 +17,11 @@ if (baseURL && baseURL.includes('cloudfunctions.net')) {
     baseURL = PROD_URL;
 }
 
+// FORCE AWS URL ON MOBILE (Critical for Play Store)
+if (Capacitor.isNativePlatform()) {
+    baseURL = PROD_URL;
+}
+
 // Debug: Log the API URL being used
 console.log('🔗 API Base URL (v3):', baseURL, '| Mode:', import.meta.env.MODE);
 
