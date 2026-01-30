@@ -73,6 +73,18 @@ app.use((req, res, next) => {
 app.use(morgan('dev')); // Logger
 app.use(express.json({ limit: '50mb' })); // Parse JSON bodies (Increased for Base64 Images)
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Force No-Cache for index.html to ensure updates are seen immediately
+app.use((req, res, next) => {
+    if (req.path === '/' || req.path === '/index.html') {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Surrogate-Control', 'no-store');
+    }
+    next();
+});
+
 app.use(express.static(path.join(__dirname, '../public'))); // Serve static files (APKs, etc.)
 
 // Rate Limiter (Prevent Crashing from DoS/Spam)
@@ -150,8 +162,8 @@ app.get('/app-launch', (req, res) => {
 
 // Download App Route
 app.get(['/api/download-app', '/download-app'], (req, res) => {
-    const file = path.join(__dirname, '../public/SchoolApp_NetworkFix.apk');
-    res.download(file, 'SchoolApp_NetworkFix.apk', (err) => {
+    const file = path.join(__dirname, '../public/school_app_optimized.apk');
+    res.download(file, 'school_app_optimized.apk', (err) => {
         if (err) {
             console.error('Error downloading file:', err);
             res.status(404).send('App file not found on server.');
