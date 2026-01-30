@@ -682,7 +682,6 @@ const updateSchoolFeatures = async (req, res) => {
 
 const updateSchoolLogo = async (req, res) => {
     const schoolId = req.user.schoolId;
-    const { logo } = req.body;
 
     if (!schoolId) {
         return res.status(403).json({ message: 'Access denied' });
@@ -698,6 +697,7 @@ const updateSchoolLogo = async (req, res) => {
     }
 
     const { logo } = req.body;
+
     try {
         console.log(`[UPDATE LOGO] School ID: ${schoolId}`);
         console.log(`[UPDATE LOGO] Payload Type: ${typeof logo}`);
