@@ -76,13 +76,19 @@ export const NotificationProvider = ({ children }) => {
     // Poll for notifications
     useEffect(() => {
         if (user) {
-            fetchNotifications(false); // Initial fetch
+            // Small delay to ensure token is set in axios headers after login
+            const initialFetchTimer = setTimeout(() => {
+                fetchNotifications(false); // Initial fetch
+            }, 200);
 
             const interval = setInterval(() => {
                 fetchNotifications(true); // Poll fetch
             }, 10000); // Check every 10 seconds
 
-            return () => clearInterval(interval);
+            return () => {
+                clearTimeout(initialFetchTimer);
+                clearInterval(interval);
+            };
         }
     }, [user]);
 

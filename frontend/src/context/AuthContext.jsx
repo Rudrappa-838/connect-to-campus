@@ -110,6 +110,10 @@ export const AuthProvider = ({ children }) => {
             // Save to storage (Capacitor Preferences on mobile, localStorage on web)
             await setStorageItem('token', token);
             await setStorageItem('user', JSON.stringify(user));
+
+            // CRITICAL: Set token in axios headers immediately to prevent race condition
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
             setUser(user);
 
             // DEBUG: Login Success removed for production
@@ -183,6 +187,10 @@ export const AuthProvider = ({ children }) => {
         } finally {
             await removeStorageItem('token');
             await removeStorageItem('user');
+
+            // Clear axios authorization header
+            delete api.defaults.headers.common['Authorization'];
+
             setUser(null);
             if (isAutoLogout) alert("Session timed out due to inactivity.");
         }

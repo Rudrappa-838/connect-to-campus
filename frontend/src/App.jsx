@@ -36,8 +36,17 @@ import SplashScreen from './components/SplashScreen';
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, role }) => {
   const { user, loading } = useAuth();
+  const [isChecking, setIsChecking] = React.useState(true);
 
-  if (loading) return <SplashScreen />;
+  React.useEffect(() => {
+    // Small delay to ensure user state is fully set after login
+    const timer = setTimeout(() => {
+      setIsChecking(false);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [user]);
+
+  if (loading || isChecking) return <SplashScreen />;
 
   if (!user) {
 

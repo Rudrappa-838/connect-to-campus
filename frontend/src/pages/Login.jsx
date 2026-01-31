@@ -83,11 +83,8 @@ const Login = () => {
                     return;
                 }
 
-                if (result.user?.mustChangePassword) {
-                    toast('Please set a new password for security.', { icon: '🔒' });
-                    navigate('/change-password', { state: { email, role, oldPassword: password } });
-                    return;
-                }
+                // Small delay to ensure token is set in axios and state is updated
+                await new Promise(resolve => setTimeout(resolve, 100));
 
                 // toast.success('Welcome back!'); // Removed as per request
                 switch (role) {
@@ -101,8 +98,6 @@ const Login = () => {
             } else {
                 setErrorMessage(result.message);
                 toast.error(result.message);
-                setIsLoggingIn(false);
-                isLoggingInRef.current = false;
             }
         } catch (error) {
             // Don't show error if request was aborted
@@ -111,10 +106,11 @@ const Login = () => {
             }
 
             console.error(error);
-            setIsLoggingIn(false);
-            isLoggingInRef.current = false;
             setErrorMessage('An unexpected error occurred');
         } finally {
+            // Always reset loading state
+            setIsLoggingIn(false);
+            isLoggingInRef.current = false;
             abortControllerRef.current = null;
         }
     };
