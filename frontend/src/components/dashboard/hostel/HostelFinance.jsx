@@ -296,7 +296,8 @@ const HostelFinance = () => {
                 const res = await api.get('/hostel/finance/pending-dues');
                 setPendingList(res.data);
             } catch (err) {
-                toast.error('Failed to load pending list');
+                console.error(err);
+                toast.error(err.response?.data?.error || 'Failed to load pending list');
             } finally {
                 setLoadingList(false);
             }

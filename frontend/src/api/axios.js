@@ -30,6 +30,19 @@ const api = axios.create({
     timeout: 15000, // 15 seconds timeout
 });
 
+// In-memory token storage to avoid async race conditions
+let memoryToken = null;
+
+// Export function to set token immediately
+export const setAuthToken = (token) => {
+    memoryToken = token;
+    if (token) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+        delete api.defaults.headers.common['Authorization'];
+    }
+};
+
 // Loading state management (will be set by LoadingProvider)
 let loadingCallbacks = {
     start: () => { },
@@ -48,26 +61,32 @@ api.interceptors.request.use(
         // Start loading
         loadingCallbacks.start();
 
-        // Get token from storage (Capacitor Preferences on mobile, localStorage on web)
+        // 1. Priority: Check In-Memory Token (Fastest, fixes race condition)
+        if (memoryToken) {
+            config.headers.Authorization = `Bearer ${memoryToken}`;
+            return config;
+        }
+
+        // 2. Secondary: Check Storage (Async - fallback for page reloads)
         let token;
         try {
-            // Check if running on native platform
-            if (Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+            if (Capacitor.isNativePlatform()) {
                 const { value } = await Preferences.get({ key: 'token' });
                 token = value;
             } else {
-                // Web browser - use localStorage
                 token = localStorage.getItem('token');
             }
         } catch (error) {
-            // Fallback to localStorage if Capacitor check fails
-            console.warn('Capacitor check failed, using localStorage:', error);
+            console.warn('Storage check failed:', error);
             token = localStorage.getItem('token');
         }
 
         if (token) {
+            // Sync memory token for future requests
+            memoryToken = token;
             config.headers.Authorization = `Bearer ${token}`;
         }
+
         return config;
     },
     (error) => {
@@ -97,11 +116,13 @@ api.interceptors.response.use(
 
             const msg = error.response.data?.message;
 
-
-
             // Specific check for Service Disabled (403) or Session Invalid (401)
             if (msg === 'School Service Disabled. Contact Super Admin.' || error.response.status === 401) {
-                // Clear storage (use Capacitor Preferences on mobile, localStorage on web)
+
+                // Clear all storage
+                memoryToken = null;
+                delete api.defaults.headers.common['Authorization'];
+
                 if (Capacitor.isNativePlatform()) {
                     await Preferences.remove({ key: 'token' });
                     await Preferences.remove({ key: 'user' });
@@ -111,7 +132,6 @@ api.interceptors.response.use(
                 }
 
                 // Force reload to login if not already there
-                // Don't redirect if on super-admin-login page
                 if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/super-admin-login')) {
                     window.location.href = '/login?error=' + encodeURIComponent(msg || 'Session Expired');
                 }

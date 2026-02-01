@@ -436,12 +436,14 @@ exports.getHostelStats = async (req, res) => {
     try {
         const stats = {};
 
-        // 1. Head Count (Active Allocations for this school)
+        // 1. Head Count (Active Allocations for this school, excluding deleted students)
         const headcountRes = await pool.query(`
             SELECT COUNT(a.id) as count 
             FROM hostel_allocations a
             JOIN students s ON a.student_id = s.id
-            WHERE a.status = 'Active' AND s.school_id = $1
+            WHERE a.status = 'Active' 
+              AND s.school_id = $1
+              AND (s.status IS NULL OR s.status != 'Deleted')
         `, [req.user.schoolId]);
         stats.headCount = parseInt(headcountRes.rows[0].count);
 
@@ -563,72 +565,88 @@ exports.generateBulkMessBills = async (req, res) => {
 
 // Get Pending Dues (Mess Bills + Room Rent)
 exports.getPendingDues = async (req, res) => {
+    const allDues = [];
     try {
         const { filterMonth } = req.query;
-        console.log('Fetching pending dues. Filter:', filterMonth);
+        console.log('Fetching pending dues...');
 
-        // 1. Pending Mess Bills
-        let messQuery = `
-            SELECT b.id, b.student_id, s.name, s.admission_no, b.amount, b.month, b.year 
-            FROM hostel_mess_bills b 
-            JOIN students s ON b.student_id = s.id 
-            WHERE b.status = 'Pending' AND s.school_id = $1 AND (s.status IS NULL OR s.status != 'Deleted')
-        `;
-        const messParams = [req.user.schoolId];
+        // 1. Pending Mess Bills (Safe Block)
+        try {
+            let messQuery = `
+                SELECT b.id, b.student_id, s.name, s.admission_no, b.amount, b.month, b.year 
+                FROM hostel_mess_bills b 
+                JOIN students s ON b.student_id = s.id 
+                WHERE b.status = 'Pending' AND s.school_id = $1 AND (s.status IS NULL OR s.status != 'Deleted')
+            `;
+            const messParams = [req.user.schoolId];
 
-        if (filterMonth === 'current') {
-            const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-            const currentYear = new Date().getFullYear();
-            messQuery += ` AND b.month = $2 AND b.year = $3`;
-            messParams.push(currentMonth, currentYear);
+            if (filterMonth === 'current') {
+                const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+                const currentYear = new Date().getFullYear();
+                messQuery += ` AND b.month = $2 AND b.year = $3`;
+                messParams.push(currentMonth, currentYear);
+            }
+            messQuery += ` ORDER BY b.year DESC, b.month DESC`;
+            const messRes = await pool.query(messQuery, messParams);
+
+            messRes.rows.forEach(row => {
+                allDues.push({
+                    id: `mess_${row.id}`,
+                    student_id: row.student_id,
+                    name: row.name || 'Unknown',
+                    admission_no: row.admission_no || '-',
+                    amount: parseFloat(row.amount || 0).toFixed(2),
+                    type: 'Mess Bill',
+                    period: `${row.month} ${row.year}`
+                });
+            });
+        } catch (messError) {
+            console.error('Error fetching mess bills:', messError);
         }
-        messQuery += ` ORDER BY b.year DESC, b.month DESC`;
-        const messRes = await pool.query(messQuery, messParams);
 
-        const messDues = messRes.rows.map(row => ({
-            id: `mess_${row.id}`,
-            student_id: row.student_id, // Fixed: Use actual student ID
-            name: row.name || 'Unknown',
-            admission_no: row.admission_no || '-',
-            amount: parseFloat(row.amount || 0).toFixed(2),
-            type: 'Mess Bill',
-            period: `${row.month} ${row.year}`
-        }));
+        // 2. Pending Room Rent (Safe Block)
+        try {
+            // Updated Query: Removed generic 'allocations' check in favor of precise join
+            // Using a subquery for payments to avoid grouping issues
+            const rentQuery = `
+                 SELECT a.id as allocation_id, s.id as student_id, s.name, s.admission_no, 
+                       r.cost_per_term, r.room_number,
+                       (SELECT COALESCE(SUM(amount), 0) FROM hostel_payments WHERE student_id = s.id AND payment_type = 'Room Rent') as paid_amount
+                FROM hostel_allocations a
+                JOIN students s ON a.student_id = s.id
+                JOIN hostel_rooms r ON a.room_id = r.id
+                WHERE (a.status = 'Active' OR a.status = 'Vacated') 
+                  AND s.school_id = $1 
+                  AND (s.status IS NULL OR s.status != 'Deleted')
+            `;
+            const rentRes = await pool.query(rentQuery, [req.user.schoolId]);
 
-        // 2. Pending Room Rent
-        // Logic: Cost Per Term - Total Paid Rent > 0
-        // Added CAST to numeric for safety
-        const rentQuery = `
-            SELECT s.id, s.name, s.admission_no, r.cost_per_term,
-                   COALESCE(SUM(p.amount), 0) as paid_amount
-            FROM students s
-            JOIN hostel_allocations a ON s.id = a.student_id
-            JOIN hostel_rooms r ON a.room_id = r.id
-            LEFT JOIN hostel_payments p ON s.id = p.student_id AND p.payment_type = 'Room Rent'
-            WHERE a.status = 'Active' AND s.school_id = $1 AND (s.status IS NULL OR s.status != 'Deleted')
-            GROUP BY s.id, r.id, r.cost_per_term
-            HAVING COALESCE(SUM(p.amount), 0) < CAST(r.cost_per_term AS NUMERIC)
-        `;
-        const rentRes = await pool.query(rentQuery, [req.user.schoolId]);
+            rentRes.rows.forEach(row => {
+                const totalCost = parseFloat(row.cost_per_term || 0);
+                const totalPaid = parseFloat(row.paid_amount || 0);
 
-        const rentDues = rentRes.rows.map(row => ({
-            id: `rent_${row.id}`,
-            student_id: row.id,
-            name: row.name || 'Unknown',
-            admission_no: row.admission_no || '-',
-            amount: (parseFloat(row.cost_per_term || 0) - parseFloat(row.paid_amount || 0)).toFixed(2),
-            type: 'Room Rent',
-            period: 'Current Term'
-        }));
+                if (totalPaid < totalCost) {
+                    allDues.push({
+                        id: `rent_${row.allocation_id}`,
+                        student_id: row.student_id,
+                        name: row.name || 'Unknown',
+                        admission_no: row.admission_no || '-',
+                        amount: (totalCost - totalPaid).toFixed(2),
+                        type: 'Room Rent',
+                        period: `Room ${row.room_number}`
+                    });
+                }
+            });
+        } catch (rentError) {
+            console.error('Error fetching rent dues:', rentError);
+        }
 
-        // Combine and Sort
-        const allDues = [...messDues, ...rentDues].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        // Sort combined list
+        allDues.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         res.json(allDues);
     } catch (error) {
-        console.error('Error fetching pending dues:', error);
-        res.status(500).json({ error: 'Server error' });
+        console.error('Critical Error in getPendingDues:', error);
+        res.status(500).json({ error: 'Server error: ' + error.message });
     }
 };
-
-

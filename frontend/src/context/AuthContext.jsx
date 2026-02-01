@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import api from '../api/axios';
+import api, { setAuthToken } from '../api/axios';
 import toast from 'react-hot-toast';
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
@@ -44,6 +44,9 @@ export const AuthProvider = ({ children }) => {
 
                 if (token && storedUser) {
                     try {
+                        // CRITICAL: Set token in memory immediately for API calls
+                        setAuthToken(token);
+
                         const parsedUser = JSON.parse(storedUser);
                         setUser(parsedUser);
                         // DEBUG: Visual confirmation
@@ -55,6 +58,7 @@ export const AuthProvider = ({ children }) => {
                         console.error("Failed to parse stored user", e);
                         await removeStorageItem('token');
                         await removeStorageItem('user');
+                        setAuthToken(null);
                         if (Capacitor.isNativePlatform()) toast.error('Session corrupted. Please login again.');
                     }
                 } else {
@@ -84,7 +88,7 @@ export const AuthProvider = ({ children }) => {
                 if (event.data.type === 'LOGIN_SUCCESS') {
                     if (user && event.data.userId === user.id) {
                         logout(false, true);
-                        try { window.close(); } catch (e) { }
+                        // window.close() removed to prevent "Scripts may close only..." error
                     }
                 }
                 if (event.data.type === 'LOGOUT') {
@@ -107,12 +111,13 @@ export const AuthProvider = ({ children }) => {
             const response = await api.post('/auth/login', { email, password, role });
             const { token, user } = response.data;
 
+            // CRITICAL: Set token in memory immediately to prevent race condition
+            // Do this BEFORE saving to storage
+            setAuthToken(token);
+
             // Save to storage (Capacitor Preferences on mobile, localStorage on web)
             await setStorageItem('token', token);
             await setStorageItem('user', JSON.stringify(user));
-
-            // CRITICAL: Set token in axios headers immediately to prevent race condition
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
             setUser(user);
 
@@ -188,8 +193,8 @@ export const AuthProvider = ({ children }) => {
             await removeStorageItem('token');
             await removeStorageItem('user');
 
-            // Clear axios authorization header
-            delete api.defaults.headers.common['Authorization'];
+            // Clear memory token and axios header
+            setAuthToken(null);
 
             setUser(null);
             if (isAutoLogout) alert("Session timed out due to inactivity.");

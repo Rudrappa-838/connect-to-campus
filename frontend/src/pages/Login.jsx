@@ -186,7 +186,17 @@ const Login = () => {
                                     value={email}
                                     onChange={(e) => {
                                         cancelVerification();
-                                        setEmail(e.target.value.replace(/\s/g, ''));
+                                        const val = e.target.value;
+                                        // Validation Logic based on Role
+                                        let cleanVal;
+                                        if (role === 'SCHOOL_ADMIN') {
+                                            // Allow Alphanumeric + @ + . (Email or School Code)
+                                            cleanVal = val.replace(/[^a-zA-Z0-9@.]/g, '');
+                                        } else {
+                                            // Allow ONLY Alphanumeric (IDs)
+                                            cleanVal = val.replace(/[^a-zA-Z0-9]/g, '');
+                                        }
+                                        setEmail(cleanVal);
                                         setErrorMessage('');
                                     }}
                                 />
