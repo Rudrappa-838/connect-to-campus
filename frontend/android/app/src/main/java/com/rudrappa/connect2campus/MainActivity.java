@@ -1,4 +1,4 @@
-package com.school.app;
+package com.rudrappa.connect2campus;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -1,11 +1,7 @@
 {
-  "appId": "com.school.app",
+  "appId": "com.rudrappa.connect2campus",
   "appName": "Connect to Campus",
   "webDir": "dist",
-  "server": {
-    "url": "http://52.66.13.31",
-    "cleartext": true
-  },
   "plugins": {
     "PushNotifications": {
       "presentationOptions": [

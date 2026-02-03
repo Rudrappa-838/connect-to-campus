@@ -95,42 +95,7 @@ const AppContent = () => {
     };
 
     // 2. Setup Push Notifications
-    const setupNotifications = async () => {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          // Request permission
-          const result = await PushNotifications.requestPermissions();
-          if (result.receive === 'granted') {
-            await PushNotifications.register();
-
-            // Create High Importance Channel for "WhatsApp-style" heads-up notifications
-            await PushNotifications.createChannel({
-              id: 'school_notifications',
-              name: 'School Notifications',
-              importance: 5, // HIGH
-              visibility: 1, // PUBLIC
-              vibration: true,
-            });
-          }
-
-          // Listeners
-          PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            toast.success(notification.title || 'New Notification');
-          });
-
-          PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-            // Navigate to specific page logic here
-            console.log('Push action:', notification);
-          });
-
-        } catch (err) {
-          console.log('Push Notification setup failed', err);
-        }
-      }
-    };
-
     setupStatusBar();
-    setupNotifications();
   }, []);
 
   return (

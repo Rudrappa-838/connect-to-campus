@@ -24,6 +24,15 @@ const NotificationRegistration = () => {
                 // Register with FCM/APNS
                 await PushNotifications.register();
 
+                // Create High Importance Channel for "WhatsApp-style" heads-up notifications
+                await PushNotifications.createChannel({
+                    id: 'school_notifications',
+                    name: 'School Notifications',
+                    importance: 5, // HIGH
+                    visibility: 1, // PUBLIC
+                    vibration: true,
+                });
+
                 // Listen for successful registration
                 PushNotifications.addListener('registration', async (token) => {
                     console.log('Push Registration Success. Token:', token.value);
