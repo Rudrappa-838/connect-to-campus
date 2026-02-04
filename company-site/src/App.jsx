@@ -1,57 +1,42 @@
-import { useState } from 'react'
-import Hero3D from './components/Hero3D'
-import Services from './components/Services'
-import Features from './components/Features'
-import About from './components/About'
-import Testimonials from './components/Testimonials'
-import Contact from './components/Contact'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import Navbar from './components/Navbar'
+import Footer from './components/Footer'
+import Home from './pages/Home'
+import Product from './pages/Product'
+import About from './pages/About'
+import Contact from './pages/Contact'
+import Download from './pages/Download'
+import Privacy from './pages/Privacy'
+import Background3D from './components/Background3D'
+import ScrollToTop from './components/ScrollToTop'
 
 function App() {
   return (
-    <div className="min-h-screen bg-brand-dark text-white font-sans">
-      <header className="fixed w-full p-6 flex justify-between items-center z-50 bg-opacity-50 backdrop-blur-md">
-        <h1 className="text-2xl font-bold tracking-tighter bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-          SoftNet
-        </h1>
-        <nav className="space-x-8 text-sm font-medium text-gray-300">
-          <a href="#" className="hover:text-white transition">Home</a>
-          <a href="#services" className="hover:text-white transition">Services</a>
-          <a href="#features" className="hover:text-white transition">Features</a>
-          <a href="#about" className="hover:text-white transition">About</a>
-          <a href="#testimonials" className="hover:text-white transition">Testimonials</a>
-          <a href="#contact" className="hover:text-white transition">Contact</a>
-        </nav>
-      </header>
+    <Router>
+      <ScrollToTop />
+      <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-gray-900 text-white font-sans relative overflow-hidden">
+        {/* 3D Animated Background */}
+        <Background3D />
 
-      <main className="pt-32 px-6 pb-20 flex flex-col items-center justify-center text-center">
-        <div className="max-w-4xl space-y-4">
-          <h2 className="text-5xl md:text-7xl font-bold tracking-tight animated-gradient-text">
-            Transforming Education Through Technology
-          </h2>
-          <p className="text-xl max-w-2xl mx-auto animated-gradient-text">
-            SoftNet delivers comprehensive institute management software to streamline operations and enhance learning experiences.
-          </p>
-        </div>
-      </main>
+        {/* Navigation */}
+        <Navbar />
 
-      {/* Services Section */}
-      <Services />
+        {/* Main Content */}
+        <main className="relative z-10">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/product" element={<Product />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/download" element={<Download />} />
+            <Route path="/privacy" element={<Privacy />} />
+          </Routes>
+        </main>
 
-      {/* Features Section */}
-      <Features />
-
-      {/* About Section */}
-      <About />
-
-      {/* Testimonials Section */}
-      <Testimonials />
-
-      {/* Contact Section */}
-      <Contact />
-
-      {/* 3D Placeholder - Temporarily disabled to fix blinking */}
-      {/* <Hero3D /> */}
-    </div>
+        {/* Footer */}
+        <Footer />
+      </div>
+    </Router>
   )
 }
 

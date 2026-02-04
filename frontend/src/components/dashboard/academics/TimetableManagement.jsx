@@ -112,7 +112,7 @@ const TimetableManagement = ({ config }) => {
             fetchTimetable();
             setShowAutoGenModal(false);
         } catch (error) {
-            toast.error('Failed to generate timetable');
+            toast.error(error.response?.data?.message || 'Failed to generate timetable');
             console.error(error);
         } finally {
             setLoading(false);
