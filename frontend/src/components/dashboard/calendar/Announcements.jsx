@@ -149,6 +149,7 @@ const Announcements = () => {
             if (targetRole === 'Class' && !selectedClass) return toast.error('Please select a class');
             if (targetRole === 'Subject' && !selectedSubject) return toast.error('Please select a subject');
             if (targetRole === 'Role' && !selectedStaffRole) return toast.error('Please select a staff role');
+            if (!validUntil) return toast.error('Please select a valid until date');
 
             const payload = {
                 title,
@@ -339,8 +340,9 @@ const Announcements = () => {
                             )}
 
                             <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Valid Until (Optional)</label>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">Valid Until date (Auto-delete after)</label>
                                 <input
+                                    required
                                     type="date"
                                     value={validUntil}
                                     onChange={e => setValidUntil(e.target.value)}
@@ -409,11 +411,11 @@ const Announcements = () => {
                                     )}
                                 </span>
                                 <span className="flex items-center gap-1">
-                                    <Clock size={12} /> Posted: {new Date(item.created_at).toLocaleDateString()}
+                                    <Clock size={12} /> Posted: {new Date(item.created_at).toLocaleDateString('en-GB')}
                                 </span>
                                 {item.valid_until && (
                                     <span className="flex items-center gap-1 text-orange-400">
-                                        Valid until: {new Date(item.valid_until).toLocaleDateString()}
+                                        Valid until: {new Date(item.valid_until).toLocaleDateString('en-GB')}
                                     </span>
                                 )}
                             </div>

@@ -172,7 +172,13 @@ exports.addAnnouncement = async (req, res) => {
         }
 
         const { title, message, target_role, priority, valid_until, class_id, section_id } = req.body;
-        const effectiveValidUntil = (!valid_until || valid_until === '') ? null : valid_until;
+
+        // Enforce Valid Until Date
+        if (!valid_until || valid_until === '') {
+            return res.status(400).json({ message: 'Valid Until date is required for auto-deletion.' });
+        }
+
+        const effectiveValidUntil = valid_until;
 
         // 1. Insert Announcement
         const result = await pool.query(
