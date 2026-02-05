@@ -430,10 +430,12 @@ const forgotPassword = async (req, res) => {
         await pool.query('UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE id = $3', [otp, otpExpires, user.id]);
 
         // Log for development (always visible)
-        console.log('----- PASSWORD RESET OTP (Dev Mode) -----');
-        console.log(`Role: ${role}, ID: ${userDetails.id}, Sent To: ${recipientEmail}`);
-        console.log(`OTP: ${otp}`);
-        console.log('----------------------------------------');
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('----- PASSWORD RESET OTP (Dev Mode) -----');
+            console.log(`Role: ${role}, ID: ${userDetails.id}, Sent To: ${recipientEmail}`);
+            console.log(`OTP: ${otp}`);
+            console.log('----------------------------------------');
+        }
 
         // Attempt to send Real Email if configured
         if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
