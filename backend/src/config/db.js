@@ -19,9 +19,9 @@ const pool = new Pool({
     connectionString: connectionString || `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`,
     // Force allow self-signed certs (AWS RDS uses them by default)
     ssl: { rejectUnauthorized: false },
-    max: 5, // Reduced to 5 for Free Tier stability
-    idleTimeoutMillis: 30000, // 30s idle timeout
-    connectionTimeoutMillis: 10000, // 10s to establish connection
+    max: 10,
+    connectionTimeoutMillis: 60000, // 60s to establish connection
+    idleTimeoutMillis: 0, // Disable idle timeout (keep connections open)
     keepAlive: true,
 });
 
