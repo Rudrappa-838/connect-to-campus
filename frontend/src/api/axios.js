@@ -27,7 +27,7 @@ console.log('🔗 API Base URL (v3):', baseURL, '| Mode:', import.meta.env.MODE)
 
 const api = axios.create({
     baseURL: baseURL,
-    timeout: 15000, // 15 seconds timeout
+    timeout: 30000, // 30 seconds timeout
 });
 
 // In-memory token storage to avoid async race conditions
