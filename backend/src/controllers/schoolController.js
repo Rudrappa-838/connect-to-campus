@@ -761,8 +761,27 @@ const getDashboardStats = async (req, res) => {
     }
 };
 
+const updateMySchoolSettings = async (req, res) => {
+    const schoolId = req.user.schoolId;
+    if (!schoolId) return res.status(403).json({ message: 'Access denied' });
+
+    const { geminiApiKey } = req.body; // Currently only expecting API key from frontend
+
+    try {
+        await pool.query(
+            `UPDATE schools SET gemini_api_key = COALESCE($1, gemini_api_key) WHERE id = $2`,
+            [geminiApiKey, schoolId]
+        );
+        res.json({ message: 'Settings updated successfully' });
+    } catch (error) {
+        console.error('[UPDATE MY SCHOOL] Error:', error);
+        res.status(500).json({ message: 'Error updating settings' });
+    }
+};
+
 module.exports = {
     createSchool, getSchools, getSchoolDetails, updateSchool, getMySchool,
     toggleSchoolStatus, deleteSchool, restoreSchool, getDeletedSchools,
-    permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, getDashboardStats
+    permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, getDashboardStats,
+    updateMySchoolSettings
 };

@@ -74,7 +74,7 @@ const SchoolSettings = () => {
 
             // 1. Update Basic Settings (API Key)
             if (user?.schoolId) {
-                await api.put(`/schools/${user.schoolId}`, updateData);
+                await api.put('/schools/my-school/settings', updateData);
             }
 
             // 2. Upload Logo if changed

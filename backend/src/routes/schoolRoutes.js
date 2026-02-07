@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createSchool, getSchools, getSchoolDetails, updateSchool, getMySchool, toggleSchoolStatus, deleteSchool, restoreSchool, getDeletedSchools, permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, getDashboardStats } = require('../controllers/schoolController');
+const { createSchool, getSchools, getSchoolDetails, updateSchool, getMySchool, toggleSchoolStatus, deleteSchool, restoreSchool, getDeletedSchools, permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, getDashboardStats, updateMySchoolSettings } = require('../controllers/schoolController');
 const { authenticateToken, requireSuperAdmin, authorize } = require('../middleware/authMiddleware');
 
 // All routes require authentication
@@ -10,6 +10,7 @@ router.use(authenticateToken);
 router.get('/my-school', authorize('SCHOOL_ADMIN', 'TEACHER', 'STUDENT', 'STAFF', 'DRIVER', 'TRANSPORT_MANAGER'), getMySchool);
 router.get('/dashboard-stats', authorize('SCHOOL_ADMIN'), getDashboardStats);
 router.put('/my-school/logo', authorize('SCHOOL_ADMIN'), updateSchoolLogo);
+router.put('/my-school/settings', authorize('SCHOOL_ADMIN'), updateMySchoolSettings);
 
 // Super Admin Routes (Protected)
 router.post('/', requireSuperAdmin, createSchool);
