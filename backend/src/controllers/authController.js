@@ -96,11 +96,15 @@ const login = async (req, res) => {
             }
         }
 
-        // Check School Status (Is Active?)
+        // Check School Status (Is Active?) and Get Institution Type
+        let schoolType = 'SCHOOL'; // Default
         if (user.school_id) {
-            const schoolStatusRes = await pool.query('SELECT is_active FROM schools WHERE id = $1', [user.school_id]);
-            if (schoolStatusRes.rows.length > 0 && !schoolStatusRes.rows[0].is_active) {
-                return res.status(403).json({ message: 'Contact Super Admin for service' });
+            const schoolStatusRes = await pool.query('SELECT is_active, institution_type FROM schools WHERE id = $1', [user.school_id]);
+            if (schoolStatusRes.rows.length > 0) {
+                if (!schoolStatusRes.rows[0].is_active) {
+                    return res.status(403).json({ message: 'Contact Super Admin for service' });
+                }
+                schoolType = schoolStatusRes.rows[0].institution_type || 'SCHOOL';
             }
         }
 
@@ -197,6 +201,7 @@ const login = async (req, res) => {
                 email: user.email,
                 role: user.role,
                 schoolId: user.school_id,
+                institutionType: schoolType,
                 mustChangePassword: user.must_change_password || false
             }
         });

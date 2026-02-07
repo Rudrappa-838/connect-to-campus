@@ -4,9 +4,11 @@ import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 
 import { useAuth } from '../../../context/AuthContext';
+import { useInstitution } from '../../../context/InstitutionContext';
 
 const SchoolCalendar = () => {
     const { user } = useAuth();
+    const { getLabel } = useInstitution();
     const isSchoolAdmin = user?.role === 'SCHOOL_ADMIN';
 
     const [events, setEvents] = useState([]);
@@ -190,7 +192,7 @@ const SchoolCalendar = () => {
         <div className="space-y-6 animate-in fade-in">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-800">School Calendar</h2>
+                    <h2 className="text-2xl font-bold text-slate-800">{getLabel('school', 'School')} Calendar</h2>
                     <p className="text-slate-500">Manage holidays, exams, and events</p>
                 </div>
                 {isSchoolAdmin && (

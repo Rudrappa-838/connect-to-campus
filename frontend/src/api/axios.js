@@ -146,6 +146,12 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
+        // Only retry idempotent methods (GET, HEAD, OPTIONS)
+        const idempotentMethods = ['get', 'head', 'options'];
+        if (!idempotentMethods.includes(config.method)) {
+            return Promise.reject(error);
+        }
+
         // Set the variable for keeping track of the retry count
         config.__retryCount = config.__retryCount || 0;
 

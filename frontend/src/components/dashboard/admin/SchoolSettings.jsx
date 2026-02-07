@@ -6,9 +6,11 @@ import ClassManagement from './ClassManagement';
 import AcademicYearSettings from '../settings/AcademicYearSettings';
 
 import { useAuth } from '../../../context/AuthContext';
+import { useInstitution } from '../../../context/InstitutionContext';
 
 const SchoolSettings = () => {
     const { user } = useAuth();
+    const { getLabel } = useInstitution();
     const [activeTab, setActiveTab] = useState('branding'); // 'branding', 'academic-year', 'classes'
     const [logoUrl, setLogoUrl] = useState('');
     const [logoFile, setLogoFile] = useState(null);
@@ -116,7 +118,7 @@ const SchoolSettings = () => {
                             }`}
                     >
                         <Building size={20} />
-                        School Branding
+                        {getLabel('school', 'School')} Branding
                     </button>
                     <button
                         onClick={() => setActiveTab('academic-year')}
@@ -147,12 +149,12 @@ const SchoolSettings = () => {
             {activeTab === 'branding' && (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-2xl mx-auto">
                     <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-800">
-                        <Building className="text-indigo-600" /> School Branding
+                        <Building className="text-indigo-600" /> {getLabel('school', 'School')} Branding
                     </h2>
 
                     <div className="space-y-6">
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-3">School Logo</label>
+                            <label className="block text-sm font-bold text-slate-700 mb-3">{getLabel('school', 'School')} Logo</label>
 
                             <div className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
                                 {logoUrl ? (

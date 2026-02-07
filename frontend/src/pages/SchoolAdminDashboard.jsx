@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useInstitution } from '../context/InstitutionContext';
 import { useNavigate } from 'react-router-dom';
 import {
     Users, Calendar, BarChart3, LogOut, Check, ChevronRight, ChevronDown, User, DollarSign,
@@ -84,6 +85,7 @@ import SchoolSettings from '../components/dashboard/admin/SchoolSettings';
 
 const SchoolAdminDashboard = () => {
     const { logout, user } = useAuth();
+    const { getLabel } = useInstitution();
     const navigate = useNavigate();
     const [academicConfig, setAcademicConfig] = useState({ classes: [] });
     const [activeTab, setActiveTab] = useState('overview'); // Default to overview
@@ -225,7 +227,7 @@ const SchoolAdminDashboard = () => {
                             </div>
                         )}
                         <div className="w-full">
-                            <h1 className="text-xl font-serif font-black italic text-white tracking-wide leading-tight drop-shadow-md">{academicConfig.name || 'School Admin'}</h1>
+                            <h1 className="text-xl font-serif font-black italic text-white tracking-wide leading-tight drop-shadow-md">{academicConfig.name || getLabel('admin_dashboard')}</h1>
                             <p className="text-[10px] font-bold uppercase tracking-wider text-yellow-400/80">Admin Portal</p>
                         </div>
                     </div>
@@ -369,7 +371,7 @@ const SchoolAdminDashboard = () => {
                         expanded={expandedSections.calendar}
                         onToggle={() => toggleSection('calendar')}
                     >
-                        <NavSubButton active={activeTab === 'school-calendar'} onClick={() => handleTabChange('school-calendar')} label="School Calendar" />
+                        <NavSubButton active={activeTab === 'school-calendar'} onClick={() => handleTabChange('school-calendar')} label={`${getLabel('school', 'School')} Calendar`} />
                         <NavSubButton active={activeTab === 'holiday-management'} onClick={() => handleTabChange('holiday-management')} label="Holiday Management" />
                     </NavGroup>
 
@@ -439,7 +441,7 @@ const SchoolAdminDashboard = () => {
                         active={activeTab === 'settings'}
                         onClick={() => handleTabChange('settings')}
                         icon={Settings}
-                        label="School Settings"
+                        label={`${getLabel('school', 'School')} Settings`}
                     />
                 </div>
 
@@ -451,7 +453,7 @@ const SchoolAdminDashboard = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-white truncate">{user?.email}</p>
-                            <p className="text-xs text-gray-400">School Administrator</p>
+                            <p className="text-xs text-gray-400">{getLabel('admin_dashboard')}</p>
                         </div>
                         <button onClick={handleLogoutClick} className="text-gray-400 hover:text-red-400 transition-colors">
                             <LogOut size={18} />
@@ -466,7 +468,7 @@ const SchoolAdminDashboard = () => {
                 {/* Mobile Header (App Mode Only) */}
                 {isMobileApp && (
                     <MobileHeader
-                        title={getTabTitle(activeTab)}
+                        title={getTabTitle(activeTab, getLabel)}
                         schoolName={academicConfig?.name}
                         onMenuClick={() => setIsMobileMenuOpen(true)}
                     />
@@ -483,7 +485,7 @@ const SchoolAdminDashboard = () => {
                                 <Menu size={24} />
                             </button>
                             <h2 className="text-xl font-bold text-slate-800">
-                                {getTabTitle(activeTab)}
+                                {getTabTitle(activeTab, getLabel)}
                             </h2>
                         </div>
                         <div className="flex items-center gap-4 py-2">
@@ -631,7 +633,8 @@ const NavSubButton = ({ active, onClick, label }) => (
 );
 
 
-const getTabTitle = (tab) => {
+const getTabTitle = (tab, getLabel = (k, d) => d) => {
+    const schoolLabel = getLabel('school', 'School');
     const titles = {
         'overview': 'Dashboard Overview',
         'student-list': 'Student Admission List',
@@ -666,14 +669,14 @@ const getTabTitle = (tab) => {
         'hostel-rooms': 'Room Configuration',
         'hostel-allocation': 'Student Allocation',
         'hostel-finance': 'Hostel Fees & Mess',
-        'school-calendar': 'School Calendar',
+        'school-calendar': `${schoolLabel} Calendar`,
         'announcements': 'Announcements & Notice Board',
         'leave-management': 'Leave Management',
         'certificates-generator': 'Certificate Generator',
         'transport-management': 'Transport & Live Tracking',
         'biometric-access': 'Biometric & Access Control',
         'academic-year-settings': 'Academic Year Management',
-        'settings': 'School Settings'
+        'settings': `${schoolLabel} Settings`
     };
     return titles[tab] || 'Dashboard';
 }

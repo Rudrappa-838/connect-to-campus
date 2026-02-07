@@ -34,6 +34,7 @@ const SuperAdminDashboard = () => {
         adminEmail: '',
         adminPassword: '',
         confirmAdminPassword: '',
+        institutionType: 'SCHOOL',
         classes: []
     });
 
@@ -94,11 +95,6 @@ const SuperAdminDashboard = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const isSubmittingRef = useRef(false);
 
-    useEffect(() => {
-        fetchSchools();
-        fetchDeletedSchools();
-    }, []);
-
     const fetchSchools = async () => {
         try {
             const res = await api.get('/schools');
@@ -122,6 +118,11 @@ const SuperAdminDashboard = () => {
             toast.error(`Failed to load deleted schools: ${msg} ${detail ? `(${detail})` : ''}`);
         }
     };
+
+    useEffect(() => {
+        fetchSchools();
+        fetchDeletedSchools();
+    }, []);
 
     const handleDeleteSchool = async (school) => {
         if (!window.confirm(`Are you sure you want to delete "${school.name}"? This will move it to the dustbin.`)) return;
@@ -246,6 +247,7 @@ const SuperAdminDashboard = () => {
                 adminEmail: '',
                 adminPassword: '',
                 confirmAdminPassword: '',
+                institutionType: fullSchool.institution_type || 'SCHOOL',
                 classes: [...transformedClasses] // Use spread to ensure new array reference
             }));
             setShowModal(true);
@@ -260,7 +262,7 @@ const SuperAdminDashboard = () => {
         setEditSchoolId(null);
         setFormData({
             name: '', address: '', contactEmail: '', contactNumber: '',
-            adminEmail: '', adminPassword: '', confirmAdminPassword: '', classes: []
+            adminEmail: '', adminPassword: '', confirmAdminPassword: '', institutionType: 'SCHOOL', classes: []
         });
         setShowModal(true);
     };
@@ -333,7 +335,11 @@ const SuperAdminDashboard = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (isSubmittingRef.current) return;
+        // Prevent double submission
+        if (isSubmittingRef.current) {
+            console.log('[SUBMIT BLOCKED] Already submitting');
+            return;
+        }
         isSubmittingRef.current = true;
         setIsSubmitting(true);
 
@@ -356,23 +362,44 @@ const SuperAdminDashboard = () => {
                     address: formData.address,
                     contactEmail: formData.contactEmail,
                     contactNumber: formData.contactNumber,
-                    classes: formData.classes, // Send updated classes for expansion/deletion
-                    allowDeletions: true // Enable class/section deletion
+                    institution_type: formData.institutionType,
+                    classes: formData.classes,
+                    allowDeletions: true
                 });
                 toast.success('School updated successfully! ✏️');
             } else {
-                // Exclude confirmAdminPassword from payload
-                const { confirmAdminPassword, ...payload } = formData;
+                const { confirmAdminPassword, institutionType, ...rest } = formData;
+                const payload = { ...rest, institution_type: institutionType };
+
+                console.log('[CREATE SCHOOL] Sending request...');
                 await api.post('/schools', payload);
+                console.log('[CREATE SCHOOL] Success!');
                 toast.success('School created successfully! 🎉');
             }
 
             setShowModal(false);
-            fetchSchools();
+            await fetchSchools(); // Refresh list
             setIsEditing(false);
             setEditSchoolId(null);
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to save school');
+            console.error('[SUBMIT ERROR]', error);
+            console.error('[SUBMIT ERROR] Status:', error.response?.status);
+            console.error('[SUBMIT ERROR] Data:', error.response?.data);
+            console.error('[SUBMIT ERROR] Message:', error.message);
+
+            // Check if the error is "email already exists" - school might have been created
+            const errorMsg = error.response?.data?.message || 'Failed to save school';
+
+            if (errorMsg.includes('already exists')) {
+                // School might have been created despite the error
+                toast.error('⚠️ ' + errorMsg + '. Refreshing list...');
+                setShowModal(false);
+                await fetchSchools(); // Refresh to show the school if it was created
+                setIsEditing(false);
+                setEditSchoolId(null);
+            } else {
+                toast.error(errorMsg);
+            }
         } finally {
             isSubmittingRef.current = false;
             setIsSubmitting(false);
@@ -723,12 +750,12 @@ const SuperAdminDashboard = () => {
                                 <section>
                                     <div className="flex items-center gap-3 mb-6">
                                         <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm">1</div>
-                                        <h3 className="text-lg font-bold text-white">School Information</h3>
+                                        <h3 className="text-lg font-bold text-white">{formData.institutionType === 'COLLEGE' ? 'College' : 'School'} Information</h3>
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="group">
-                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">School Name</label>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{formData.institutionType === 'COLLEGE' ? 'College' : 'School'} Name</label>
                                             <input
                                                 required
                                                 placeholder="e.g. Springfield High"
@@ -773,6 +800,33 @@ const SuperAdminDashboard = () => {
                                                 value={formData.address}
                                                 onChange={e => setFormData({ ...formData, address: e.target.value })}
                                             />
+                                        </div>
+                                        <div className="group col-span-1 md:col-span-2">
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Institution Type</label>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, institutionType: 'SCHOOL' })}
+                                                    className={`px-4 py-3 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${formData.institutionType === 'SCHOOL'
+                                                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+                                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
+                                                        }`}
+                                                >
+                                                    <School size={18} />
+                                                    School
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, institutionType: 'COLLEGE' })}
+                                                    className={`px-4 py-3 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${formData.institutionType === 'COLLEGE'
+                                                        ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-500/20'
+                                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
+                                                        }`}
+                                                >
+                                                    <Layers size={18} />
+                                                    College
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </section>
@@ -1178,7 +1232,7 @@ const SuperAdminDashboard = () => {
                                 disabled={isSubmitting}
                                 className={`px-8 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/25 transition-all ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98]'}`}
                             >
-                                {isSubmitting ? 'Processing...' : (isEditing ? 'Save Changes' : 'Create School')}
+                                {isSubmitting ? 'Processing...' : (isEditing ? 'Save Changes' : (formData.institutionType === 'COLLEGE' ? 'Create College' : 'Create School'))}
                             </button>
                         </div>
                     </div>
@@ -1199,7 +1253,7 @@ const SuperAdminDashboard = () => {
                         <div className="p-8 space-y-8">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">School ID</p>
+                                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">{viewSchool.institution_type === 'COLLEGE' ? 'College' : 'School'} ID</p>
                                     <p className="text-indigo-300 font-mono text-lg font-bold">{viewSchool.school_code || 'N/A'}</p>
                                 </div>
                                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">

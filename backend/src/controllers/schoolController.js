@@ -13,6 +13,8 @@ const createSchool = async (req, res) => {
             classes // Array of { name, sections: [], subjects: [] }
         } = req.body;
 
+        console.log(`[CREATE SCHOOL REQUEST] Name: ${name}, Email: ${contactEmail}`);
+
         // Validation
         if (!name || !contactEmail || !adminEmail || !adminPassword) {
             return res.status(400).json({ message: 'Missing required fields' });
@@ -30,9 +32,13 @@ const createSchool = async (req, res) => {
             isUnique = check.rows.length === 0;
         }
 
-        // Check if contact email already exists
-        const contactEmailCheck = await client.query("SELECT id FROM schools WHERE contact_email = $1", [contactEmail]);
+        // Check if contact email already exists (Active or Inactive but not Deleted)
+        console.log(`[CREATE SCHOOL] Checking email: ${contactEmail}`);
+        const contactEmailCheck = await client.query("SELECT id, status FROM schools WHERE contact_email = $1 AND (status IS NULL OR status != 'Deleted')", [contactEmail]);
         if (contactEmailCheck.rows.length > 0) {
+            console.log(`[CREATE SCHOOL] Found conflicting school:`, contactEmailCheck.rows[0]);
+            await client.query('ROLLBACK');
+            client.release();
             return res.status(400).json({ message: 'Contact email already exists for another school' });
         }
 
@@ -40,6 +46,8 @@ const createSchool = async (req, res) => {
         if (contactNumber) {
             const contactNumberCheck = await client.query("SELECT id FROM schools WHERE contact_number = $1", [contactNumber]);
             if (contactNumberCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                client.release();
                 return res.status(400).json({ message: 'Contact number already exists for another school' });
             }
         }
@@ -47,14 +55,16 @@ const createSchool = async (req, res) => {
         // Check if admin email already exists in users table
         const adminEmailCheck = await client.query("SELECT id FROM users WHERE email = $1", [adminEmail]);
         if (adminEmailCheck.rows.length > 0) {
+            await client.query('ROLLBACK');
+            client.release();
             return res.status(400).json({ message: 'Admin email already exists' });
         }
 
         // 1. Create School
         const schoolRes = await client.query(
-            `INSERT INTO schools (name, address, contact_email, contact_number, school_code) 
-             VALUES ($1, $2, $3, $4, $5) RETURNING id, school_code`,
-            [name, address, contactEmail, contactNumber, schoolCode]
+            `INSERT INTO schools (name, address, contact_email, contact_number, school_code, institution_type) 
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, school_code`,
+            [name, address, contactEmail, contactNumber, schoolCode, req.body.institution_type || 'SCHOOL']
         );
         const schoolId = schoolRes.rows[0].id;
         const generatedCode = schoolRes.rows[0].school_code;
@@ -100,6 +110,8 @@ const createSchool = async (req, res) => {
         }
 
         // 4. Auto-Generate Holidays for Current AND Next Year (Official Calendar + Sundays)
+        // TEMPORARILY DISABLED FOR TESTING - TODO: Move to background job
+        /*
         const currentYear = new Date().getFullYear();
         const yearsToGen = [currentYear, currentYear + 1];
 
@@ -120,6 +132,7 @@ const createSchool = async (req, res) => {
                  `, [schoolId, h.holiday_name, h.holiday_date]);
             }
         }
+        */
 
         await client.query('COMMIT');
 
@@ -296,9 +309,9 @@ const updateSchool = async (req, res) => {
         // 1. Update Basic Info including API Key (BYOK)
         const result = await client.query(
             `UPDATE schools 
-             SET name = $1, address = $2, contact_email = $3, contact_number = $4, gemini_api_key = COALESCE($5, gemini_api_key)
-             WHERE id = $6 RETURNING *`,
-            [name, address, contactEmail, contactNumber, req.body.geminiApiKey, id]
+             SET name = $1, address = $2, contact_email = $3, contact_number = $4, institution_type = $5, gemini_api_key = COALESCE($6, gemini_api_key)
+             WHERE id = $7 RETURNING *`,
+            [name, address, contactEmail, contactNumber, req.body.institution_type || 'SCHOOL', req.body.geminiApiKey, id]
         );
         console.log('[UPDATE SCHOOL] Basic Info Updated');
 
