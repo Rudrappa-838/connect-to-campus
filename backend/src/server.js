@@ -89,6 +89,23 @@ const startServer = async () => {
                     END IF;
                 END $$;
             `);
+
+            // Fix: Allow NULL student_id in marks and certificates for permanent deletion
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'marks') THEN
+                        ALTER TABLE marks ALTER COLUMN student_id DROP NOT NULL;
+                        ALTER TABLE marks ADD COLUMN IF NOT EXISTS deleted_student_name VARCHAR(255);
+                        ALTER TABLE marks ADD COLUMN IF NOT EXISTS deleted_student_admission_no VARCHAR(50);
+                    END IF;
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'student_certificates') THEN
+                        ALTER TABLE student_certificates ALTER COLUMN student_id DROP NOT NULL;
+                        ALTER TABLE student_certificates ADD COLUMN IF NOT EXISTS deleted_student_name VARCHAR(255);
+                        ALTER TABLE student_certificates ADD COLUMN IF NOT EXISTS deleted_student_admission_no VARCHAR(50);
+                    END IF;
+                END $$;
+            `);
             console.log('✅ Database schema verified.');
         } catch (migError) {
             console.warn('⚠️ Some migrations could not be applied automatically:', migError.message);

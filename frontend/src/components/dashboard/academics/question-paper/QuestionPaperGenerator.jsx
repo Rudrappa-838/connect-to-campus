@@ -59,7 +59,7 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
 
     // Real AI Generation Logic
     const handleGenerate = async () => {
-        if (mode === 'text' && !paperConfig.topic) return toast.error("Please enter a topic");
+        if (mode === 'text' && !paperConfig.topic) return toast.error("Please enter instructions and topic");
         if (mode === 'image' && files.length === 0) return toast.error("Please upload an image for analysis");
 
         setGenerating(true);
@@ -71,38 +71,59 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
             const selectedClass = academicConfig?.classes?.find(c => c.class_id.toString() === paperConfig.classId.toString());
             const className = selectedClass ? selectedClass.class_name : 'Grade 10';
 
-            const formData = new FormData();
-            // In image mode, explicitly send empty topic so AI focuses on image
-            formData.append('topic', mode === 'image' ? '' : paperConfig.topic);
-            formData.append('subject', paperConfig.subject);
-            formData.append('classLevel', className);
-            formData.append('difficulty', paperConfig.difficulty);
-            formData.append('questionCount', paperConfig.questionCount);
-            formData.append('type', paperConfig.type);
+            if (mode === 'text') {
+                // New Prompt-Based Generation
+                const res = await api.post('/ai/generate-paper', {
+                    prompt: paperConfig.topic,
+                    subject: paperConfig.subject,
+                    class_level: className
+                });
 
-            // Append Files
-            if (mode === 'image' && files.length > 0) {
+                if (res.data.sections) {
+                    // Flatten sections to questions with section metadata
+                    const flatQuestions = res.data.sections.flatMap((sec, sIdx) =>
+                        sec.questions.map((q, qIdx) => ({
+                            ...q,
+                            id: `ai-${sIdx}-${qIdx}-${Date.now()}`,
+                            question: q.text || q.question, // Robust mapping
+                            section: sec.name,
+                            type: q.type || (q.options ? 'MCQ' : 'Descriptive')
+                        }))
+                    );
+                    setQuestions(flatQuestions);
+
+                    if (res.data.title) {
+                        setPaperConfig(prev => ({ ...prev, examName: res.data.title }));
+                    }
+                    toast.success("Paper Generated Successfully!");
+                } else {
+                    toast.error("Invalid AI Response format");
+                }
+
+            } else {
+                // Image Based Generation (Legacy/Existing Route)
+                const formData = new FormData();
+                formData.append('topic', '');
+                formData.append('subject', paperConfig.subject);
+                formData.append('classLevel', className);
+
                 files.forEach(file => {
                     formData.append('files', file);
                 });
-            }
 
-            const res = await api.post('/ai/generate-questions', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+                const res = await api.post('/ai/generate-questions', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
 
-            if (res.data.questions) {
-                setQuestions(res.data.questions);
-                toast.success("Questions Generated Successfully!");
+                if (res.data.questions) {
+                    setQuestions(res.data.questions);
+                    toast.success("Questions Generated Successfully!");
+                }
             }
 
         } catch (error) {
             console.error(error);
-            if (error.response?.data?.missingKey) {
-                toast.error("AI Key Missing in Backend. Please contact Admin.");
-            } else {
-                toast.error(error.response?.data?.message || "Failed to generate questions");
-            }
+            toast.error(error.response?.data?.error || "Failed to generate paper");
         } finally {
             setGenerating(false);
         }
@@ -330,14 +351,20 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
 
                         {mode === 'text' ? (
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Topic / Syllabus</label>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Instructions & Content</label>
                                 <textarea
-                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-400 font-medium"
-                                    rows="4"
-                                    placeholder="e.g., Photosynthesis, Newton's Laws, World War II..."
+                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-400 font-medium leading-relaxed"
+                                    rows="8"
+                                    placeholder={`Describe the structure and topic in detail.
+Example:
+"Create a Science test on Light and Reflection.
+- 5 Multiple Choice Questions
+- 3 Short Answer Questions
+- 2 Long Answer Questions (5 marks each)"`}
                                     value={paperConfig.topic}
                                     onChange={(e) => setPaperConfig({ ...paperConfig, topic: e.target.value })}
                                 />
+                                <p className="text-[10px] text-slate-400 mt-2 text-right">The AI will follow your exact instructions for counts and marks.</p>
                             </div>
                         ) : (
                             <div>
@@ -416,39 +443,7 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
                             </div>
                         </div>
 
-                        {/* Hide Difficulty and Question Count in Image Mode */}
-                        {mode === 'text' && (
-                            <>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Difficulty & Type</label>
-                                    <div className="flex gap-2 mb-3">
-                                        {['Easy', 'Medium', 'Hard'].map(lvl => (
-                                            <button
-                                                key={lvl}
-                                                onClick={() => setPaperConfig({ ...paperConfig, difficulty: lvl.toLowerCase() })}
-                                                className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${paperConfig.difficulty === lvl.toLowerCase() ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200'}`}
-                                            >
-                                                {lvl}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Number of Questions</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max="50"
-                                        value={paperConfig.questionCount}
-                                        onChange={(e) => setPaperConfig({ ...paperConfig, questionCount: parseInt(e.target.value) || 1 })}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none font-medium text-slate-700 focus:bg-white transition-colors"
-                                        placeholder="e.g. 10"
-                                    />
-                                    <p className="text-[10px] text-slate-400 mt-1">Enter desired number of questions (1-50)</p>
-                                </div>
-                            </>
-                        )}
+                        {/* Difficulty and Count REMOVED - Controlled by Prompt now */}
 
                         <button
                             onClick={handleGenerate}
@@ -634,189 +629,198 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
 
                                     {/* Questions */}
                                     {questions.map((q, idx) => (
-                                        <div key={q.id} className={`group relative pl-4 pr-20 hover:bg-slate-50 rounded-lg p-4 -mx-4 transition-colors ${editingId === q.id ? 'bg-indigo-50/50 ring-2 ring-indigo-500/20' : ''}`}>
-
-                                            {/* Action Buttons */}
-                                            {editingId !== q.id && (
-                                                <div className="absolute right-2 top-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 bg-white/90 backdrop-blur-sm rounded-lg p-1 shadow-sm">
-                                                    <button
-                                                        onClick={() => handleEditQuestion(q)}
-                                                        className="p-1.5 hover:bg-indigo-50 rounded-lg text-slate-400 hover:text-indigo-600 border border-transparent hover:border-indigo-200"
-                                                        title="Edit Question"
-                                                    >
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteQuestion(q.id)}
-                                                        className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-200"
-                                                        title="Delete Question"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                        <div key={q.id}>
+                                            {/* Section Header */}
+                                            {(idx === 0 || (q.section && q.section !== questions[idx - 1].section)) && (
+                                                <div className="mt-6 mb-3 pb-1 border-b-2 border-slate-200">
+                                                    <h3 className="font-bold text-slate-700 uppercase tracking-widest text-sm">{q.section || 'Questions'}</h3>
                                                 </div>
                                             )}
 
-                                            <div className="flex gap-4">
-                                                <span className="font-bold text-slate-800 min-w-[24px] pt-1">Q{idx + 1}.</span>
-                                                <div className="flex-1">
+                                            <div className={`group relative pl-4 pr-20 hover:bg-slate-50 rounded-lg p-4 -mx-4 transition-colors ${editingId === q.id ? 'bg-indigo-50/50 ring-2 ring-indigo-500/20' : ''}`}>
 
-                                                    {/* Edit Mode */}
-                                                    {editingId === q.id ? (
-                                                        <div className="space-y-3">
-                                                            <textarea
-                                                                className="w-full p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
-                                                                value={editForm.question}
-                                                                onChange={(e) => setEditForm({ ...editForm, question: e.target.value })}
-                                                                rows={3}
-                                                            />
-
-                                                            <div className="flex gap-4">
-                                                                <div className="flex-1">
-                                                                    <label className="text-xs font-bold text-slate-500 uppercase">Marks</label>
-                                                                    <input
-                                                                        type="number"
-                                                                        className="w-full p-2 border border-slate-200 rounded-lg mt-1"
-                                                                        value={editForm.marks}
-                                                                        onChange={(e) => setEditForm({ ...editForm, marks: e.target.value })}
-                                                                    />
-                                                                </div>
-                                                                <div className="flex-[3]">
-                                                                    <label className="text-xs font-bold text-slate-500 uppercase">Answer Key</label>
-                                                                    <input
-                                                                        type="text"
-                                                                        className="w-full p-2 border border-slate-200 rounded-lg mt-1"
-                                                                        value={editForm.answer}
-                                                                        onChange={(e) => setEditForm({ ...editForm, answer: e.target.value })}
-                                                                    />
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Options Editing for MCQ */}
-                                                            {editForm.type === 'MCQ' && (
-                                                                <div className="grid grid-cols-2 gap-2">
-                                                                    {editForm.options.map((opt, i) => (
-                                                                        <input
-                                                                            key={i}
-                                                                            className="p-2 border border-slate-200 rounded-lg text-sm"
-                                                                            value={opt}
-                                                                            onChange={(e) => {
-                                                                                const newOpts = [...editForm.options];
-                                                                                newOpts[i] = e.target.value;
-                                                                                setEditForm({ ...editForm, options: newOpts });
-                                                                            }}
-                                                                        />
-                                                                    ))}
-                                                                </div>
-                                                            )}
-
-                                                            {/* Pairs Editing for MatchTheFollowing */}
-                                                            {editForm.type === 'MatchTheFollowing' && (
-                                                                <div className="bg-slate-50 p-3 rounded-lg space-y-2">
-                                                                    <p className="text-xs font-bold text-slate-500 uppercase">Pairs (Left - Right)</p>
-                                                                    {editForm.pairs?.map((pair, i) => (
-                                                                        <div key={i} className="flex gap-2">
-                                                                            <input
-                                                                                className="flex-1 p-2 border border-slate-200 rounded-lg text-sm"
-                                                                                value={pair.left}
-                                                                                onChange={(e) => {
-                                                                                    const newPairs = [...editForm.pairs];
-                                                                                    newPairs[i].left = e.target.value;
-                                                                                    setEditForm({ ...editForm, pairs: newPairs });
-                                                                                }}
-                                                                                placeholder="Left Side"
-                                                                            />
-                                                                            <input
-                                                                                className="flex-1 p-2 border border-slate-200 rounded-lg text-sm"
-                                                                                value={pair.right}
-                                                                                onChange={(e) => {
-                                                                                    const newPairs = [...editForm.pairs];
-                                                                                    newPairs[i].right = e.target.value;
-                                                                                    setEditForm({ ...editForm, pairs: newPairs });
-                                                                                }}
-                                                                                placeholder="Right Match"
-                                                                            />
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-
-                                                            <div className="flex justify-end gap-2 mt-2">
-                                                                <button onClick={handleCancelEdit} className="px-3 py-1.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg">Cancel</button>
-                                                                <button onClick={handleSaveEdit} className="px-3 py-1.5 text-sm font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save Changes</button>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        /* View Mode */
-                                                        <>
-                                                            <p className="text-slate-800 font-medium mb-3">{q.question}</p>
-
-                                                            {q.type === 'MCQ' && (
-                                                                <div className="grid grid-cols-2 gap-3 pl-2">
-                                                                    {q.options.map((opt, i) => (
-                                                                        <div key={i} className="flex items-center gap-2">
-                                                                            <div className="w-4 h-4 rounded-full border border-slate-300"></div>
-                                                                            <span className="text-sm text-slate-600">{opt}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-
-                                                            {q.type === 'Descriptive' && (
-                                                                <div className="w-full h-20 border-b border-slate-200 border-dotted mt-2"></div>
-                                                            )}
-
-                                                            {q.type === 'FillInBlanks' && (
-                                                                <div className="h-6 w-full border-b border-slate-300 border-dashed opacity-50 mt-1"></div>
-                                                            )}
-
-                                                            {q.type === 'MatchTheFollowing' && (
-                                                                <div className="bg-white border border-slate-200 rounded-lg p-4 mt-2 mr-20">
-                                                                    <div className="grid grid-cols-2 gap-6 relative">
-                                                                        {/* Divider Line */}
-                                                                        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-200 -translate-x-1/2"></div>
-
-                                                                        <div className="space-y-3 pr-4">
-                                                                            <h4 className="font-bold text-xs uppercase text-slate-400 mb-2">Column A</h4>
-                                                                            {q.pairs?.map((pair, i) => (
-                                                                                <div key={i} className="flex items-start gap-2 min-h-[32px]">
-                                                                                    <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0 mt-0.5">{i + 1}</span>
-                                                                                    <span className="text-sm text-slate-700 break-words flex-1">{pair.left}</span>
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
-
-                                                                        <div className="space-y-3 pl-4">
-                                                                            <h4 className="font-bold text-xs uppercase text-slate-400 mb-2">Column B</h4>
-                                                                            {q.pairs?.map((pair, i) => (
-                                                                                <div key={i} className="flex items-start gap-2 min-h-[32px]">
-                                                                                    <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0 mt-0.5">{String.fromCharCode(65 + i)}</span>
-                                                                                    <span className="text-sm text-slate-700 break-words flex-1">{pair.right}</span>
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-
-                                                            {/* Answer Key Display */}
-                                                            {showAnswers && (
-                                                                <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex items-start gap-2">
-                                                                    <CheckCircle size={16} className="text-emerald-600 mt-0.5" />
-                                                                    <div>
-                                                                        <span className="text-xs font-bold text-emerald-600 uppercase">Answer Key:</span>
-                                                                        <p className="text-sm text-emerald-800 font-medium">{q.answer}</p>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
-
+                                                {/* Action Buttons */}
                                                 {editingId !== q.id && (
-                                                    <div className="text-xs font-bold text-slate-400">
-                                                        [{q.marks} Marks]
+                                                    <div className="absolute right-2 top-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 bg-white/90 backdrop-blur-sm rounded-lg p-1 shadow-sm">
+                                                        <button
+                                                            onClick={() => handleEditQuestion(q)}
+                                                            className="p-1.5 hover:bg-indigo-50 rounded-lg text-slate-400 hover:text-indigo-600 border border-transparent hover:border-indigo-200"
+                                                            title="Edit Question"
+                                                        >
+                                                            <Edit2 size={14} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteQuestion(q.id)}
+                                                            className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-200"
+                                                            title="Delete Question"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
                                                     </div>
                                                 )}
+
+                                                <div className="flex gap-4">
+                                                    <span className="font-bold text-slate-800 min-w-[24px] pt-1">Q{idx + 1}.</span>
+                                                    <div className="flex-1">
+
+                                                        {/* Edit Mode */}
+                                                        {editingId === q.id ? (
+                                                            <div className="space-y-3">
+                                                                <textarea
+                                                                    className="w-full p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
+                                                                    value={editForm.question}
+                                                                    onChange={(e) => setEditForm({ ...editForm, question: e.target.value })}
+                                                                    rows={3}
+                                                                />
+
+                                                                <div className="flex gap-4">
+                                                                    <div className="flex-1">
+                                                                        <label className="text-xs font-bold text-slate-500 uppercase">Marks</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            className="w-full p-2 border border-slate-200 rounded-lg mt-1"
+                                                                            value={editForm.marks}
+                                                                            onChange={(e) => setEditForm({ ...editForm, marks: e.target.value })}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="flex-[3]">
+                                                                        <label className="text-xs font-bold text-slate-500 uppercase">Answer Key</label>
+                                                                        <input
+                                                                            type="text"
+                                                                            className="w-full p-2 border border-slate-200 rounded-lg mt-1"
+                                                                            value={editForm.answer}
+                                                                            onChange={(e) => setEditForm({ ...editForm, answer: e.target.value })}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Options Editing for MCQ */}
+                                                                {editForm.type === 'MCQ' && (
+                                                                    <div className="grid grid-cols-2 gap-2">
+                                                                        {editForm.options.map((opt, i) => (
+                                                                            <input
+                                                                                key={i}
+                                                                                className="p-2 border border-slate-200 rounded-lg text-sm"
+                                                                                value={opt}
+                                                                                onChange={(e) => {
+                                                                                    const newOpts = [...editForm.options];
+                                                                                    newOpts[i] = e.target.value;
+                                                                                    setEditForm({ ...editForm, options: newOpts });
+                                                                                }}
+                                                                            />
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Pairs Editing for MatchTheFollowing */}
+                                                                {editForm.type === 'MatchTheFollowing' && (
+                                                                    <div className="bg-slate-50 p-3 rounded-lg space-y-2">
+                                                                        <p className="text-xs font-bold text-slate-500 uppercase">Pairs (Left - Right)</p>
+                                                                        {editForm.pairs?.map((pair, i) => (
+                                                                            <div key={i} className="flex gap-2">
+                                                                                <input
+                                                                                    className="flex-1 p-2 border border-slate-200 rounded-lg text-sm"
+                                                                                    value={pair.left}
+                                                                                    onChange={(e) => {
+                                                                                        const newPairs = [...editForm.pairs];
+                                                                                        newPairs[i].left = e.target.value;
+                                                                                        setEditForm({ ...editForm, pairs: newPairs });
+                                                                                    }}
+                                                                                    placeholder="Left Side"
+                                                                                />
+                                                                                <input
+                                                                                    className="flex-1 p-2 border border-slate-200 rounded-lg text-sm"
+                                                                                    value={pair.right}
+                                                                                    onChange={(e) => {
+                                                                                        const newPairs = [...editForm.pairs];
+                                                                                        newPairs[i].right = e.target.value;
+                                                                                        setEditForm({ ...editForm, pairs: newPairs });
+                                                                                    }}
+                                                                                    placeholder="Right Match"
+                                                                                />
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+
+                                                                <div className="flex justify-end gap-2 mt-2">
+                                                                    <button onClick={handleCancelEdit} className="px-3 py-1.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg">Cancel</button>
+                                                                    <button onClick={handleSaveEdit} className="px-3 py-1.5 text-sm font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save Changes</button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            /* View Mode */
+                                                            <>
+                                                                <p className="text-slate-800 font-medium mb-3">{q.question}</p>
+
+                                                                {q.type === 'MCQ' && (
+                                                                    <div className="grid grid-cols-2 gap-3 pl-2">
+                                                                        {q.options.map((opt, i) => (
+                                                                            <div key={i} className="flex items-center gap-2">
+                                                                                <div className="w-4 h-4 rounded-full border border-slate-300"></div>
+                                                                                <span className="text-sm text-slate-600">{opt}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+
+                                                                {q.type === 'Descriptive' && (
+                                                                    <div className="w-full h-20 border-b border-slate-200 border-dotted mt-2"></div>
+                                                                )}
+
+                                                                {q.type === 'FillInBlanks' && (
+                                                                    <div className="h-6 w-full border-b border-slate-300 border-dashed opacity-50 mt-1"></div>
+                                                                )}
+
+                                                                {q.type === 'MatchTheFollowing' && (
+                                                                    <div className="bg-white border border-slate-200 rounded-lg p-4 mt-2 mr-20">
+                                                                        <div className="grid grid-cols-2 gap-6 relative">
+                                                                            {/* Divider Line */}
+                                                                            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-200 -translate-x-1/2"></div>
+
+                                                                            <div className="space-y-3 pr-4">
+                                                                                <h4 className="font-bold text-xs uppercase text-slate-400 mb-2">Column A</h4>
+                                                                                {q.pairs?.map((pair, i) => (
+                                                                                    <div key={i} className="flex items-start gap-2 min-h-[32px]">
+                                                                                        <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0 mt-0.5">{i + 1}</span>
+                                                                                        <span className="text-sm text-slate-700 break-words flex-1">{pair.left}</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+
+                                                                            <div className="space-y-3 pl-4">
+                                                                                <h4 className="font-bold text-xs uppercase text-slate-400 mb-2">Column B</h4>
+                                                                                {q.pairs?.map((pair, i) => (
+                                                                                    <div key={i} className="flex items-start gap-2 min-h-[32px]">
+                                                                                        <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0 mt-0.5">{String.fromCharCode(65 + i)}</span>
+                                                                                        <span className="text-sm text-slate-700 break-words flex-1">{pair.right}</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Answer Key Display */}
+                                                                {showAnswers && (
+                                                                    <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex items-start gap-2">
+                                                                        <CheckCircle size={16} className="text-emerald-600 mt-0.5" />
+                                                                        <div>
+                                                                            <span className="text-xs font-bold text-emerald-600 uppercase">Answer Key:</span>
+                                                                            <p className="text-sm text-emerald-800 font-medium">{q.answer}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
+
+                                                    {editingId !== q.id && (
+                                                        <div className="text-xs font-bold text-slate-400">
+                                                            [{q.marks} Marks]
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}

@@ -353,6 +353,7 @@ exports.getUnassignedStudents = async (req, res) => {
 
 
 // Permanent Delete Student - Preserves Marks and Certificates
+// Permanent Delete Student - Preserves Marks and Certificates
 exports.permanentDeleteStudent = async (req, res) => {
     const client = await pool.connect();
     try {
@@ -375,7 +376,7 @@ exports.permanentDeleteStudent = async (req, res) => {
         }
 
         const { name, email, admission_no } = studentRes.rows[0];
-        console.log(`[PERMANENT DELETE STUDENT] Deleting student: ${name}`);
+        console.log(`[PERMANENT DELETE STUDENT] Deleting student: ${name} (${admission_no})`);
 
         // Get user_id from users table
         let user_id = null;
@@ -391,41 +392,67 @@ exports.permanentDeleteStudent = async (req, res) => {
             console.log('[PERMANENT DELETE STUDENT] Could not find user account:', e.message);
         }
 
-        // Get student details for preservation
-        const { name: studentName } = studentRes.rows[0];
-
         // PRESERVE: marks and certificates by storing student info and nullifying student_id
         console.log('[PERMANENT DELETE STUDENT] Preserving marks and certificates...');
 
         try {
-            // Store student info in marks table before nullifying
+            // Check if columns exist first (Safety Check)
+            const checkCols = await client.query(`
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'marks' AND column_name = 'deleted_student_name'
+            `);
+
+            if (checkCols.rows.length === 0) {
+                // Auto-add columns if missing (Emergency Fix)
+                console.log('[PERMANENT DELETE STUDENT] Adding missing columns to marks table...');
+                await client.query(`
+                    ALTER TABLE marks 
+                    ADD COLUMN IF NOT EXISTS deleted_student_name VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS deleted_student_admission_no VARCHAR(50),
+                    ALTER COLUMN student_id DROP NOT NULL;
+                `);
+            }
+
+            // Store student info in marks table before nullifying link
             const marksResult = await client.query(
                 `UPDATE marks 
                  SET deleted_student_name = $1, 
                      deleted_student_admission_no = $2,
                      student_id = NULL 
                  WHERE student_id = $3`,
-                [studentName, admission_no, id]
+                [name, admission_no, id]
             );
             console.log(`[PERMANENT DELETE STUDENT] Preserved ${marksResult.rowCount} marks records`);
 
-            // Store student info in certificates table before nullifying
-            const certsResult = await client.query(
-                `UPDATE student_certificates 
-                 SET deleted_student_name = $1,
-                     deleted_student_admission_no = $2,
-                     student_id = NULL 
-                 WHERE student_id = $3`,
-                [studentName, admission_no, id]
-            );
-            console.log(`[PERMANENT DELETE STUDENT] Preserved ${certsResult.rowCount} certificate records`);
+            // Same for certificates
+            try {
+                await client.query(`
+                    ALTER TABLE student_certificates 
+                    ADD COLUMN IF NOT EXISTS deleted_student_name VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS deleted_student_admission_no VARCHAR(50),
+                    ALTER COLUMN student_id DROP NOT NULL;
+                `);
+
+                const certsResult = await client.query(
+                    `UPDATE student_certificates 
+                     SET deleted_student_name = $1,
+                         deleted_student_admission_no = $2,
+                         student_id = NULL 
+                     WHERE student_id = $3`,
+                    [name, admission_no, id]
+                );
+                console.log(`[PERMANENT DELETE STUDENT] Preserved ${certsResult.rowCount} certificate records`);
+            } catch (certError) {
+                console.warn('[PERMANENT DELETE STUDENT] Certificate preservation failed (non-critical):', certError.message);
+            }
+
         } catch (e) {
-            console.error('[PERMANENT DELETE STUDENT] Error preserving records:', e.message);
+            console.error('[PERMANENT DELETE STUDENT] CRITICAL Error preserving records:', e);
+            throw new Error(`Failed to preserve academic records: ${e.message}`);
         }
 
         // DELETE: Everything else
         const tablesToDelete = [
-            // Note: mark_components are kept because marks are preserved
             { name: 'attendance', column: 'student_id' },
             { name: 'student_attendance', column: 'student_id' },
             { name: 'fee_payments', column: 'student_id' },
@@ -433,21 +460,29 @@ exports.permanentDeleteStudent = async (req, res) => {
             { name: 'hostel_payments', column: 'student_id' },
             { name: 'hostel_mess_bills', column: 'student_id' },
             { name: 'hostel_allocations', column: 'student_id' },
-            // transport_allocations table doesn't exist in this database
             { name: 'leave_requests', column: 'student_id' },
             { name: 'student_promotions', column: 'student_id' },
+            { name: 'doubt_replies', subquery: 'doubt_id IN (SELECT id FROM doubts WHERE student_id = $1)' }, // Delete replies first
             { name: 'doubts', column: 'student_id' },
-            { name: 'doubt_replies', subquery: 'doubt_id IN (SELECT id FROM doubts WHERE student_id = $1)' },
             { name: 'library_transactions', column: 'student_id' },
             { name: 'notifications', subquery: 'user_id = $1', useUserId: true }
         ];
 
         for (const table of tablesToDelete) {
             try {
+                // SAVEPOINT: Isolate each delete so one failure doesn't kill the transaction
+                await client.query(`SAVEPOINT sp_${table.name}`);
+
                 let query;
                 let param;
 
                 if (table.subquery) {
+                    // Safety: If useUserId is true but user_id is null, skip (nothing to delete)
+                    if (table.useUserId && !user_id) {
+                        await client.query(`RELEASE SAVEPOINT sp_${table.name}`);
+                        continue;
+                    }
+
                     query = `DELETE FROM ${table.name} WHERE ${table.subquery}`;
                     param = table.useUserId ? user_id : id;
                 } else {
@@ -455,39 +490,18 @@ exports.permanentDeleteStudent = async (req, res) => {
                     param = id;
                 }
 
-                const result = await client.query(query, [param]);
-                console.log(`[PERMANENT DELETE STUDENT] Deleted ${result.rowCount} rows from ${table.name}`);
+                await client.query(query, [param]);
+
+                // Success: Commit sub-transaction
+                await client.query(`RELEASE SAVEPOINT sp_${table.name}`);
+
             } catch (e) {
-                // If table doesn't exist, rollback and restart transaction
-                if (e.code === '42P01') { // undefined_table error
-                    console.log(`[PERMANENT DELETE STUDENT] Table ${table.name} does not exist, skipping...`);
-                    await client.query('ROLLBACK');
-                    await client.query('BEGIN');
+                // Failure: Rollback ONLY this sub-transaction
+                await client.query(`ROLLBACK TO SAVEPOINT sp_${table.name}`);
 
-                    // Re-preserve marks and certificates after rollback
-                    try {
-                        await client.query(
-                            `UPDATE marks 
-                             SET deleted_student_name = $1, 
-                                 deleted_student_admission_no = $2,
-                                 student_id = NULL 
-                             WHERE student_id = $3`,
-                            [studentName, admission_no, id]
-                        );
-
-                        await client.query(
-                            `UPDATE student_certificates 
-                             SET deleted_student_name = $1,
-                                 deleted_student_admission_no = $2,
-                                 student_id = NULL 
-                             WHERE student_id = $3`,
-                            [studentName, admission_no, id]
-                        );
-                    } catch (preserveError) {
-                        console.log('[PERMANENT DELETE STUDENT] Re-preservation error:', preserveError.message);
-                    }
-                } else {
-                    console.log(`[PERMANENT DELETE STUDENT] Error deleting from ${table.name}:`, e.message);
+                // If table doesn't exist (42P01), ignore. Else log warning.
+                if (e.code !== '42P01') {
+                    console.warn(`[PERMANENT DELETE STUDENT] Warning cleanup ${table.name}: ${e.message}`);
                 }
             }
         }

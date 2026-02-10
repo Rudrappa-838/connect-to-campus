@@ -114,22 +114,51 @@ const StudentAttendanceMarking = ({ config }) => {
                         value={new Date().toISOString().split('T')[0]}
                     />
                 </div>
-                {sortedClasses.length > 1 && (
-                    <select className="input max-w-[200px] bg-slate-50 border-slate-200" value={filterClass} onChange={e => setFilterClass(e.target.value)}>
-                        <option value="">Select Class</option>
-                        {sortedClasses.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
-                    </select>
+
+                {/* CLASS SELECTION */}
+                {sortedClasses.length === 1 ? (
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Class</span>
+                        <div className="max-w-[200px] px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-indigo-700 font-bold text-sm shadow-sm">
+                            {sortedClasses[0].class_name}
+                        </div>
+                    </div>
+                ) : (
+                    sortedClasses.length > 1 && (
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Class</span>
+                            <select className="input max-w-[200px] bg-slate-50 border-slate-200" value={filterClass} onChange={e => setFilterClass(e.target.value)}>
+                                <option value="">Select Class</option>
+                                {sortedClasses.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
+                            </select>
+                        </div>
+                    )
                 )}
 
-                {availableSections.length > 0 && (
-                    <select
-                        className="input max-w-[200px] bg-slate-50 border-slate-200"
-                        value={filterSection}
-                        onChange={e => setFilterSection(e.target.value)}
-                    >
-                        <option value="">Select Section</option>
-                        {availableSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                {/* SECTION SELECTION */}
+                {availableSections.length === 1 ? (
+                    (availableSections[0].name && availableSections[0].name !== 'Class Teacher') ? (
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Section</span>
+                            <div className="max-w-[200px] px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-700 font-bold text-sm shadow-sm">
+                                {availableSections[0].name}
+                            </div>
+                        </div>
+                    ) : null
+                ) : (
+                    availableSections.length > 0 && (
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Section</span>
+                            <select
+                                className="input max-w-[200px] bg-slate-50 border-slate-200"
+                                value={filterSection}
+                                onChange={e => setFilterSection(e.target.value)}
+                            >
+                                <option value="">Select Section</option>
+                                {availableSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+                    )
                 )}
             </div>
 

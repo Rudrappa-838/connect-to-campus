@@ -1,233 +1,234 @@
+
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { pool } = require('../config/db'); // Import DB pool
+const { pool } = require('../config/db');
 
-// Helper: Format AI response into clean JSON
-const cleanAIResponse = (text) => {
-    try {
-        console.log("--- Raw AI Response ---");
-        console.log(text);
-        console.log("-----------------------");
+// Initialize Gemini API Helper
+const getGeminiModel = async (schoolId, modelName = "gemini-1.5-flash") => {
+    let apiKey = process.env.GEMINI_API_KEY;
 
-        // Remove Markdown code blocks
-        let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-
-        // Find the first '[' and last ']' to extract just the array
-        const firstBracket = clean.indexOf('[');
-        const lastBracket = clean.lastIndexOf(']');
-
-        if (firstBracket !== -1 && lastBracket !== -1) {
-            clean = clean.substring(firstBracket, lastBracket + 1);
+    if (schoolId) {
+        try {
+            const res = await pool.query('SELECT gemini_api_key FROM schools WHERE id = $1', [schoolId]);
+            if (res.rows.length > 0 && res.rows[0].gemini_api_key) {
+                apiKey = res.rows[0].gemini_api_key;
+            }
+        } catch (e) {
+            console.error('Error fetching school API key:', e);
         }
-
-        return JSON.parse(clean);
-    } catch (e) {
-        console.error("AI JSON Parse Error:", e);
-        return null;
     }
+
+    if (!apiKey) {
+        throw new Error('Gemini API Key not found. Please configure it in School Settings.');
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    return genAI.getGenerativeModel({ model: modelName });
 };
 
-const generateQuestions = async (req, res) => {
-    try {
-        const { topic, subject, classLevel, difficulty, questionCount, type, apiKey } = req.body;
-        const schoolId = req.user.schoolId;
+// Mock Paper Generator (Fallback when API is unavailable)
+function generateMockPaper(prompt, subject, class_level) {
+    const lowerPrompt = (prompt || '').toLowerCase();
+    subject = subject || 'General';
+    class_level = class_level || 'Class 10';
 
-        // 1. Priority: User Provided Key (Frontend Test)
-        let keyToUse = apiKey;
+    // Parse prompt for question counts
+    const mcqMatch = lowerPrompt.match(/(\d+)\s*(mcq|multiple\s*choice)/i);
+    const shortMatch = lowerPrompt.match(/(\d+)\s*(short|brief)/i);
+    const longMatch = lowerPrompt.match(/(\d+)\s*(long|detailed|word\s*problem)/i);
 
-        // 2. Priority: School Specific Key (BYOK)
-        if (!keyToUse && schoolId) {
-            try {
-                const schoolRes = await pool.query('SELECT gemini_api_key FROM schools WHERE id = $1', [schoolId]);
-                if (schoolRes.rows.length > 0 && schoolRes.rows[0].gemini_api_key) {
-                    keyToUse = schoolRes.rows[0].gemini_api_key;
-                    console.log(`🤖 Using School-Specific API Key for School ID: ${schoolId}`);
-                }
-            } catch (err) {
-                console.error("Error fetching school api key:", err);
-            }
-        }
+    const mcqCount = mcqMatch ? parseInt(mcqMatch[1]) : 5;
+    const shortCount = shortMatch ? parseInt(shortMatch[1]) : 3;
+    const longCount = longMatch ? parseInt(longMatch[1]) : 2;
 
-        // 3. Priority: Global Env Key (Super Admin Fallback)
-        if (!keyToUse) {
-            keyToUse = process.env.GEMINI_API_KEY;
-            console.log("🤖 Using Global Fallback API Key");
-        }
+    const sections = [];
 
-        if (!keyToUse) {
-            return res.status(400).json({
-                message: "No AI API Key found. Please set it in School Settings or Contact Admin.",
-                missingKey: true
+    // Section A: MCQs
+    if (mcqCount > 0) {
+        const mcqs = [];
+        for (let i = 1; i <= mcqCount; i++) {
+            mcqs.push({
+                id: i,
+                text: `Sample MCQ ${i} for ${subject}`,
+                options: ["Option A", "Option B", "Option C", "Option D"],
+                answer: "A",
+                marks: 1
             });
         }
+        sections.push({
+            name: "Section A: Multiple Choice Questions",
+            questions: mcqs
+        });
+    }
 
-        const genAI = new GoogleGenerativeAI(keyToUse);
+    // Section B: Short Answers
+    if (shortCount > 0) {
+        const shorts = [];
+        for (let i = 1; i <= shortCount; i++) {
+            shorts.push({
+                id: mcqCount + i,
+                text: `Sample Short Answer Question ${i} for ${subject}`,
+                answer: "Brief explanation expected",
+                marks: 2
+            });
+        }
+        sections.push({
+            name: "Section B: Short Answer Questions",
+            questions: shorts
+        });
+    }
 
-        // Prepare Image Parts if files exist
-        let imageParts = [];
-        if (req.files && req.files.length > 0) {
-            imageParts = req.files.map(file => ({
+    // Section C: Long Answers
+    if (longCount > 0) {
+        const longs = [];
+        for (let i = 1; i <= longCount; i++) {
+            longs.push({
+                id: mcqCount + shortCount + i,
+                text: `Sample Long Answer Question ${i} for ${subject}`,
+                answer: "Detailed explanation expected",
+                marks: 5
+            });
+        }
+        sections.push({
+            name: "Section C: Long Answer Questions",
+            questions: longs
+        });
+    }
+
+    return {
+        title: `${subject} Test - ${class_level} (Demo Mode)`,
+        instructions: [
+            "⚠️ DEMO MODE: This is a sample paper generated without AI",
+            "Add Google Cloud billing to enable real AI generation",
+            "Time: 1 hour",
+            `Total Questions: ${mcqCount + shortCount + longCount}`
+        ],
+        sections
+    };
+}
+
+// 1. Generate Questions from Image/Text (Legacy/Existing Route)
+exports.generateQuestions = async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        const schoolId = req.user.schoolId;
+        const files = req.files || [];
+
+        const model = await getGeminiModel(schoolId);
+
+        let parts = [];
+        if (prompt) parts.push(prompt);
+
+        // Convert images to Gemini format
+        for (const file of files) {
+            parts.push({
                 inlineData: {
                     data: file.buffer.toString("base64"),
                     mimeType: file.mimetype,
                 },
-            }));
-        }
-
-        const isImageMode = imageParts.length > 0;
-
-        // Construct Prompt
-        let promptText;
-        if (isImageMode) {
-            // Image-based prompt (Same as before)
-            promptText = `You are an expert academic teacher creating an exam question paper.
-CRITICAL INSTRUCTIONS FOR IMAGE-BASED GENERATION:
-1. CAREFULLY READ AND ANALYZE the text, diagrams, formulas, and content in the provided image(s)
-2. ONLY generate questions about the SPECIFIC topics, concepts, facts, and information visible in the image
-3. DO NOT add questions about general knowledge or topics not shown in the image
-4. Extract key terms, definitions, formulas, dates, names, and concepts DIRECTLY from the image
-5. Questions must test understanding of the EXACT content shown in the image
-
-Paper Specifications:
-- Subject: ${subject || 'Based on image content'}
-- Class Level: ${classLevel || 'Grade 10'}
-- Difficulty: ${difficulty}
-- Number of Questions: ${questionCount}
-- Question Type: ${type} (If 'mixed', include MCQ, FillInBlanks, MatchTheFollowing, and Descriptive)
-
-OUTPUT FORMAT:
-Strictly output a JSON array of objects. Do not include any extra text or explanations.
-Each object must have:
-- "id": unique number (start from 1)
-- "type": "MCQ" | "Descriptive" | "FillInBlanks" | "MatchTheFollowing"
-- "question": Question text based ONLY on image content
-- "marks": recommended marks
-- "answer": The correct answer
-
-Type-Specific Fields:
-1. MCQ: "options": ["Option A", "Option B", "Option C", "Option D"], "answer": "Correct option text"
-2. FillInBlanks: "question": "Text with ______ for blank", "answer": "Correct word/phrase"
-3. MatchTheFollowing: "question": "Match the following", "pairs": [{"left": "Item", "right": "Match"}] (4 pairs), "answer": "Brief summary"
-
-Example JSON:
-[
-    { "id": 1, "type": "MCQ", "question": "...", "options": ["A", "B", "C", "D"], "marks": 1, "answer": "A" },
-    { "id": 2, "type": "Descriptive", "question": "...", "marks": 5, "answer": "..." }
-]`;
-        } else {
-            // Topic-based prompt (Same as before)
-            promptText = `You are an expert academic teacher. Generate a question paper with the following specifications:
-        - Subject: ${subject || 'General'}
-        - Class Level: ${classLevel || 'Grade 10'}
-        - Topic: ${topic || 'General'}
-        - Difficulty: ${difficulty}
-        - Number of Questions: ${questionCount}
-        - Question Type: ${type} 
-        
-        CRITICAL INSTRUCTION: 
-        If the 'Topic' contains specific instructions about question types (e.g., "5 MCQ", "choice questions", "fill in blanks"), YOU MUST FOLLOW THOSE INSTRUCTIONS over the general 'Question Type' setting.
-        - "choice" or "MCQ" -> Generate Multiple Choice Questions.
-        - "blanks" -> Generate Fill in the Blanks.
-        - "match" -> Generate Match the Following.
-        - "write" or "explain" -> Generate Descriptive.
-
-        If 'Question Type' is 'mixed' and the topic has no specific instructions, generate a balanced mix of MCQ, FillInBlanks, MatchTheFollowing, and Descriptive.
-
-        Strictly output a JSON array of objects. Do not include any extra text.
-        Each object should have:
-        - "id": a unique number (start from 1)
-        - "type": "MCQ" | "Descriptive" | "FillInBlanks" | "MatchTheFollowing"
-        - "question": The question text
-        - "marks": recommended marks
-        - "answer": The correct answer (for Teacher's reference)
-        
-        Specific Fields per Type:
-        1. MCQ:
-           - "options": ["A", "B", "C", "D"]
-           - "answer": "Option Text"
-        2. FillInBlanks:
-           - "question": "The capital of France is ______." (Use underscores for blank)
-           - "answer": "Paris"
-        3. MatchTheFollowing:
-           - "question": "Match the following items correctly"
-           - "pairs": [ {"left": "Item A", "right": "Match A"}, {"left": "Item B", "right": "Match B"} ] (Provide 4 pairs)
-           - "answer": "A-1, B-2..." (Brief summary of matches)
-
-        Example JSON format:
-        [
-            { "id": 1, "type": "MCQ", "question": "...", "options": ["A", "B", "C", "D"], "marks": 1, "answer": "A" },
-            { "id": 2, "type": "FillInBlanks", "question": "The sun rises in the ______.", "marks": 1, "answer": "East" },
-            { "id": 3, "type": "MatchTheFollowing", "question": "Match the following", "pairs": [{"left":"A","right":"B"}], "marks": 4, "answer": "A-B..." }
-        ]`;
-        }
-
-        // Define models to try in order (Prioritizing available models)
-        const candidateModels = [
-            "gemini-2.0-flash",
-            "gemini-2.5-flash",
-            "gemini-2.0-flash-001",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash-001",
-            "gemini-1.5-flash-002"
-        ];
-
-        // Add legacy models if strict 1.5 fails? 
-        // Note: gemini-pro-vision is needed for images if using legacy, gemini-pro for text.
-        if (isImageMode) {
-            candidateModels.push("gemini-pro-vision");
-        } else {
-            candidateModels.push("gemini-pro");
-        }
-
-        let finalResult = null;
-        let lastError = null;
-
-        // Try models sequentially
-        for (const modelName of candidateModels) {
-            try {
-                console.log(`🤖 Attempting generation with model: ${modelName}...`);
-                const model = genAI.getGenerativeModel({ model: modelName });
-
-                const result = await model.generateContent([promptText, ...imageParts]);
-                const response = await result.response;
-                finalResult = response.text();
-
-                console.log(`✅ Success with model: ${modelName}`);
-                break; // Stop if success
-            } catch (err) {
-                console.warn(`⚠️ Failed with model ${modelName}:`, err.message);
-                lastError = err;
-            }
-        }
-
-        if (!finalResult) {
-            if (lastError && (lastError.message.includes('429') || lastError.message.includes('Too Many Requests'))) {
-                throw new Error("AI Rate Limit Exceeded. Please wait 1 minute and try again.");
-            }
-            throw lastError || new Error("All models failed to generate content.");
-        }
-
-        const questions = cleanAIResponse(finalResult);
-
-        if (!questions) {
-            return res.status(500).json({ message: "AI generated invalid format. Check console logs." });
-        }
-
-        res.json({ questions });
-
-    } catch (error) {
-        console.error("AI Generation Error:", error);
-
-        // Check if it's a model not found error
-        if (error.message && (error.message.includes('404') || error.message.includes('not found'))) {
-            return res.status(500).json({
-                message: "AI Model Not Available. Your key may have restrictions. Tried: gemini-1.5-flash, gemini-1.5-pro, gemini-pro. Error: " + error.message,
-                error: "Model not available"
             });
         }
 
-        res.status(500).json({ message: "Failed: " + (error.message || "Unknown error") });
+        if (parts.length === 0) {
+            return res.status(400).json({ error: "Prompt or Image is required" });
+        }
+
+        const result = await model.generateContent(parts);
+        const response = await result.response;
+        const text = response.text();
+
+        res.json({ text });
+
+    } catch (error) {
+        console.error("AI Generation Error:", error);
+        res.status(500).json({ error: "Failed to generate AI content" });
     }
 };
 
-module.exports = { generateQuestions };
+// 2. Generate Full Question Paper (New Requirement)
+exports.generateQuestionPaper = async (req, res) => {
+    const { prompt, subject, class_level } = req.body;
+    const schoolId = req.user.schoolId;
+
+    if (!prompt) {
+        return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    try {
+        const model = await getGeminiModel(schoolId);
+
+        const systemInstruction = `
+        You are an expert teacher helping to create a school exam paper.
+        
+        Task: Generate a structured question paper based on the user's request.
+        Subject: ${subject || 'General'}
+        Class: ${class_level || 'General'}
+        
+        Strict Output Format (JSON ONLY):
+        {
+            "title": "Exam Title",
+            "instructions": ["Time: 1 hr", "max marks: 20", ...],
+            "sections": [
+                {
+                    "name": "Section A: Multiple Choice",
+                    "questions": [
+                        { "id": 1, "text": "Question text?", "options": ["A", "B", "C", "D"], "answer": "A", "marks": 1 }
+                    ]
+                },
+                {
+                    "name": "Section B: Short Answer",
+                    "questions": [
+                        { "id": 2, "text": "Question text?", "answer": "Key points...", "marks": 2 }
+                    ]
+                }
+            ]
+        }
+        
+        Do NOT wrap in markdown code blocks. Just return raw JSON.
+        `;
+
+        // Concatenate for gemini-pro (safer than array parts for instruction)
+        const finalPrompt = `${systemInstruction}\n\nUser Request: ${prompt}`;
+        const result = await model.generateContent(finalPrompt);
+        const response = await result.response;
+        let text = response.text();
+
+        // Remove markdown formatting
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        // Extract JSON object if there's extra text
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            text = jsonMatch[0];
+        }
+
+        const json = JSON.parse(text);
+        res.json(json);
+
+    } catch (error) {
+        console.error('AI Paper Generation Error:', error);
+
+        // FALLBACK: Generate mock paper based on prompt
+        console.log('Using mock AI fallback mode...');
+
+        try {
+            const mockPaper = generateMockPaper(prompt, subject, class_level);
+            console.log('Mock paper generated successfully');
+            return res.json(mockPaper);
+        } catch (mockError) {
+            console.error('Mock generation also failed:', mockError);
+        }
+
+        let errorMessage = 'Failed to generate paper.';
+        if (error.message && (error.message.includes('404') || error.message.includes('not found') || error.message.includes('permission'))) {
+            errorMessage = 'AI Model not found or API Key not authorized. Please enable "Generative Language API" in Google Cloud Console or get a new key from https://aistudio.google.com/app/apikey';
+        } else if (error.message) {
+            errorMessage += ' ' + error.message;
+        }
+
+
+        res.status(500).json({
+            error: errorMessage,
+            details: error.toString()
+        });
+    }
+};
