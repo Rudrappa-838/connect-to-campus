@@ -342,20 +342,65 @@ exports.updateTeacher = async (req, res) => {
     }
 };
 
-// Delete Teacher
+// Delete Teacher - Robust (Clears FKs first)
 exports.deleteTeacher = async (req, res) => {
+    const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const result = await pool.query(
+
+        await client.query('BEGIN');
+
+        // 0. Get Teacher Info (Email/EmpID) to delete User Login later
+        const teacherRes = await client.query('SELECT email, employee_id FROM teachers WHERE id = $1', [id]);
+        if (teacherRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Teacher not found' });
+        }
+        const teacher = teacherRes.rows[0];
+
+        // 1. Unassign from Classes (Class Teacher)
+        await client.query('UPDATE classes SET class_teacher_id = NULL WHERE class_teacher_id = $1', [id]);
+
+        // 2. Unassign from Sections (Class Teacher)
+        await client.query('UPDATE sections SET class_teacher_id = NULL WHERE class_teacher_id = $1', [id]);
+
+        // 3. Delete Attendance Records
+        await client.query('DELETE FROM teacher_attendance WHERE teacher_id = $1', [id]);
+
+        // 4. Delete Timetable Entries
+        await client.query('DELETE FROM timetables WHERE teacher_id = $1', [id]);
+
+        // 5. Delete Teacher Record
+        const result = await client.query(
             `DELETE FROM teachers WHERE id = $1 AND school_id = $2 RETURNING *`,
             [id, school_id]
         );
-        if (result.rows.length === 0) return res.status(404).json({ message: 'Teacher not found' });
+
+        // 6. Delete User Login Account
+        // Try deleting by exact email match
+        if (teacher.email) {
+            await client.query("DELETE FROM users WHERE email = $1 AND role = 'TEACHER'", [teacher.email]);
+        }
+        // Also try deleting by generated email pattern just in case
+        if (teacher.employee_id) {
+            const genEmail = `${teacher.employee_id}@teacher.school.com`;
+            await client.query("DELETE FROM users WHERE email = $1 AND role = 'TEACHER'", [genEmail]);
+        }
+
+        await client.query('COMMIT');
         res.json({ message: 'Teacher deleted successfully' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error deleting teacher' });
+        await client.query('ROLLBACK');
+        console.error('Data Integrity Error deleting teacher:', error.message);
+        // Return 200 with warning if delete technically "failed" but practically worked, or just 500
+        // But better to show the specific error
+        if (error.code === '23503') { // Foreign Key Violation
+            return res.status(400).json({ message: 'Cannot delete teacher. They are referenced in other records (e.g. Salary, Exams). Please clear those first.' });
+        }
+        res.status(500).json({ message: 'Server error deleting teacher: ' + error.message });
+    } finally {
+        client.release();
     }
 };
 

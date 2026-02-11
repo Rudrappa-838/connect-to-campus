@@ -223,20 +223,53 @@ exports.updateStaff = async (req, res) => {
     }
 };
 
-// Delete Staff
+// Delete Staff - Robust
 exports.deleteStaff = async (req, res) => {
+    const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const result = await pool.query(
+
+        await client.query('BEGIN');
+
+        // 0. Get Staff Info
+        const staffRes = await client.query('SELECT email, employee_id, role FROM staff WHERE id = $1', [id]);
+        if (staffRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Staff member not found' });
+        }
+        const staff = staffRes.rows[0];
+
+        // 1. Delete Attendance Records
+        await client.query('DELETE FROM staff_attendance WHERE staff_id = $1', [id]);
+
+        // 2. Start Deletion
+        const result = await client.query(
             `DELETE FROM staff WHERE id = $1 AND school_id = $2 RETURNING *`,
             [id, school_id]
         );
-        if (result.rows.length === 0) return res.status(404).json({ message: 'Staff member not found' });
+
+        // 3. Delete User Login Account
+        if (staff.email) {
+            // Delete user where email matches AND role is one of the staff roles
+            await client.query("DELETE FROM users WHERE email = $1 AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')", [staff.email]);
+        }
+        if (staff.employee_id) {
+            const genEmail = `${staff.employee_id}@staff.school.com`;
+            await client.query("DELETE FROM users WHERE email = $1 AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')", [genEmail]);
+        }
+
+        await client.query('COMMIT');
         res.json({ message: 'Staff member deleted successfully' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error deleting staff' });
+        await client.query('ROLLBACK');
+        console.error('Data Integrity Error deleting staff:', error.message);
+        if (error.code === '23503') { // Foreign Key Violation
+            return res.status(400).json({ message: 'Cannot delete staff. They are referenced in other records (e.g. Salary, Transport). Please clear those first.' });
+        }
+        res.status(500).json({ message: 'Server error deleting staff: ' + error.message });
+    } finally {
+        client.release();
     }
 };
 
