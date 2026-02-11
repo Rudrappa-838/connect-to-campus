@@ -371,6 +371,9 @@ exports.deleteTeacher = async (req, res) => {
         // 3.5 Delete Salary Records (Force Clean)
         await client.query("DELETE FROM salary_payments WHERE employee_id = $1 AND employee_type = 'Teacher'", [id]);
 
+        // 3.6 Unassign from Doubts
+        await client.query('UPDATE doubts SET teacher_id = NULL WHERE teacher_id = $1', [id]);
+
         // 4. Delete Timetable Entries
         await client.query('DELETE FROM timetables WHERE teacher_id = $1', [id]);
 
