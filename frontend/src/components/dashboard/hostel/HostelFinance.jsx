@@ -59,9 +59,15 @@ const HostelFinance = () => {
         }
     };
 
-    const handleSearch = async (e) => {
-        e.preventDefault();
-        if (!admissionNo.trim()) return;
+    const handleSearch = async (e, overrideId = null) => {
+        if (e) e.preventDefault();
+
+        const targetId = overrideId || admissionNo;
+
+        if (!targetId || !targetId.trim()) return;
+
+        // If using override, ensure state matches visually
+        if (overrideId) setAdmissionNo(overrideId);
 
         setLoading(true);
         setSearchPerformed(true);
@@ -69,7 +75,7 @@ const HostelFinance = () => {
         setViewMode('student_search');
 
         try {
-            const encodedId = encodeURIComponent(admissionNo.trim());
+            const encodedId = encodeURIComponent(targetId.trim());
             const res = await api.get(`/hostel/student/${encodedId}/details`);
             setStudentData(res.data);
         } catch (error) {
@@ -181,12 +187,52 @@ const HostelFinance = () => {
         }
     };
 
+    // Pending List State (Moved from inner component)
+    const [pendingList, setPendingList] = useState([]);
+    const [loadingList, setLoadingList] = useState(false);
+    const [showList, setShowList] = useState(false);
+    const [listFilter, setListFilter] = useState('All'); // 'All', 'Room Rent', 'Mess Bill'
+
+    const fetchPendingList = async () => {
+        setLoadingList(true);
+        try {
+            // Fetch all pending for now to be comprehensive
+            const res = await api.get('/hostel/finance/pending-dues');
+            setPendingList(res.data);
+        } catch (err) {
+            console.error(err);
+            toast.error(err.response?.data?.error || 'Failed to load pending list');
+        } finally {
+            setLoadingList(false);
+        }
+    };
+
+    const toggleList = () => {
+        if (!showList) {
+            setListFilter('All'); // Reset filter when manually toggling
+            fetchPendingList();
+        }
+        setShowList(!showList);
+    };
+
+    const openFilteredList = (type) => {
+        setListFilter(type);
+        if (!showList) {
+            setShowList(true);
+            fetchPendingList();
+        }
+        // Scroll to list
+        setTimeout(() => {
+            document.getElementById('pending-list-section')?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    };
+
     // Calculate totals
-    const totalRentPaid = studentData?.payments
+    const totalRentPaid = (studentData?.payments || [])
         .filter(p => p.payment_type === 'Room Rent')
         .reduce((sum, p) => sum + parseFloat(p.amount), 0) || 0;
 
-    const totalMessPaid = studentData?.payments
+    const totalMessPaid = (studentData?.payments || [])
         .filter(p => p.payment_type === 'Mess Bill')
         .reduce((sum, p) => sum + parseFloat(p.amount), 0) || 0;
 
@@ -196,6 +242,8 @@ const HostelFinance = () => {
         const schoolName = schoolConfig?.name || 'School Name';
         const schoolAddress = schoolConfig?.address || '';
         const receiptNo = payment.id.toString().padStart(6, '0'); // Simple receipt ID fallback
+        // ... (rest of function remains same, handled by replace logic finding TargetContent)
+
 
         const receiptHTML = `
             <!DOCTYPE html>
@@ -284,109 +332,6 @@ const HostelFinance = () => {
         win.document.close();
     };
 
-    const PendingBillsList = () => {
-        const [pendingList, setPendingList] = useState([]);
-        const [loadingList, setLoadingList] = useState(false);
-        const [showList, setShowList] = useState(false);
-
-        const fetchPendingList = async () => {
-            setLoadingList(true);
-            try {
-                // Fetch all pending for now to be comprehensive
-                const res = await api.get('/hostel/finance/pending-dues');
-                setPendingList(res.data);
-            } catch (err) {
-                console.error(err);
-                toast.error(err.response?.data?.error || 'Failed to load pending list');
-            } finally {
-                setLoadingList(false);
-            }
-        };
-
-        const toggleList = () => {
-            if (!showList) {
-                fetchPendingList();
-            }
-            setShowList(!showList);
-        };
-
-        return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors" onClick={toggleList}>
-                    <div className="flex items-center gap-2">
-                        <AlertCircle size={20} className="text-orange-500" />
-                        <h3 className="font-bold text-lg text-slate-800">Pending Hostel Dues (List)</h3>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            toggleList();
-                        }}
-                        className="text-indigo-600 font-medium text-sm hover:underline"
-                    >
-                        {showList ? 'Hide List' : 'View Full List'}
-                    </button>
-                </div>
-
-                {showList && (
-                    <div className="p-0 animate-in slide-in-from-top-2">
-                        {loadingList ? (
-                            <div className="p-8 text-center text-slate-500">Loading pending dues...</div>
-                        ) : (
-                            <>
-                                {pendingList.length === 0 ? (
-                                    <div className="p-8 text-center text-slate-500">No pending dues found.</div>
-                                ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm text-left">
-                                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs tracking-wider">
-                                                <tr>
-                                                    <th className="px-6 py-3">Student Name</th>
-                                                    <th className="px-6 py-3">Admission ID</th>
-                                                    <th className="px-6 py-3">Type</th>
-                                                    <th className="px-6 py-3">Period</th>
-                                                    <th className="px-6 py-3 text-right">Amount</th>
-                                                    <th className="px-6 py-3 text-center">Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {pendingList.map(item => (
-                                                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                                                        <td className="px-6 py-3 font-medium text-slate-800">{item.name}</td>
-                                                        <td className="px-6 py-3 text-slate-500">{item.admission_no}</td>
-                                                        <td className="px-6 py-3">
-                                                            <span className={`px-2 py-1 rounded text-xs font-bold ${item.type === 'Room Rent' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                                {item.type}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-slate-600">{item.period}</td>
-                                                        <td className="px-6 py-3 text-right font-bold text-slate-800">₹{parseFloat(item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setAdmissionNo(item.admission_no);
-                                                                    handleSearch(e); // Load this student
-                                                                }}
-                                                                className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-bold hover:bg-indigo-100 transition-colors"
-                                                            >
-                                                                Pay Now
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
-                )}
-            </div>
-        );
-    };
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
@@ -446,7 +391,7 @@ const HostelFinance = () => {
                             </div>
                         </div>
 
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => openFilteredList('Mess Bill')}>
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-green-50 text-green-600 rounded-lg">
                                     <CheckCircle size={24} />
@@ -459,7 +404,7 @@ const HostelFinance = () => {
                             <p className="mt-4 text-xs font-bold text-green-600 bg-green-50 inline-block px-2 py-1 rounded"> Collected: ₹{parseFloat(dashboardStats.mess.paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
                         </div>
 
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => openFilteredList('Mess Bill')}>
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
                                     <AlertCircle size={24} />
@@ -476,35 +421,151 @@ const HostelFinance = () => {
                     {/* Financial Overview Section */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                         <h3 className="font-bold text-lg text-slate-800 mb-4">Financial Overview</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div>
-                                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Room Rent (Expected)</h4>
-                                <div className="text-3xl font-bold text-indigo-900">₹{parseFloat(dashboardStats.rent.expectedTermRent).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                                <p className="text-xs text-slate-400 mt-1">Total expected revenue from active allocations per term.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+
+                            {/* Room Rent Section */}
+                            <div className="pl-0 md:pl-2 cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors" onClick={() => openFilteredList('Room Rent')}>
+                                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Room Rent (Term)</h4>
+                                <div className="text-3xl font-bold text-indigo-900 mb-4">
+                                    ₹{parseFloat(dashboardStats.rent.expectedTermRent).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    <span className="text-xs text-slate-400 font-normal block mt-1">Total expected revenue</span>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className="bg-green-50 p-2 rounded-lg border border-green-100">
+                                        <div className="text-lg font-bold text-green-700">{dashboardStats.rent?.details?.fullyPaid || 0}</div>
+                                        <div className="text-[10px] font-bold text-green-600 uppercase">Fully Paid</div>
+                                    </div>
+                                    <div className="bg-orange-50 p-2 rounded-lg border border-orange-100">
+                                        <div className="text-lg font-bold text-orange-700">{dashboardStats.rent?.details?.partiallyPaid || 0}</div>
+                                        <div className="text-[10px] font-bold text-orange-600 uppercase">Partially Paid</div>
+                                    </div>
+                                    <div className="bg-red-50 p-2 rounded-lg border border-red-100">
+                                        <div className="text-lg font-bold text-red-700">{dashboardStats.rent?.details?.unpaid || 0}</div>
+                                        <div className="text-[10px] font-bold text-red-600 uppercase">Unpaid</div>
+                                    </div>
+                                </div>
+                                <div className="mt-2 text-center text-xs text-indigo-500 font-medium">Click to view Rent Dues</div>
                             </div>
-                            <div>
+
+                            {/* Mess Financials Section */}
+                            <div className="pt-6 md:pt-0 md:pl-8 cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors" onClick={() => openFilteredList('Mess Bill')}>
                                 <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Mess Financials</h4>
-                                <div className="text-3xl font-bold text-slate-800">
-                                    <span className="text-sm text-slate-400 font-normal block mb-1">Billed (This Month)</span>
-                                    ₹{parseFloat(dashboardStats.mess.totalBilledAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                <div className="flex justify-between items-baseline mb-4">
+                                    <div className="text-3xl font-bold text-slate-800">
+                                        ₹{parseFloat(dashboardStats.mess.totalBilledAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                        <span className="text-xs text-slate-400 font-normal block mt-1">Billed (This Month)</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-sm font-bold text-green-600">Collected: ₹{parseFloat(dashboardStats.mess.paidAmount).toLocaleString('en-IN')}</div>
+                                        <div className="text-sm font-bold text-orange-600">Pending: ₹{parseFloat(dashboardStats.mess.pendingAmount).toLocaleString('en-IN')}</div>
+                                    </div>
                                 </div>
-                                <div className="flex gap-4 mt-2 text-sm">
-                                    <span className="text-green-600 font-bold block">
-                                        <span className="text-xs text-slate-400 font-normal">Collected (This Month): </span>
-                                        ₹{parseFloat(dashboardStats.mess.paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                    </span>
-                                    <span className="text-orange-600 font-bold block">
-                                        <span className="text-xs text-slate-400 font-normal">Total Pending (All Time): </span>
-                                        ₹{parseFloat(dashboardStats.mess.pendingAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                    </span>
+
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className="bg-green-50 p-2 rounded-lg border border-green-100">
+                                        <div className="text-lg font-bold text-green-700">{dashboardStats.mess?.details?.fullyPaid || 0}</div>
+                                        <div className="text-[10px] font-bold text-green-600 uppercase">Paid Bills</div>
+                                    </div>
+                                    <div className="bg-orange-50 p-2 rounded-lg border border-orange-100">
+                                        <div className="text-lg font-bold text-orange-700">{dashboardStats.mess?.details?.partiallyPaid || 0}</div>
+                                        <div className="text-[10px] font-bold text-orange-600 uppercase">Partially Paid</div>
+                                    </div>
+                                    <div className="bg-red-50 p-2 rounded-lg border border-red-100">
+                                        <div className="text-lg font-bold text-red-700">{dashboardStats.mess?.details?.unpaid || 0}</div>
+                                        <div className="text-[10px] font-bold text-red-600 uppercase">Unpaid</div>
+                                    </div>
                                 </div>
+                                <div className="mt-2 text-center text-xs text-indigo-500 font-medium">Click to view Mess Dues</div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Pending Bills List */}
-                    <PendingBillsList />
+                    {/* Pending Bills List (Inline) */}
+                    <div id="pending-list-section" className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6 scroll-mt-20">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors" onClick={toggleList}>
+                            <div className="flex items-center gap-2">
+                                <AlertCircle size={20} className="text-orange-500" />
+                                <h3 className="font-bold text-lg text-slate-800">
+                                    Pending Hostel Dues ({listFilter === 'All' ? 'All' : listFilter})
+                                </h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleList();
+                                }}
+                                className="text-indigo-600 font-medium text-sm hover:underline"
+                            >
+                                {showList ? 'Hide List' : 'View Full List'}
+                            </button>
+                        </div>
 
+                        {showList && (
+                            <div className="p-0 animate-in slide-in-from-top-2">
+                                {loadingList ? (
+                                    <div className="p-8 text-center text-slate-500">Loading pending dues...</div>
+                                ) : (
+                                    <>
+                                        {pendingList.filter(item => listFilter === 'All' || item.type === listFilter).length === 0 ? (
+                                            <div className="p-8 text-center text-slate-500">
+                                                No pending {listFilter === 'All' ? '' : listFilter.toLowerCase()} dues found.
+                                            </div>
+                                        ) : (
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-sm text-left">
+                                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs tracking-wider">
+                                                        <tr>
+                                                            <th className="px-6 py-3">Student Name</th>
+                                                            <th className="px-6 py-3">Admission ID</th>
+                                                            <th className="px-6 py-3">Type</th>
+                                                            <th className="px-6 py-3">Period</th>
+                                                            <th className="px-6 py-3 text-right">Amount</th>
+                                                            <th className="px-6 py-3 text-center">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {pendingList
+                                                            .filter(item => listFilter === 'All' || item.type === listFilter)
+                                                            .map(item => (
+                                                                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                                                                    <td className="px-6 py-3 font-medium text-slate-800">{item.name}</td>
+                                                                    <td className="px-6 py-3 text-slate-500">{item.admission_no}</td>
+                                                                    <td className="px-6 py-3">
+                                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${item.type === 'Room Rent' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                                            {item.type}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-3 text-slate-600">{item.period}</td>
+                                                                    <td className="px-6 py-3 text-right font-bold text-slate-800">₹{parseFloat(item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                                    <td className="px-6 py-3 text-center">
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                // Auto-switch tab based on bill type
+                                                                                if (item.type === 'Mess Bill') setActiveTab('mess');
+                                                                                else setActiveTab('rent');
+
+                                                                                setViewMode('student_search'); // Switch to student view
+                                                                                handleSearch(e, item.admission_no);
+                                                                            }}
+                                                                            className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-bold hover:bg-indigo-100 transition-colors"
+                                                                        >
+                                                                            Pay Now
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -654,7 +715,7 @@ const HostelFinance = () => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
-                                                {studentData.payments.filter(p => p.payment_type === 'Room Rent').map(p => (
+                                                {(studentData.payments || []).filter(p => p.payment_type === 'Room Rent').map(p => (
                                                     <tr key={p.id}>
                                                         <td className="px-4 py-3">{new Date(p.payment_date).toLocaleDateString()}</td>
                                                         <td className="px-4 py-3">{p.payment_type}</td>
@@ -671,7 +732,7 @@ const HostelFinance = () => {
                                                         </td>
                                                     </tr>
                                                 ))}
-                                                {studentData.payments.filter(p => p.payment_type === 'Room Rent').length === 0 && (
+                                                {(studentData.payments || []).filter(p => p.payment_type === 'Room Rent').length === 0 && (
                                                     <tr>
                                                         <td colSpan="5" className="px-4 py-8 text-center text-slate-400">No rent payments recorded yet.</td>
                                                     </tr>
@@ -696,7 +757,7 @@ const HostelFinance = () => {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {studentData.bills.map(bill => (
+                                        {(studentData.bills || []).map(bill => (
                                             <div key={bill.id} className="bg-white p-5 rounded-xl text-left border border-slate-200 shadow-sm relative overflow-hidden group">
                                                 <div className={`absolute top-0 right-0 p-2 ${bill.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
                                                     } rounded-bl-xl font-bold text-xs uppercase tracking-wide`}>
@@ -710,6 +771,7 @@ const HostelFinance = () => {
 
                                                 {bill.status !== 'Paid' ? (
                                                     <button
+                                                        onClick={() => handlePayBill(bill.id, bill.amount)}
                                                         disabled={isSubmitting}
                                                         className={`w-full mt-2 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 font-medium transition-colors text-sm ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                     >
@@ -722,7 +784,7 @@ const HostelFinance = () => {
                                                 )}
                                             </div>
                                         ))}
-                                        {studentData.bills.length === 0 && (
+                                        {(studentData.bills || []).length === 0 && (
                                             <div className="col-span-full py-10 text-center text-slate-400 bg-white border border-dashed border-slate-300 rounded-xl">
                                                 No mess bills generated for this student.
                                             </div>
@@ -741,7 +803,7 @@ const HostelFinance = () => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
-                                                {studentData.payments.filter(p => p.payment_type === 'Mess Bill').map(p => (
+                                                {(studentData.payments || []).filter(p => p.payment_type === 'Mess Bill').map(p => (
                                                     <tr key={p.id}>
                                                         <td className="px-4 py-3">{new Date(p.payment_date).toLocaleDateString()}</td>
                                                         <td className="px-4 py-3">{p.payment_type}</td>
@@ -758,7 +820,7 @@ const HostelFinance = () => {
                                                         </td>
                                                     </tr>
                                                 ))}
-                                                {studentData.payments.filter(p => p.payment_type === 'Mess Bill').length === 0 && (
+                                                {(studentData.payments || []).filter(p => p.payment_type === 'Mess Bill').length === 0 && (
                                                     <tr>
                                                         <td colSpan="5" className="px-4 py-8 text-center text-slate-400">No mess payments recorded yet.</td>
                                                     </tr>

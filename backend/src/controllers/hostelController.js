@@ -185,18 +185,70 @@ exports.allocateRoom = async (req, res) => {
 
 exports.vacateRoom = async (req, res) => {
     const { id } = req.params; // allocation id
+    const client = await pool.connect();
+
     try {
-        const result = await pool.query(
+        await client.query('BEGIN');
+
+        // 1. Get Allocation Details
+        const allocRes = await client.query(`
+            SELECT a.*, r.cost_per_term, s.name as student_name
+            FROM hostel_allocations a
+            JOIN hostel_rooms r ON a.room_id = r.id
+            JOIN students s ON a.student_id = s.id
+            WHERE a.id = $1
+        `, [id]);
+
+        if (allocRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Allocation not found' });
+        }
+
+        const allocation = allocRes.rows[0];
+        const studentId = allocation.student_id;
+        const totalRent = parseFloat(allocation.cost_per_term || 0);
+
+        // 2. Check Pending Mess Bills
+        const messRes = await client.query(
+            "SELECT SUM(amount) as pending_mess FROM hostel_mess_bills WHERE student_id = $1 AND status = 'Pending'",
+            [studentId]
+        );
+        const pendingMess = parseFloat(messRes.rows[0].pending_mess || 0);
+
+        // 3. Check Pending Room Rent
+        const rentPayRes = await client.query(
+            "SELECT COALESCE(SUM(amount), 0) as paid_rent FROM hostel_payments WHERE student_id = $1 AND payment_type = 'Room Rent'",
+            [studentId]
+        );
+        const paidRent = parseFloat(rentPayRes.rows[0].paid_rent || 0);
+        const pendingRent = Math.max(0, totalRent - paidRent);
+
+        // 4. Validate Dues
+        const totalDue = pendingMess + pendingRent;
+
+        if (totalDue > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                error: `Cannot vacate ${allocation.student_name}. Outstanding dues: ₹${totalDue.toLocaleString('en-IN')}. (Mess: ₹${pendingMess}, Rent: ₹${pendingRent})`
+            });
+        }
+
+        // 5. Build History Record (Optional but good practice)
+        // For now, just update status
+        const result = await client.query(
             "UPDATE hostel_allocations SET status = 'Vacated', vacating_date = CURRENT_DATE WHERE id = $1 RETURNING *",
             [id]
         );
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Allocation not found' });
-        }
+
+        await client.query('COMMIT');
         res.json(result.rows[0]);
+
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error vacating room:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: 'Server error: ' + error.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -431,9 +483,9 @@ exports.recordPayment = async (req, res) => {
     }
 };
 
-// Get Hostel Statistics (Head Count, Finance)
 exports.getHostelStats = async (req, res) => {
     try {
+        require('fs').appendFileSync('server_debug.log', `[${new Date().toISOString()}] DEBUG Stats Request for School ID: ${req.user.schoolId}\n`);
         const stats = {};
 
         // 1. Head Count (Active Allocations for this school, excluding deleted students)
@@ -477,6 +529,29 @@ exports.getHostelStats = async (req, res) => {
              WHERE b.status = 'Pending' AND s.school_id = $1
         `, [req.user.schoolId]);
 
+        // C. Detailed Mess Payment Status (Fully / Partial / Unpaid)
+        const messStatusRes = await pool.query(`
+            SELECT
+                count(CASE WHEN status_category = 'Fully Paid' THEN 1 END) as fully_paid,
+                count(CASE WHEN status_category = 'Partially Paid' THEN 1 END) as partially_paid,
+                count(CASE WHEN status_category = 'Unpaid' THEN 1 END) as unpaid
+            FROM (
+                SELECT 
+                    CASE 
+                        WHEN b.status = 'Paid' OR COALESCE(SUM(p.amount), 0) >= CAST(b.amount AS DECIMAL) THEN 'Fully Paid'
+                        WHEN COALESCE(SUM(p.amount), 0) > 0 THEN 'Partially Paid'
+                        ELSE 'Unpaid'
+                    END as status_category
+                FROM hostel_mess_bills b
+                JOIN students s ON b.student_id = s.id
+                LEFT JOIN hostel_payments p ON p.related_bill_id = b.id
+                WHERE s.school_id = $1
+                GROUP BY b.id, b.status, b.amount
+            ) as derived_status
+        `, [req.user.schoolId]);
+
+        const messStatus = messStatusRes.rows[0] || {};
+
         stats.mess = {
             // Current Month Specifics
             totalBills: parseInt(currentMonthRes.rows[0].total_bills || 0),
@@ -486,26 +561,52 @@ exports.getHostelStats = async (req, res) => {
 
             // Global Pending
             pendingCount: parseInt(globalPendingRes.rows[0].pending_bills_count || 0),
-            pendingAmount: parseFloat(globalPendingRes.rows[0].pending_amount || 0)
+            pendingAmount: parseFloat(globalPendingRes.rows[0].pending_amount || 0),
+
+            // Detailed Status Breakdown
+            details: {
+                fullyPaid: parseInt(messStatus.fully_paid || 0),
+                partiallyPaid: parseInt(messStatus.partially_paid || 0),
+                unpaid: parseInt(messStatus.unpaid || 0)
+            }
         };
 
         // 4. Room Rent Collection (Overall)
-        const activeAllocationsRes = await pool.query(`
+        // Detailed Rent Status
+        const rentStatusRes = await pool.query(`
              SELECT 
-                SUM(r.cost_per_term) as total_expected_rent
-             FROM hostel_allocations a
-             JOIN hostel_rooms r ON a.room_id = r.id
-             JOIN students s ON a.student_id = s.id
-             WHERE a.status = 'Active' AND s.school_id = $1
+                SUM(cost) as total_expected_rent,
+                count(CASE WHEN paid >= CAST(cost AS DECIMAL) THEN 1 END) as fully_paid,
+                count(CASE WHEN paid > 0 AND paid < CAST(cost AS DECIMAL) THEN 1 END) as partially_paid,
+                count(CASE WHEN paid = 0 THEN 1 END) as unpaid
+             FROM (
+                SELECT 
+                    r.cost_per_term as cost, 
+                    COALESCE(SUM(p.amount), 0) as paid
+                FROM hostel_allocations a
+                JOIN hostel_rooms r ON a.room_id = r.id
+                JOIN students s ON a.student_id = s.id
+                LEFT JOIN hostel_payments p ON p.student_id = a.student_id AND p.payment_type = 'Room Rent'
+                WHERE a.status = 'Active' AND s.school_id = $1
+                GROUP BY a.id, r.cost_per_term
+             ) as rent_Derived
         `, [req.user.schoolId]);
+
+        const rentStatus = rentStatusRes.rows[0] || {};
+
         stats.rent = {
-            expectedTermRent: parseFloat(activeAllocationsRes.rows[0].total_expected_rent || 0)
+            expectedTermRent: parseFloat(rentStatus.total_expected_rent || 0),
+            details: {
+                fullyPaid: parseInt(rentStatus.fully_paid || 0),
+                partiallyPaid: parseInt(rentStatus.partially_paid || 0),
+                unpaid: parseInt(rentStatus.unpaid || 0)
+            }
         };
 
         res.json(stats);
     } catch (error) {
         console.error('Error fetching hostel stats:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: 'Server error: ' + error.message });
     }
 };
 
