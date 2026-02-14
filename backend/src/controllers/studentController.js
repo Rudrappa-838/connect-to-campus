@@ -214,20 +214,41 @@ exports.bulkUploadStudents = async (req, res) => {
                     throw new Error('Student Name (or First Name) and Class are required');
                 }
 
-                // Resolve Class ID
+                // Resolve Class ID (Robust matching)
                 const classKey = className.toString().trim().toLowerCase();
-                const classId = classMap.get(classKey);
+                let classId = classMap.get(classKey);
+
+                // Fallback: try adding/removing 'Class ' prefix
+                if (!classId) {
+                    if (classKey.startsWith('class ')) {
+                        classId = classMap.get(classKey.replace('class ', '').trim());
+                    } else {
+                        classId = classMap.get(`class ${classKey}`);
+                    }
+                }
 
                 if (!classId) {
-                    throw new Error(`Class "${className}" not found in system. Available: ${Array.from(classMap.keys()).join(', ')}`);
+                    const available = Array.from(classMap.keys()).slice(0, 5).join(', ');
+                    throw new Error(`Class "${className}" not found. Please use exact names like: ${available}...`);
                 }
 
                 // Resolve Section ID (Optional)
                 let sectionId = null;
                 if (sectionName) {
-                    const sectionKey = `${sectionName.toString().trim().toLowerCase()}_${classId}`;
+                    const sectionNameClean = sectionName.toString().trim().toLowerCase();
+                    const sectionKey = `${sectionNameClean}_${classId}`;
                     sectionId = sectionMap.get(sectionKey);
-                    if (!sectionId && sectionName.toString().toLowerCase() !== 'null' && sectionName.toString().trim() !== '') {
+
+                    // Fallback: try adding/removing 'Section ' prefix (less common but safe)
+                    if (!sectionId) {
+                        if (sectionNameClean.startsWith('section ')) {
+                            sectionId = sectionMap.get(`${sectionNameClean.replace('section ', '').trim()}_${classId}`);
+                        } else {
+                            sectionId = sectionMap.get(`section ${sectionNameClean}_${classId}`);
+                        }
+                    }
+
+                    if (!sectionId && sectionNameClean !== 'null' && sectionNameClean !== '') {
                         throw new Error(`Section "${sectionName}" not found for Class "${className}"`);
                     }
                 }
