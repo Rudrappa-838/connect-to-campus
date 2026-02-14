@@ -89,8 +89,8 @@ exports.addStaff = async (req, res) => {
 
         if (userCheck.rows.length === 0) {
             await client.query(
-                `INSERT INTO users (email, password, role, school_id, must_change_password) VALUES ($1, $2, $3, $4, TRUE)`,
-                [loginEmail, defaultPassword, userRole, school_id]
+                `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, $3, $4, TRUE, $5)`,
+                [loginEmail, defaultPassword, userRole, school_id, result.rows[0].id]
             );
         }
 

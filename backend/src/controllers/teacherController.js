@@ -81,8 +81,8 @@ exports.addTeacher = async (req, res) => {
 
         if (userCheck.rows.length === 0) {
             await client.query(
-                `INSERT INTO users (email, password, role, school_id, must_change_password) VALUES ($1, $2, 'TEACHER', $3, TRUE)`,
-                [loginEmail, defaultPassword, school_id]
+                `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'TEACHER', $3, TRUE, $4)`,
+                [loginEmail, defaultPassword, school_id, newTeacher.id]
             );
         }
 
