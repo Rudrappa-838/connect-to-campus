@@ -238,6 +238,8 @@ const TeacherManagement = ({ config }) => {
                                 <label className="label">Full Name <span className="text-red-500">*</span></label>
                                 <input
                                     className="input"
+                                    id="teacher-name"
+                                    name="name"
                                     placeholder="Full Name"
                                     required
                                     pattern="[A-Za-z\s]+"
@@ -261,6 +263,8 @@ const TeacherManagement = ({ config }) => {
                                     <input
                                         list="subjects-list"
                                         className="input"
+                                        id="teacher-subject"
+                                        name="subject_specialization"
                                         required
                                         placeholder="Select or Type Subject"
                                         autoComplete="off"
@@ -280,6 +284,8 @@ const TeacherManagement = ({ config }) => {
                                     <label className="label">Phone <span className="text-red-500">*</span></label>
                                     <input
                                         className={`input ${fieldErrors.phone ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                        id="teacher-phone"
+                                        name="phone"
                                         placeholder="Phone"
                                         required
                                         maxLength={10}
@@ -297,6 +303,8 @@ const TeacherManagement = ({ config }) => {
                                     <label className="label">Email <span className="text-red-500">*</span></label>
                                     <input
                                         className={`input ${fieldErrors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                        id="teacher-email"
+                                        name="email"
                                         placeholder="Email"
                                         required
                                         type="email"

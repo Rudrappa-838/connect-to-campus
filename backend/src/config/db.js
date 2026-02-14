@@ -5,7 +5,7 @@ const getConnectionString = () => {
     // For develop branch, prioritize production URL if in production mode
     if (process.env.NODE_ENV === 'production') {
         process.env.DB_ENV_LABEL = 'PRODUCTION (AWS RDS)';
-        return process.env.DATABASE_URL;
+        return process.env.PROD_DATABASE_URL || process.env.DATABASE_URL;
     }
 
     process.env.DB_ENV_LABEL = 'DEVELOP (SUPABASE/DEV)';

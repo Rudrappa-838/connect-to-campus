@@ -911,6 +911,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     <input
                                         className="input"
                                         required
+                                        id="student-first-name"
+                                        name="first_name"
                                         placeholder="First Name"
                                         pattern="[A-Za-z]+"
                                         title="Only letters allowed"
@@ -929,6 +931,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     <label className="label">Middle Name</label>
                                     <input
                                         className="input"
+                                        id="student-middle-name"
+                                        name="middle_name"
                                         placeholder="Middle Name"
                                         pattern="[A-Za-z]*"
                                         title="Only letters allowed"
@@ -948,6 +952,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     <input
                                         className="input"
                                         required
+                                        id="student-last-name"
+                                        name="last_name"
                                         placeholder="Last Name"
                                         pattern="[A-Za-z]+"
                                         title="Only letters allowed"
@@ -966,7 +972,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
 
                             <div className="col-span-1">
                                 <label className="label">Gender <span className="text-red-500">*</span></label>
-                                <select className="input" required value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })}>
+                                <select className="input" id="student-gender" name="gender" required value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })}>
                                     <option value="">Select Gender</option>
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
@@ -1066,6 +1072,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     className="input"
                                     type="tel"
                                     required
+                                    id="student-contact"
+                                    name="contact_number"
                                     maxLength="10"
                                     placeholder="10 Digits"
                                     autoComplete="off"
@@ -1086,6 +1094,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     className="input"
                                     type="email"
                                     required
+                                    id="student-email"
+                                    name="email"
                                     placeholder="example@domain.com"
                                     autoComplete="off"
                                     value={formData.email}

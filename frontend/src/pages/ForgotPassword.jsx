@@ -201,6 +201,8 @@ const ForgotPassword = () => {
                                     <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                                     <input
                                         type="text"
+                                        id="forgot-password-userid"
+                                        name="userId"
                                         value={userId}
                                         onChange={(e) => handleUserIdChange(e.target.value)}
                                         className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all font-sans text-sm"
@@ -261,6 +263,8 @@ const ForgotPassword = () => {
                                     )}
                                     <input
                                         type="text"
+                                        id="forgot-password-otp"
+                                        name="otp"
                                         value={otp}
                                         onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                         className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all font-mono text-2xl text-center tracking-[0.5em]"
@@ -306,6 +310,8 @@ const ForgotPassword = () => {
                                 <div className="relative">
                                     <input
                                         type={showPassword ? "text" : "password"}
+                                        id="forgot-password-new"
+                                        name="newPassword"
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
                                         className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all font-sans text-sm pr-12"
@@ -328,6 +334,8 @@ const ForgotPassword = () => {
                                 <div className="relative">
                                     <input
                                         type={showConfirmPassword ? "text" : "password"}
+                                        id="forgot-password-confirm"
+                                        name="confirmPassword"
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
                                         className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all font-sans text-sm pr-12"

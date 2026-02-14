@@ -1,77 +1,70 @@
 const { Pool } = require('pg');
-require('dotenv').config();
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
-});
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 async function runFixes() {
-    const client = await pool.connect();
+    console.log('--- AWS DATABASE FIX TOOL ---');
+
+    // Debug what we found (safety first, hide passwords)
+    const envVars = {
+        DATABASE_URL: process.env.DATABASE_URL ? 'FOUND' : 'MISSING',
+        PROD_DATABASE_URL: process.env.PROD_DATABASE_URL ? 'FOUND' : 'MISSING',
+        DB_HOST: process.env.DB_HOST || 'MISSING',
+        DB_USER: process.env.DB_USER || 'MISSING',
+        DB_NAME: process.env.DB_NAME || 'MISSING'
+    };
+    console.log('Environment Check:', envVars);
+
+    let poolConfig;
+    const connStr = process.env.PROD_DATABASE_URL || process.env.DATABASE_URL;
+
+    if (connStr) {
+        console.log('Using Connection String...');
+        poolConfig = { connectionString: connStr, ssl: { rejectUnauthorized: false } };
+    } else {
+        console.log('Using individual DB parameters...');
+        poolConfig = {
+            host: process.env.DB_HOST || 'localhost',
+            user: process.env.DB_USER || 'postgres',
+            password: process.env.DB_PASSWORD,
+            database: process.env.DB_NAME || 'postgres',
+            port: process.env.DB_PORT || 5432,
+            ssl: { rejectUnauthorized: false }
+        };
+    }
+
+    if (poolConfig.host === 'localhost' && !connStr) {
+        console.warn('⚠️ WARNING: Host is set to localhost. Fix might fail if DB is remote.');
+    }
+
+    const pool = new Pool(poolConfig);
+    let client;
+
     try {
-        console.log('🚀 Starting Master Database Fix for AWS...');
+        console.log(`Connecting to ${poolConfig.host || 'URL'}...`);
+        client = await pool.connect();
+        console.log('✅ Connection Successful!');
 
         await client.query('BEGIN');
 
-        // 1. Fix Users Table (linked_id and relaxed constraint)
-        console.log('--- Updating users table ---');
-        await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS linked_id INTEGER DEFAULT NULL');
-        await client.query('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key');
-        // Check if composite unique constraint already exists before adding
-        const constraintCheck = await client.query(`
-            SELECT constraint_name 
-            FROM information_schema.table_constraints 
-            WHERE table_name = 'users' AND constraint_name = 'users_email_role_key'
-        `);
-        if (constraintCheck.rows.length === 0) {
-            await client.query('ALTER TABLE users ADD CONSTRAINT users_email_role_key UNIQUE (email, role)');
-            console.log('✅ Composite unique constraint (email, role) added.');
-        } else {
-            console.log('ℹ️ Composite unique constraint already exists.');
-        }
+        console.log('1. Fixing users table...');
+        await client.query('ALTER TABLE IF EXISTS public.users ADD COLUMN IF NOT EXISTS linked_id INTEGER');
+        await client.query('ALTER TABLE IF EXISTS public.users DROP CONSTRAINT IF EXISTS users_email_key');
 
-        // 2. Fix Students Table (first_name, last_name, etc.)
-        console.log('--- Updating students table ---');
-        const studentCols = [
-            "first_name VARCHAR(100)", "last_name VARCHAR(100)", "father_name VARCHAR(100)", "mother_name VARCHAR(100)",
-            "phone VARCHAR(50)", "contact_number VARCHAR(50)", "dob DATE", "gender VARCHAR(20)", "address TEXT",
-            "roll_number INTEGER", "section_id INTEGER", "attendance_id VARCHAR(50)", "admission_date DATE"
-        ];
-        for (const col of studentCols) {
-            const colName = col.split(' ')[0];
-            await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS ${col}`);
-        }
-        console.log('✅ Students table columns verified.');
-
-        // 3. Fix Teachers Table
-        console.log('--- Updating teachers table ---');
-        const teacherCols = [
-            "first_name VARCHAR(100)", "last_name VARCHAR(100)", "phone VARCHAR(50)", "subject_specialization VARCHAR(255)",
-            "employee_id VARCHAR(50)", "salary_per_day DECIMAL(10, 2) DEFAULT 0", "gender VARCHAR(10)", "join_date DATE", "address TEXT"
-        ];
-        for (const col of teacherCols) {
-            await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS ${col}`);
-        }
-        console.log('✅ Teachers table columns verified.');
-
-        // 4. Fix Staff Table
-        console.log('--- Updating staff table ---');
-        const staffCols = [
-            "first_name VARCHAR(100)", "last_name VARCHAR(100)", "phone VARCHAR(50)", "employee_id VARCHAR(50)",
-            "salary_per_day DECIMAL(10, 2) DEFAULT 0", "gender VARCHAR(10)", "join_date DATE", "address TEXT"
-        ];
-        for (const col of staffCols) {
-            await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS ${col}`);
-        }
-        console.log('✅ Staff table columns verified.');
+        console.log('2. Fixing students table...');
+        await client.query('ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS first_name VARCHAR(255)');
+        await client.query('ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS last_name VARCHAR(255)');
+        await client.query('ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS middle_name VARCHAR(255)');
 
         await client.query('COMMIT');
-        console.log('✨ ALL DATABASE FIXES APPLIED SUCCESSFULLY!');
+        console.log('✨ SUCCESS: All fixes applied correctly.');
 
     } catch (err) {
-        await client.query('ROLLBACK');
-        console.error('❌ DATABASE FIX FAILED:', err.message);
+        if (client) await client.query('ROLLBACK');
+        console.error('❌ ERROR:', err.message);
+        console.error('Full Error Detail:', err);
     } finally {
-        client.release();
+        if (client) client.release();
         await pool.end();
     }
 }

@@ -193,6 +193,8 @@ const StaffManagement = () => {
                                     <label className="label">Full Name <span className="text-red-500">*</span></label>
                                     <input
                                         className="input"
+                                        id="staff-name"
+                                        name="name"
                                         placeholder="Full Name"
                                         required
                                         pattern="[A-Za-z\s]+"
@@ -212,6 +214,8 @@ const StaffManagement = () => {
                                     <label className="label">Role <span className="text-red-500">*</span></label>
                                     <input
                                         className="input"
+                                        id="staff-role"
+                                        name="role"
                                         placeholder="Role (e.g., Clerk, Peon)"
                                         required
                                         pattern="[A-Za-z\s]+"
@@ -233,6 +237,8 @@ const StaffManagement = () => {
                                     <label className="label">Phone <span className="text-red-500">*</span></label>
                                     <input
                                         className={`input ${fieldErrors.phone ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                        id="staff-phone"
+                                        name="phone"
                                         placeholder="Phone"
                                         required
                                         maxLength={10}
@@ -250,6 +256,8 @@ const StaffManagement = () => {
                                     <label className="label">Email</label>
                                     <input
                                         className={`input ${fieldErrors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                        id="staff-email"
+                                        name="email"
                                         placeholder="Email"
                                         type="email"
                                         autoComplete="off"

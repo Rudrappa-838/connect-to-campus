@@ -66,7 +66,7 @@ exports.addStudent = async (req, res) => {
 
         // 1. Insert Student
         const result = await client.query(
-            `INSERT INTO students 
+            `INSERT INTO public.students 
             (school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, age, class_id, section_id, 
              father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
@@ -91,14 +91,14 @@ exports.addStudent = async (req, res) => {
                 console.warn(`User for student ${admission_no} already exists.`);
             } else {
                 await client.query(
-                    `INSERT INTO users (email, password, role, school_id, must_change_password) VALUES ($1, $2, 'STUDENT', $3, TRUE)`,
-                    [loginEmail, defaultPassword, school_id]
+                    `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'STUDENT', $3, TRUE, $4)`,
+                    [loginEmail, defaultPassword, school_id, newStudent.id]
                 );
             }
         } else {
             await client.query(
-                `INSERT INTO users (email, password, role, school_id, must_change_password) VALUES ($1, $2, 'STUDENT', $3, TRUE)`,
-                [loginEmail, defaultPassword, school_id]
+                `INSERT INTO public.users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'STUDENT', $3, TRUE, $4)`,
+                [loginEmail, defaultPassword, school_id, newStudent.id]
             );
         }
 
@@ -284,7 +284,7 @@ exports.bulkUploadStudents = async (req, res) => {
 
                 // Use EXACT query from working test_insert.js
                 const instRes = await client.query(
-                    `INSERT INTO students 
+                    `INSERT INTO public.students 
                     (school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, class_id, section_id, 
                      father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
@@ -301,7 +301,7 @@ exports.bulkUploadStudents = async (req, res) => {
                 const userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [finalLoginEmail, 'STUDENT']);
                 if (userCheck.rows.length === 0) {
                     await client.query(
-                        `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'STUDENT', $3, TRUE, $4)`,
+                        `INSERT INTO public.users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'STUDENT', $3, TRUE, $4)`,
                         [finalLoginEmail, defaultPassword, school_id, instRes.rows[0].id]
                     );
                 } else if (email) {
@@ -310,7 +310,7 @@ exports.bulkUploadStudents = async (req, res) => {
                     const fallbackCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [finalLoginEmail, 'STUDENT']);
                     if (fallbackCheck.rows.length === 0) {
                         await client.query(
-                            `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'STUDENT', $3, TRUE, $4)`,
+                            `INSERT INTO public.users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'STUDENT', $3, TRUE, $4)`,
                             [finalLoginEmail, defaultPassword, school_id, instRes.rows[0].id]
                         );
                     }
@@ -342,6 +342,13 @@ exports.bulkUploadStudents = async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Bulk upload fatal error:', error);
+
+        // Log to file for deep inspection
+        try {
+            const fs = require('fs');
+            fs.appendFileSync('bulk_upload_error.log', `\n[${new Date().toISOString()}] FATAL ERROR: ${error.message}\nSTACK: ${error.stack}\n`);
+        } catch (e) { }
+
         res.status(500).json({ message: 'Server error processing file: ' + error.message });
     } finally {
         client.release();

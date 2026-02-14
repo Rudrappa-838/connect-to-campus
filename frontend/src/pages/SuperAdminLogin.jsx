@@ -60,7 +60,9 @@ const SuperAdminLogin = () => {
                         <input
                             type="email"
                             required
-                            autoComplete="off"
+                            id="super-admin-email"
+                            name="email"
+                            autoComplete="username"
                             className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none transition-all font-semibold text-sm text-white placeholder:text-slate-500"
                             placeholder="admin@system.com"
                             value={email}
@@ -77,7 +79,9 @@ const SuperAdminLogin = () => {
                         <input
                             type="password"
                             required
-                            autoComplete="off"
+                            id="super-admin-password"
+                            name="password"
+                            autoComplete="current-password"
                             className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none transition-all font-semibold text-sm text-white placeholder:text-slate-500"
                             placeholder="Enter Password"
                             value={password}
