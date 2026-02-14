@@ -311,7 +311,7 @@ const SalaryManagement = () => {
                                                         <div className="text-right mr-2">
                                                             <div className="text-xs text-slate-500 mb-1">Paid on</div>
                                                             <div className="text-xs font-bold text-emerald-600">
-                                                                {new Date(emp.payment_date).toLocaleDateString()}
+                                                                {new Date(emp.payment_date).toLocaleDateString('en-GB')}
                                                             </div>
                                                             <div className="text-[10px] text-slate-400">{emp.payment_mode}</div>
                                                         </div>
@@ -494,7 +494,7 @@ const SalaryManagement = () => {
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] uppercase text-slate-400 font-bold">Date</p>
-                                        <p className="font-bold text-slate-800">{selectedSlip.is_paid ? new Date(selectedSlip.payment_date).toLocaleDateString() : new Date().toLocaleDateString()}</p>
+                                        <p className="font-bold text-slate-800">{selectedSlip.is_paid ? new Date(selectedSlip.payment_date).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}</p>
                                     </div>
                                     <div>
                                         <p className="text-[10px] uppercase text-slate-400 font-bold">Employee ID</p>

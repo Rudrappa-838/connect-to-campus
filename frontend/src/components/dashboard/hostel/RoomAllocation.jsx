@@ -100,7 +100,7 @@ const RoomAllocation = () => {
             toast.success('Room vacated');
             fetchAllocations(selectedHostel.id);
         } catch (error) {
-            toast.error('Operation failed');
+            toast.error(error.response?.data?.error || 'Operation failed');
         } finally {
             setIsSubmitting(false);
         }

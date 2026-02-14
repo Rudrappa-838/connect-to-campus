@@ -4,7 +4,7 @@ import { useReactToPrint } from 'react-to-print';
 import api from '../../../api/axios';
 
 const CertificateTemplate = React.forwardRef(({ type, student, schoolName, details }, ref) => {
-    const date = details?.issue_date ? new Date(details.issue_date).toLocaleDateString() : new Date().toLocaleDateString();
+    const date = details?.issue_date ? new Date(details.issue_date).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
 
     return (
         <div ref={ref} className="p-10 bg-white text-slate-900 font-serif relative overflow-hidden" style={{ minHeight: '800px', width: '100%' }}>
@@ -162,7 +162,7 @@ const StudentCertificates = ({ student, schoolName }) => {
                                         <Icon size={24} />
                                     </div>
                                     <h4 className="font-bold text-slate-800 mb-1 relative z-10">{cert.certificate_type} Certificate</h4>
-                                    <p className="text-xs text-slate-500 mb-4 relative z-10">Issued: {new Date(cert.issue_date).toLocaleDateString()}</p>
+                                    <p className="text-xs text-slate-500 mb-4 relative z-10">Issued: {new Date(cert.issue_date).toLocaleDateString('en-GB')}</p>
 
                                     <button
                                         onClick={() => setSelectedCert(cert)}

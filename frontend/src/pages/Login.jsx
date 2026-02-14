@@ -33,6 +33,25 @@ const Login = () => {
     const isLoggingInRef = React.useRef(false);
     const abortControllerRef = React.useRef(null);
 
+    // Wake up server immediately on load (Fixes first attempt timeout issues)
+    React.useEffect(() => {
+        const wakeServer = async () => {
+            try {
+                // Determine health check URL
+                // Use dynamic hostname to support network access (e.g. 192.168.x.x)
+                const apiHost = window.location.hostname;
+                const healthUrl = Capacitor.isNativePlatform()
+                    ? 'http://52.66.13.31/api' // Production URL for mobile
+                    : `http://${apiHost}:5000/api`; // Dynamic Dev URL
+
+                await fetch(healthUrl).catch(() => { });
+            } catch (e) {
+                // Ignore errors, this is just a wakeup ping
+            }
+        };
+        wakeServer();
+    }, []);
+
     // Check for error message in URL (from axios interceptor)
     React.useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -58,45 +77,62 @@ const Login = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (isLoggingIn || isLoggingInRef.current) return; // Prevent double click
+
+        // Use FormData to get values directly (Robust against Autofill state lag)
+        const formData = new FormData(e.target);
+        const emailVal = formData.get('email')?.toString().trim();
+        const passwordVal = formData.get('password')?.toString().trim();
+
+        if (isLoggingIn || isLoggingInRef.current) return;
+
+        console.log(`Login: Attempting login for ${emailVal} with role ${role}`);
+
+        if (!emailVal || !passwordVal) {
+            toast.error('Please fill in all fields');
+            return;
+        }
 
         setErrorMessage('');
         setIsLoggingIn(true);
         isLoggingInRef.current = true;
-
-        // Create new AbortController for this request
         abortControllerRef.current = new AbortController();
 
         try {
-            const result = await login(email.trim(), password.trim(), role);
+            const result = await login(emailVal, passwordVal, role);
+            console.log('Login: API Result:', result);
 
-            // Check if request was aborted
-            if (abortControllerRef.current?.signal.aborted) {
-                return;
-            }
+            if (abortControllerRef.current?.signal.aborted) return;
 
             if (result.success) {
+                console.log('DEBUG: Login Successful. User:', result.user); // Trace
+                // window.alert('Login Success! Redirecting...'); // Uncomment if desperate for visual confirmation
+
                 // Check for must_change_password flag from backend
                 if (result.user?.mustChangePassword) {
                     toast('Please set a new password for security.', { icon: '🔒' });
-                    navigate('/change-password', { state: { email, role, oldPassword: password } });
+                    navigate('/change-password', { state: { email, role, oldPassword: passwordVal } });
                     return;
                 }
 
-                // Small delay to ensure token is set in axios and state is updated
+                // Small delay to ensure consistency
                 await new Promise(resolve => setTimeout(resolve, 100));
 
-                // toast.success('Welcome back!'); // Removed as per request
+                // FORCE HARD RELOAD to clear any stale state
+                let targetPath = '/';
                 switch (role) {
-                    case 'SCHOOL_ADMIN': navigate('/school-admin'); break;
-                    case 'TEACHER': navigate('/teacher'); break;
-                    case 'STUDENT': navigate('/student'); break;
+                    case 'SCHOOL_ADMIN': targetPath = '/school-admin'; break;
+                    case 'TEACHER': targetPath = '/teacher'; break;
+                    case 'STUDENT': targetPath = '/student'; break;
                     case 'STAFF':
-                    case 'DRIVER': navigate('/staff'); break;
-                    default: navigate('/');
+                    case 'DRIVER': targetPath = '/staff'; break;
+                    default: targetPath = '/';
                 }
+
+                window.location.href = targetPath;
+                return;
             } else {
                 setErrorMessage(result.message);
+                if (result.message) window.alert(`Login Failed: ${result.message}`); // Force visibility
                 toast.error(result.message);
             }
         } catch (error) {
@@ -106,7 +142,9 @@ const Login = () => {
             }
 
             console.error(error);
-            setErrorMessage('An unexpected error occurred');
+            const msg = 'An unexpected error occurred';
+            setErrorMessage(msg);
+            window.alert(`Login Error: ${error.message || msg}`); // Force visibility
         } finally {
             // Always reset loading state
             setIsLoggingIn(false);
@@ -177,7 +215,8 @@ const Login = () => {
                                 <input
                                     type="text"
                                     required
-                                    autoComplete="off"
+                                    name="email"
+                                    autoComplete="username"
                                     className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all font-sans text-sm"
                                     placeholder={role === 'SCHOOL_ADMIN' ? 'Enter Email or School ID' :
                                         role === 'STUDENT' ? 'Enter Admission Number' :
@@ -211,7 +250,8 @@ const Login = () => {
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         required
-                                        autoComplete="off"
+                                        name="password" // Key fix
+                                        autoComplete="current-password"
                                         className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all font-sans text-sm pr-10"
                                         placeholder="Enter Password"
                                         value={password}

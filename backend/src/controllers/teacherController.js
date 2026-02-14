@@ -73,10 +73,10 @@ exports.addTeacher = async (req, res) => {
         let loginEmail = email || `${employee_id}@teacher.school.com`;
         const defaultPassword = await bcrypt.hash('123456', 10);
 
-        let userCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+        let userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, 'TEACHER']);
         if (userCheck.rows.length > 0) {
             loginEmail = `${employee_id}@teacher.school.com`;
-            userCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+            userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, 'TEACHER']);
         }
 
         if (userCheck.rows.length === 0) {
@@ -232,11 +232,15 @@ exports.updateTeacher = async (req, res) => {
             last_name = parts.slice(1).join(' ');
         }
 
+        // Sanitize
+        const safe_join_date = (join_date === '' || join_date === 'null' || join_date === undefined) ? null : join_date;
+        const safe_salary = (salary_per_day === '' || salary_per_day === 'null' || salary_per_day === undefined) ? 0 : salary_per_day;
+
         const result = await client.query(
             `UPDATE teachers SET name = $1, email = $2, phone = $3, subject_specialization = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
              first_name = $9, last_name = $10
              WHERE id = $11 AND school_id = $12 RETURNING *`,
-            [name, email, phone, subject_specialization, gender, address, join_date, salary_per_day || 0,
+            [name, email, phone, subject_specialization, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
                 id, school_id]
         );
@@ -269,12 +273,12 @@ exports.updateTeacher = async (req, res) => {
         // 2. Assign to new section if provided
         console.log(`[UPDATE TEACHER] Class Assignment - ClassID: ${assign_class_id}, SectionID: ${assign_section_id}`);
 
-        if (assign_class_id) {
+        if (assign_class_id && assign_class_id !== 'null' && assign_class_id !== 'undefined') {
             let targetSectionId = assign_section_id;
             const classIdInt = parseInt(assign_class_id);
 
             // A. Check if Section is Provided
-            if (targetSectionId) {
+            if (targetSectionId && targetSectionId !== 'null' && targetSectionId !== 'undefined') {
                 // Check if this SECTION is already assigned
                 const checkSec = await client.query('SELECT class_teacher_id, name FROM sections WHERE id = $1', [targetSectionId]);
                 // Ensure we don't count self (though we just cleared it above)

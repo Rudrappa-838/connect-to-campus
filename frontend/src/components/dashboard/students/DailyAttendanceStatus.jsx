@@ -92,7 +92,7 @@ const DailyAttendanceStatus = ({ config }) => {
                 <div class="header">
                     <h1>Daily Attendance Status</h1>
                     <div class="meta">
-                        Date: ${new Date(date).toLocaleDateString()} | Class: ${className} - ${sectionName}
+                        Date: ${new Date(date).toLocaleDateString('en-GB')} | Class: ${className} - ${sectionName}
                     </div>
                 </div>
 

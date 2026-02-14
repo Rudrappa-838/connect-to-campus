@@ -48,6 +48,11 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
 
 app.use(cors({
     origin: (origin, callback) => {
+        // Allow all in development
+        if (process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+
         // Allow requests with no origin (mobile apps, Postman)
         if (!origin) return callback(null, true);
 
@@ -172,12 +177,22 @@ app.get(['/api/download-app', '/download-app'], (req, res) => {
 });
 
 // Health Check (Handles both prefixed and non-prefixed roots)
-app.get(['/api', '/'], (req, res) => {
-    res.json({
-        status: 'OK',
-        message: 'School Management API is running',
-        timestamp: new Date()
-    });
+app.get(['/api', '/'], async (req, res) => {
+    try {
+        await require('./config/db').pool.query('SELECT 1');
+        res.json({
+            status: 'OK',
+            message: 'School Management API is running',
+            db: 'Connected',
+            timestamp: new Date()
+        });
+    } catch (e) {
+        res.status(500).json({
+            status: 'ERROR',
+            message: 'API Running but DB Failed',
+            error: e.message
+        });
+    }
 });
 
 // Global Error Handler

@@ -346,7 +346,7 @@ const TopperList = ({ config }) => {
                                 <span>Class: {classes.find(c => c.id == selectedClassId)?.name}</span>
                                 {selectedSection && <span>Section: {getSectionsForClass().find(s => s.id == selectedSection || s.name == selectedSection)?.name || selectedSection}</span>}
                                 <span>Exam: {schedules.find(s => s.id == selectedScheduleId)?.exam_type_name || schedules.find(s => s.id == selectedScheduleId)?.exam_type}</span>
-                                <span>Date: {new Date().toLocaleDateString()}</span>
+                                <span>Date: {new Date().toLocaleDateString('en-GB')}</span>
                             </div>
                         </div>
                     </div>

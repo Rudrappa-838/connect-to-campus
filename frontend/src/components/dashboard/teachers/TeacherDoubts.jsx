@@ -99,7 +99,7 @@ const TeacherDoubts = () => {
                             )}
 
                             <div className="mt-3 text-right text-xs text-slate-400">
-                                Asked on {new Date(doubt.created_at).toLocaleDateString()}
+                                Asked on {new Date(doubt.created_at).toLocaleDateString('en-GB')}
                             </div>
                         </div>
                     ))}

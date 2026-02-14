@@ -3,9 +3,9 @@ import './SoftnetPamphletBack.css';
 
 const SoftnetPamphletBack = () => {
     const pricingIncludes = [
-        "✓ All 12 Modules",
+        "✓ All 16 Modules",
         "✓ Unlimited Users",
-        "✓ Android & iOS Apps",
+        "✓ Android Apps",
         "✓ Play Store Published",
         "✓ Push Notifications",
         "✓ Free Updates",
@@ -43,7 +43,7 @@ const SoftnetPamphletBack = () => {
                         <div className="why-card-compact">
                             <div className="why-icon-compact">📱</div>
                             <h3>Mobile Apps</h3>
-                            <p>Android & iOS</p>
+                            <p>Android App</p>
                         </div>
                         <div className="why-card-compact">
                             <div className="why-icon-compact">💯</div>
@@ -82,7 +82,14 @@ const SoftnetPamphletBack = () => {
                 {/* Contact - UPDATED */}
                 <div className="contact-compact">
                     <h2 className="section-title-compact">Get Started Today</h2>
-                    <div className="contact-grid-compact">
+                    <div className="contact-grid-compact" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+                        <div className="contact-item-compact">
+                            <div className="contact-icon-compact">📍</div>
+                            <p className="contact-label-compact">Address</p>
+                            <p className="contact-value-compact" style={{ fontSize: '9px', lineHeight: '1.2' }}>
+                                A179, Sector 12,<br />Nava Nagar, Bagalkote,<br />Karnataka 587103
+                            </p>
+                        </div>
                         <div className="contact-item-compact">
                             <div className="contact-icon-compact">📞</div>
                             <p className="contact-label-compact">Call Us</p>
@@ -90,19 +97,20 @@ const SoftnetPamphletBack = () => {
                             <p className="contact-value-compact">8095108913</p>
                         </div>
                         <div className="contact-item-compact">
+                            <div className="contact-icon-compact">💬</div>
+                            <p className="contact-label-compact">WhatsApp</p>
+                            <p className="contact-value-compact">8618602743</p>
+                            <p className="contact-value-compact">8095108913</p>
+                        </div>
+                        <div className="contact-item-compact">
                             <div className="contact-icon-compact">✉️</div>
                             <p className="contact-label-compact">Email</p>
-                            <p className="contact-value-compact" style={{ fontSize: '10px' }}>softnetbgk@gmail.com</p>
+                            <p className="contact-value-compact" style={{ fontSize: '9px' }}>softnetbgk@gmail.com</p>
                         </div>
                         <div className="contact-item-compact">
                             <div className="contact-icon-compact">🌐</div>
                             <p className="contact-label-compact">Website</p>
                             <p className="contact-value-compact">www.softnet.com</p>
-                        </div>
-                        <div className="contact-item-compact">
-                            <div className="contact-icon-compact">💬</div>
-                            <p className="contact-label-compact">WhatsApp</p>
-                            <p className="contact-value-compact">8431745662</p>
                         </div>
                     </div>
                 </div>

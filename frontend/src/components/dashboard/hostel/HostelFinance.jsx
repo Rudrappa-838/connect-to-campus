@@ -294,7 +294,7 @@ const HostelFinance = () => {
                          <div class="row"><span class="label">Allocated Room</span> <span class="value">${studentData.room_number || 'N/A'}</span></div>
                     </div>
 
-                    <div class="row"><span class="label">Date</span> <span class="value">${new Date(payment.payment_date).toLocaleDateString()}</span></div>
+                    <div class="row"><span class="label">Date</span> <span class="value">${new Date(payment.payment_date).toLocaleDateString('en-GB')}</span></div>
                     <div class="row"><span class="label">Payment Type</span> <span class="value">${payment.payment_type}</span></div>
                     <div class="row"><span class="label">Payment ID</span> <span class="value">#${payment.id}</span></div>
                     ${payment.remarks ? `<div class="row"><span class="label">Remarks</span> <span class="value">${payment.remarks}</span></div>` : ''}
@@ -717,7 +717,7 @@ const HostelFinance = () => {
                                             <tbody className="divide-y divide-slate-100">
                                                 {(studentData.payments || []).filter(p => p.payment_type === 'Room Rent').map(p => (
                                                     <tr key={p.id}>
-                                                        <td className="px-4 py-3">{new Date(p.payment_date).toLocaleDateString()}</td>
+                                                        <td className="px-4 py-3">{new Date(p.payment_date).toLocaleDateString('en-GB')}</td>
                                                         <td className="px-4 py-3">{p.payment_type}</td>
                                                         <td className="px-4 py-3 text-slate-500">{p.remarks || '-'}</td>
                                                         <td className="px-4 py-3 text-right font-medium text-green-600">+₹{parseFloat(p.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
@@ -805,7 +805,7 @@ const HostelFinance = () => {
                                             <tbody className="divide-y divide-slate-100">
                                                 {(studentData.payments || []).filter(p => p.payment_type === 'Mess Bill').map(p => (
                                                     <tr key={p.id}>
-                                                        <td className="px-4 py-3">{new Date(p.payment_date).toLocaleDateString()}</td>
+                                                        <td className="px-4 py-3">{new Date(p.payment_date).toLocaleDateString('en-GB')}</td>
                                                         <td className="px-4 py-3">{p.payment_type}</td>
                                                         <td className="px-4 py-3 text-slate-500">{p.remarks || '-'}</td>
                                                         <td className="px-4 py-3 text-right font-medium text-green-600">+₹{parseFloat(p.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>

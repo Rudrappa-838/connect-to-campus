@@ -5,24 +5,16 @@ async function checkStudentsSchema() {
         const result = await pool.query(`
             SELECT column_name, data_type, is_nullable
             FROM information_schema.columns 
-            WHERE table_name = 'students' 
+            WHERE table_name = 'sections' 
             ORDER BY ordinal_position
         `);
 
-        console.log('Students table schema:');
-        console.log(JSON.stringify(result.rows, null, 2));
+        const cols = result.rows.map(r => r.column_name);
+        console.log('Columns in sections table:', cols.join(', '));
 
-        // Check if there's a user_id column
-        const hasUserId = result.rows.some(col => col.column_name === 'user_id');
-        console.log('\nHas user_id column:', hasUserId);
-
-        // Check sample student data
-        const students = await pool.query('SELECT id, name, email, admission_no FROM students LIMIT 3');
-        console.log('\nSample students:');
-        console.log(JSON.stringify(students.rows, null, 2));
-
-    } catch (error) {
-        console.error('Error:', error.message);
+        // Find school_id specifically
+        const hasSchoolId = cols.includes('school_id');
+        console.log('Has school_id:', hasSchoolId);
     } finally {
         await pool.end();
     }

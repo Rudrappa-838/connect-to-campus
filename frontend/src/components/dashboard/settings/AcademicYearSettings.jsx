@@ -202,12 +202,12 @@ const AcademicYearSettings = () => {
                                         <div className="flex items-center gap-4 text-sm text-slate-600">
                                             <span className="flex items-center gap-1">
                                                 <Calendar size={14} />
-                                                {new Date(year.start_date).toLocaleDateString()}
+                                                {new Date(year.start_date).toLocaleDateString('en-GB')}
                                             </span>
                                             <span>→</span>
                                             <span className="flex items-center gap-1">
                                                 <Calendar size={14} />
-                                                {new Date(year.end_date).toLocaleDateString()}
+                                                {new Date(year.end_date).toLocaleDateString('en-GB')}
                                             </span>
                                         </div>
                                     </div>

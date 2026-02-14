@@ -42,6 +42,11 @@ router.post('/promote', promotionController.promoteStudents);
 router.get('/:student_id/promotion-history', promotionController.getPromotionHistory);
 router.get('/academic-year/current', promotionController.getCurrentAcademicYear);
 
+// Multer for Bulk Upload
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
+
+router.post('/bulk-upload', upload.single('file'), studentController.bulkUploadStudents);
 router.post('/roll-numbers', studentController.reorderRollNumbers);
 
 module.exports = router;

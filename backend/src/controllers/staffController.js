@@ -81,10 +81,10 @@ exports.addStaff = async (req, res) => {
         // Let's just uppercase the role input.
         const userRole = ['DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role.toUpperCase()) ? role.toUpperCase() : 'STAFF';
 
-        let userCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+        let userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, userRole]);
         if (userCheck.rows.length > 0) {
             loginEmail = `${employee_id}@staff.school.com`;
-            userCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+            userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, userRole]);
         }
 
         if (userCheck.rows.length === 0) {
@@ -178,11 +178,15 @@ exports.updateStaff = async (req, res) => {
             last_name = parts.slice(1).join(' ');
         }
 
+        // Sanitize
+        const safe_join_date = (join_date === '' || join_date === 'null' || join_date === undefined) ? null : join_date;
+        const safe_salary = (salary_per_day === '' || salary_per_day === 'null' || salary_per_day === undefined) ? 0 : salary_per_day;
+
         const result = await client.query(
             `UPDATE staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
              first_name = $9, last_name = $10
              WHERE id = $11 AND school_id = $12 RETURNING *`,
-            [name, email, phone, role, gender, address, join_date, salary_per_day || 0,
+            [name, email, phone, role, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
                 id, school_id]
         );

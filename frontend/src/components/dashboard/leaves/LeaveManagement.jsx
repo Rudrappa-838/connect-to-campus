@@ -128,11 +128,12 @@ const LeaveManagement = ({ onAction }) => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="font-medium text-slate-700">
-                                                {new Date(leave.start_date).toLocaleDateString()}
+                                            <div className="font-bold text-slate-800 flex items-center gap-1">
+                                                <Calendar size={14} className="text-slate-400" />
+                                                {new Date(leave.start_date).toLocaleDateString('en-GB')}
                                             </div>
-                                            <div className="text-xs text-slate-400">
-                                                to {new Date(leave.end_date).toLocaleDateString()}
+                                            <div className="text-xs text-slate-500 mt-1">
+                                                to {new Date(leave.end_date).toLocaleDateString('en-GB')}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 max-w-xs">

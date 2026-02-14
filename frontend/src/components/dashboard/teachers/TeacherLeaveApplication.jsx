@@ -194,10 +194,10 @@ const TeacherLeaveApplication = () => {
                                 leaves.map(leave => (
                                     <tr key={leave.id} className="hover:bg-slate-50 transition-colors">
                                         <td className="p-4 pl-6 text-slate-500">
-                                            {new Date(leave.created_at).toLocaleDateString()}
+                                            {new Date(leave.created_at).toLocaleDateString('en-GB')}
                                         </td>
                                         <td className="p-4 font-medium text-slate-700">
-                                            {new Date(leave.start_date).toLocaleDateString()} <span className="text-slate-400 px-1">to</span> {new Date(leave.end_date).toLocaleDateString()}
+                                            {new Date(leave.start_date).toLocaleDateString('en-GB')} <span className="text-slate-400 px-1">to</span> {new Date(leave.end_date).toLocaleDateString('en-GB')}
                                         </td>
                                         <td className="p-4 text-slate-700">
                                             {leave.leave_type}

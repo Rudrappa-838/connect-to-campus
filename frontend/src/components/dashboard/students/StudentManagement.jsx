@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Plus, SortAsc, Edit2, Trash2, X, Printer, GraduationCap, Check } from 'lucide-react';
+import { Filter, Plus, SortAsc, Edit2, Trash2, X, Printer, GraduationCap, Check, FileDown, UploadCloud } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 import StudentPromotionModal from './StudentPromotionModal';
@@ -590,7 +590,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             </div>
 
             {!isPromotionView && filterClass && (
-                <div className="flex justify-end px-2">
+                <div className="flex justify-end px-2 gap-3">
                     <button
                         onClick={async () => {
                             if (isSubmitting) return;
@@ -612,6 +612,72 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                     >
                         <SortAsc size={14} /> Re-assign Roll Numbers Alphabetically
                     </button>
+                </div>
+            )}
+
+            {/* Bulk Actions Bar */}
+            {!isPromotionView && viewMode === 'active' && (
+                <div className="flex justify-end px-2 gap-3 mb-2">
+                    <button
+                        onClick={() => {
+                            import('xlsx').then(xlsx => {
+                                const headers = [
+                                    ['First Name', 'Middle Name', 'Last Name', 'Gender', 'Date of Birth', 'Class', 'Section', 'Father\'s Name', 'Mother\'s Name', 'Mobile Number', 'Email Address', 'Address']
+                                ];
+                                const data = [
+                                    ['John', 'D', 'Doe', 'Male', '2010-05-15', 'Class 10', 'A', 'Richard Doe', 'Jane Doe', '9876543210', 'student@example.com', '123 Main St']
+                                ];
+                                const ws = xlsx.utils.aoa_to_sheet([...headers, ...data]);
+
+                                // Auto-width columns
+                                const wscols = headers[0].map(() => ({ wch: 15 }));
+                                ws['!cols'] = wscols;
+
+                                const wb = xlsx.utils.book_new();
+                                xlsx.utils.book_append_sheet(wb, ws, "Template");
+                                xlsx.writeFile(wb, "school_student_upload_template.xlsx");
+                            });
+                        }}
+                        className="text-emerald-600 text-xs font-bold hover:underline flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-colors"
+                    >
+                        <FileDown size={14} /> Download Template
+                    </button>
+
+                    <label className="text-blue-600 text-xs font-bold hover:underline flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors cursor-pointer">
+                        <UploadCloud size={14} /> Upload Students (Excel)
+                        <input
+                            type="file"
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            onChange={async (e) => {
+                                const file = e.target.files[0];
+                                if (!file) return;
+
+                                const formData = new FormData();
+                                formData.append('file', file);
+
+                                const toastId = toast.loading('Uploading students...');
+                                setIsSubmitting(true);
+                                try {
+                                    const res = await api.post('/students/bulk-upload', formData, {
+                                        headers: { 'Content-Type': 'multipart/form-data' }
+                                    });
+                                    toast.success(`Upload Complete! Success: ${res.data.summary.success}, Failed: ${res.data.summary.failed}`, { id: toastId, duration: 5000 });
+                                    if (res.data.errors.length > 0) {
+                                        console.warn("Upload Errors:", res.data.errors);
+                                        alert("Some rows failed. Check console for details.\nFirst Error: " + res.data.errors[0].error);
+                                    }
+                                    fetchStudents();
+                                } catch (err) {
+                                    console.error(err);
+                                    toast.error(err.response?.data?.message || 'Upload failed', { id: toastId });
+                                } finally {
+                                    setIsSubmitting(false);
+                                    e.target.value = ''; // Reset
+                                }
+                            }}
+                        />
+                    </label>
                 </div>
             )}
 
@@ -703,7 +769,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                             </td>
                                             {!isPromotionView && (
                                                 <td className="p-4 font-mono text-slate-500 text-xs">
-                                                    {student.admission_date ? new Date(student.admission_date).toLocaleDateString() : (student.created_at ? new Date(student.created_at).toLocaleDateString() : '-')}
+                                                    {student.admission_date ? new Date(student.admission_date).toLocaleDateString('en-GB') : (student.created_at ? new Date(student.created_at).toLocaleDateString('en-GB') : '-')}
                                                 </td>
                                             )}
                                             <td className="p-4">

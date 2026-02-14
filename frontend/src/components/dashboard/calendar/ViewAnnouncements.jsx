@@ -125,7 +125,7 @@ const ViewAnnouncements = () => {
                                 </div>
                                 <span className="text-xs font-medium opacity-60 flex items-center gap-1">
                                     <Clock size={12} />
-                                    {new Date(item.created_at).toLocaleDateString()}
+                                    {new Date(item.created_at).toLocaleDateString('en-GB')}
                                 </span>
                             </div>
 
@@ -135,7 +135,7 @@ const ViewAnnouncements = () => {
 
                             {item.valid_until && (
                                 <div className="mt-4 pt-3 border-t border-black/5 text-xs font-medium opacity-60 flex items-center gap-2">
-                                    <span>Valid until: {new Date(item.valid_until).toLocaleDateString()}</span>
+                                    <span>Valid until: {new Date(item.valid_until).toLocaleDateString('en-GB')}</span>
                                 </div>
                             )}
                         </div>

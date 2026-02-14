@@ -8,6 +8,7 @@ const bcrypt = require('bcrypt'); // Import bcrypt
 
 // Add a new student
 exports.addStudent = async (req, res) => {
+    // ... existing addStudent code ...
     const client = await pool.connect();
     try {
         await client.query('BEGIN'); // Start Transaction
@@ -78,14 +79,14 @@ exports.addStudent = async (req, res) => {
         let loginEmail = email || `${admission_no.toLowerCase()}@student.school.com`;
         const defaultPassword = await bcrypt.hash('123456', 10);
 
-        // Check if user email already exists
-        const userCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+        // Check if user email already exists FOR THIS ROLE
+        const userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, 'STUDENT']);
 
-        // If email exists, fallback to Admission No based login
+        // If email exists for SAME role, fallback to Admission No based login
         if (userCheck.rows.length > 0) {
             loginEmail = `${admission_no.toLowerCase()}@student.school.com`;
-            // Double check if this fallback also exists
-            const fallbackCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+            // Double check if this fallback also exists for this role
+            const fallbackCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, 'STUDENT']);
             if (fallbackCheck.rows.length > 0) {
                 console.warn(`User for student ${admission_no} already exists.`);
             } else {
@@ -116,6 +117,232 @@ exports.addStudent = async (req, res) => {
             return res.status(400).json({ message: 'Duplicate Admission No or Attendance ID. Please try again.' });
         }
         res.status(500).json({ message: 'Server error adding student: ' + error.message });
+    } finally {
+        client.release();
+    }
+};
+
+const xlsx = require('xlsx');
+
+// Bulk Upload Students
+exports.bulkUploadStudents = async (req, res) => {
+    const client = await pool.connect();
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file uploaded' });
+        }
+
+        console.log('[Bulk Upload] Starting processing...');
+        const school_id = req.user.schoolId;
+
+        // Read Excel File
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
+        const sheetName = workbook.SheetNames[0];
+        const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+        console.log(`[Bulk Upload] Found ${rows.length} rows`);
+        if (rows.length > 0) {
+            console.log('[Bulk Upload] First Row Keys:', Object.keys(rows[0]));
+        }
+
+        if (rows.length === 0) {
+            return res.status(400).json({ message: 'Excel sheet is empty' });
+        }
+
+        // Helper to find key case-insensitively and trimmed
+        const getValue = (row, keyGuess) => {
+            const exact = row[keyGuess];
+            if (exact !== undefined) return exact;
+            const key = Object.keys(row).find(k => k.trim().toLowerCase() === keyGuess.toLowerCase());
+            return key ? row[key] : undefined;
+        };
+
+        // Fetch Classes and Sections for Mapping
+        // Class Name -> ID, Section Name -> ID
+        const classRes = await client.query('SELECT id, name FROM classes WHERE school_id = $1', [school_id]);
+
+        // Fix: Sections table does not have school_id, must join with classes
+        const sectionRes = await client.query(`
+            SELECT s.id, s.name, s.class_id 
+            FROM sections s 
+            JOIN classes c ON s.class_id = c.id 
+            WHERE c.school_id = $1
+        `, [school_id]);
+
+        const classMap = new Map(); // Name -> ID
+        classRes.rows.forEach(c => classMap.set(c.name.trim().toLowerCase(), c.id));
+
+        const sectionMap = new Map(); // Name + ClassID -> ID
+        sectionRes.rows.forEach(s => sectionMap.set(`${s.name.trim().toLowerCase()}_${s.class_id}`, s.id));
+
+        // Get School Prefix for Admission No Generation
+        const schoolRes = await client.query('SELECT name FROM schools WHERE id = $1', [school_id]);
+        const schoolName = schoolRes.rows[0]?.name || 'XX';
+        let prefix = schoolName.replace(/[^a-zA-Z]/g, '').substring(0, 2).toUpperCase();
+        if (prefix.length < 2) prefix = (prefix + 'X').substring(0, 2);
+
+        let successCount = 0;
+        let failureCount = 0;
+        const errors = [];
+        const addedStudents = [];
+
+        await client.query('BEGIN');
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const rowNum = i + 2; // Excel row number (1-index + header)
+
+            try {
+                // Validation - Updated for Split Names
+                // Helper handles case-insensitive lookup
+                const firstName = (getValue(row, 'First Name') || getValue(row, 'First_Name') || '').toString().trim();
+                const middleName = (getValue(row, 'Middle Name') || getValue(row, 'Middle_Name') || '').toString().trim();
+                const lastName = (getValue(row, 'Last Name') || getValue(row, 'Last_Name') || '').toString().trim();
+
+                // Combine into full name
+                let name = [firstName, middleName, lastName].filter(Boolean).join(' ').trim();
+
+                // Fallback to single 'Name' or 'Student Name'
+                if (!name) {
+                    name = (getValue(row, 'Student Name') || getValue(row, 'Name') || '').toString().trim();
+                }
+
+                const className = getValue(row, 'Class');
+                const sectionName = getValue(row, 'Section'); // Optional
+
+                if (!name || !className) {
+                    throw new Error('Student Name (or First Name) and Class are required');
+                }
+
+                // Resolve Class ID
+                const classKey = className.toString().trim().toLowerCase();
+                const classId = classMap.get(classKey);
+
+                if (!classId) {
+                    throw new Error(`Class "${className}" not found in system. Available: ${Array.from(classMap.keys()).join(', ')}`);
+                }
+
+                // Resolve Section ID (Optional)
+                let sectionId = null;
+                if (sectionName) {
+                    const sectionKey = `${sectionName.toString().trim().toLowerCase()}_${classId}`;
+                    sectionId = sectionMap.get(sectionKey);
+                    if (!sectionId && sectionName.toString().toLowerCase() !== 'null' && sectionName.toString().trim() !== '') {
+                        throw new Error(`Section "${sectionName}" not found for Class "${className}"`);
+                    }
+                }
+
+                // Prepare Data
+                const dobRaw = getValue(row, 'Date of Birth') || getValue(row, 'DOB');
+                const dob = dobRaw ? (dobRaw instanceof Date ? dobRaw : new Date(dobRaw)) : null;
+
+                const admissionDate = new Date(); // Always current date
+
+                const gender = getValue(row, 'Gender') || 'Not Specified';
+                const fatherName = getValue(row, 'Father\'s Name') || getValue(row, 'Father Name') || '';
+                const motherName = getValue(row, 'Mother\'s Name') || getValue(row, 'Mother Name') || '';
+                const contact = getValue(row, 'Mobile Number') || getValue(row, 'Contact Number') || '';
+                const email = getValue(row, 'Email Address') || getValue(row, 'Email') || '';
+                const address = getValue(row, 'Address') || '';
+
+                let admissionNo = getValue(row, 'Admission No')?.toString().trim();
+
+                // Auto-Generate Admission No if missing
+                if (!admissionNo) {
+                    let isUnique = false;
+                    while (!isUnique) {
+                        const rand4 = Math.floor(1000 + Math.random() * 9000);
+                        admissionNo = `${prefix}S${rand4}`;
+                        const check = await client.query('SELECT id FROM students WHERE admission_no = $1 AND school_id = $2', [admissionNo, school_id]);
+                        if (check.rows.length === 0) isUnique = true;
+                    }
+                }
+
+                // Generate Attendance ID
+                const attendanceId = Math.floor(100000 + Math.random() * 900000).toString();
+
+                // Calculate Roll No
+                let rollCheck;
+                if (sectionId) {
+                    rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id = $2', [classId, sectionId]);
+                } else {
+                    rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id IS NULL', [classId]);
+                }
+                const rollNumber = (rollCheck.rows[0].max_roll || 0) + 1;
+
+                // Minimal Insert for Debugging
+                /*
+                const instRes = await client.query(
+                    `INSERT INTO students 
+                    (school_id, name, admission_no, roll_number, gender, dob, class_id, section_id, 
+                     father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+                    [school_id, name, admissionNo, rollNumber, gender, dob, classId, sectionId,
+                        fatherName, motherName, contact, email, address, attendanceId, admissionDate]
+                );
+                */
+
+                // Use EXACT query from working test_insert.js
+                const instRes = await client.query(
+                    `INSERT INTO students 
+                    (school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, class_id, section_id, 
+                     father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+                    [school_id, name, firstName, lastName, admissionNo, rollNumber, gender, dob, classId, sectionId,
+                        fatherName, motherName, contact, email, address, attendanceId, admissionDate]
+                );
+                console.log('Insert Success:', instRes.rows[0].id);
+
+                // Use provided email or fallback
+                let finalLoginEmail = email || `${admissionNo.toLowerCase()}@student.school.com`;
+                const defaultPassword = await bcrypt.hash('123456', 10);
+
+                // Check if user exists FOR THIS ROLE (idempotency)
+                const userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [finalLoginEmail, 'STUDENT']);
+                if (userCheck.rows.length === 0) {
+                    await client.query(
+                        `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'STUDENT', $3, TRUE, $4)`,
+                        [finalLoginEmail, defaultPassword, school_id, instRes.rows[0].id]
+                    );
+                } else if (email) {
+                    // email exists for a student, fallback to ID-based login
+                    finalLoginEmail = `${admissionNo.toLowerCase()}@student.school.com`;
+                    const fallbackCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [finalLoginEmail, 'STUDENT']);
+                    if (fallbackCheck.rows.length === 0) {
+                        await client.query(
+                            `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'STUDENT', $3, TRUE, $4)`,
+                            [finalLoginEmail, defaultPassword, school_id, instRes.rows[0].id]
+                        );
+                    }
+                }
+
+                successCount++;
+                addedStudents.push({ name, admissionNo, status: 'Success' });
+
+            } catch (rowError) {
+                console.error(`Row ${rowNum} Error:`, rowError.message);
+                failureCount++;
+                errors.push({ row: rowNum, name: row['Student Name'] || 'Unknown', error: rowError.message });
+            }
+        }
+
+        await client.query('COMMIT');
+
+        res.json({
+            message: 'Bulk upload completed',
+            summary: {
+                total: rows.length,
+                success: successCount,
+                failed: failureCount
+            },
+            errors: errors,
+            added: addedStudents
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Bulk upload fatal error:', error);
+        res.status(500).json({ message: 'Server error processing file: ' + error.message });
     } finally {
         client.release();
     }
@@ -222,14 +449,20 @@ exports.updateStudent = async (req, res) => {
         // Get Existing Student to check for email change
         const existingStudent = await pool.query('SELECT email, admission_no FROM students WHERE id = $1', [id]);
 
+        const safe_age = (age === '' || age === 'null' || age === undefined) ? null : age;
+        const safe_dob = (dob === '' || dob === 'null' || dob === undefined) ? null : dob;
+        const safe_class_id = (class_id === '' || class_id === 'null' || class_id === undefined) ? null : class_id;
+        const safe_attendance_id = (attendance_id === '' || attendance_id === 'null' || attendance_id === undefined) ? null : attendance_id;
+        const safe_admission_date = (admission_date === '' || admission_date === 'null' || admission_date === undefined) ? null : admission_date;
+
         const result = await pool.query(
             `UPDATE students SET 
             name = $1, gender = $2, dob = $3, age = $4, class_id = $5, section_id = $6, 
             father_name = $7, mother_name = $8, contact_number = $9, email = $10, address = $11, attendance_id = $12, admission_date = $13,
             first_name = $14, last_name = $15, status = $16
             WHERE id = $17 AND school_id = $18 RETURNING *`,
-            [name, gender, dob, age, class_id, safe_section_id,
-                father_name, mother_name, contact_number, email, address, attendance_id, admission_date,
+            [name, gender, safe_dob, safe_age, safe_class_id, safe_section_id,
+                father_name, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date,
                 first_name, last_name, status,
                 id, req.user.schoolId]
         );
@@ -1071,33 +1304,23 @@ exports.getDeletedStudentMarks = async (req, res) => {
 // Get Deleted Students' Certificates (Left Students)
 exports.getDeletedStudentCertificates = async (req, res) => {
     try {
-        const { admission_no, academic_year_id, search } = req.query;
+        const { class_id, search } = req.query;
         const school_id = req.user.schoolId;
 
         let query = `
-            SELECT sc.*, 
-                   sc.deleted_student_name as student_name, 
-                   sc.deleted_student_admission_no as admission_no,
-                   ay.year_label
+            SELECT sc.id, sc.certificate_type, sc.issue_date, sc.remarks, sc.deleted_student_name, sc.deleted_student_admission_no,
+                   c.name as class_name
             FROM student_certificates sc
+            LEFT JOIN classes c ON sc.class_id = c.id
             LEFT JOIN academic_years ay ON sc.academic_year_id = ay.id
-            WHERE sc.school_id = $1 
-            AND sc.student_id IS NULL 
-            AND sc.deleted_student_name IS NOT NULL
+            WHERE sc.school_id = $1 AND sc.is_deleted_student = TRUE
         `;
-
         const params = [school_id];
         let paramIndex = 2;
 
-        if (admission_no) {
-            query += ` AND sc.deleted_student_admission_no = $${paramIndex}`;
-            params.push(admission_no);
-            paramIndex++;
-        }
-
-        if (academic_year_id) {
-            query += ` AND sc.academic_year_id = $${paramIndex}`;
-            params.push(academic_year_id);
+        if (class_id) {
+            query += ` AND sc.class_id = $${paramIndex}`;
+            params.push(class_id);
             paramIndex++;
         }
 

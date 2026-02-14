@@ -7,10 +7,9 @@ const SoftnetPamphletFront = () => {
             icon: "👥",
             title: "Student Management",
             features: [
-                "Student Profiles & Admission",
+                "Profiling & Admission",
                 "Daily Attendance Tracking",
-                "Fee Management System",
-                "Certificate Generation",
+                "Certificates & ID Cards",
                 "Leave Applications"
             ],
             color: "#1e40af"
@@ -21,9 +20,8 @@ const SoftnetPamphletFront = () => {
             features: [
                 "Teacher Profiles",
                 "Marks Entry & Grading",
-                "Attendance System",
-                "Salary Management",
-                "Teacher Dashboard"
+                "Smart Attendance",
+                "Salary Management"
             ],
             color: "#7c3aed"
         },
@@ -32,34 +30,75 @@ const SoftnetPamphletFront = () => {
             title: "Academic System",
             features: [
                 "Exam Scheduling",
-                "Report Card Generation",
+                "Auto Report Cards",
                 "Timetable Management",
-                "Performance Analytics",
                 "Topper Lists & Rankings"
             ],
             color: "#0891b2"
         },
         {
-            icon: "💰",
+            icon: "fees", // Emoji
             title: "Fee Management",
             features: [
                 "Fee Structure Setup",
                 "Payment Collection",
                 "Auto Fee Receipts",
-                "Defaulter Tracking",
-                "Financial Reports"
+                "Defaulter Tracking"
             ],
             color: "#059669"
+        },
+        {
+            icon: "📚", // New
+            title: "Library Genius",
+            features: [
+                "Book Management",
+                "Issue/Return Tracking",
+                "Fine Calculation",
+                "Barcode Support"
+            ],
+            color: "#9333ea"
+        },
+        {
+            icon: "🏘️", // New
+            title: "Hostel & Mess",
+            features: [
+                "Room Allocation",
+                "Mess Dues Tracking",
+                "Day/Night Attendance",
+                "Warden Dashboard"
+            ],
+            color: "#be185d"
+        },
+        {
+            icon: "🚌", // New
+            title: "Transport (GPS)",
+            features: [
+                "Live Bus Tracking",
+                "Route Management",
+                "Driver App Mode",
+                "Stop-wise Fees"
+            ],
+            color: "#ea580c"
+        },
+        {
+            icon: "💸", // New
+            title: "Finance & Expenses",
+            features: [
+                "Income vs Expense",
+                "Petty Cash Tracking",
+                "Balance Sheet",
+                "Daily Daybook"
+            ],
+            color: "#0f766e"
         },
         {
             icon: "📱",
             title: "Mobile Apps",
             features: [
                 "Android App (Play Store)",
-                "iOS App (App Store)",
                 "Student Mobile Portal",
                 "Teacher Mobile Access",
-                "Offline Support"
+                "Push Notifications"
             ],
             color: "#dc2626"
         },
@@ -67,10 +106,9 @@ const SoftnetPamphletFront = () => {
             icon: "🔔",
             title: "Smart Notifications",
             features: [
-                "Push Notifications",
-                "Background Alerts",
                 "Fee Payment Reminders",
                 "Attendance Alerts",
+                "Exam Schedules",
                 "Important Announcements"
             ],
             color: "#ea580c"
@@ -82,7 +120,6 @@ const SoftnetPamphletFront = () => {
                 "School Calendar",
                 "Holiday Management",
                 "Event Scheduling",
-                "Academic Calendar",
                 "Important Date Reminders"
             ],
             color: "#d97706"
@@ -94,7 +131,6 @@ const SoftnetPamphletFront = () => {
                 "Student Leave Requests",
                 "Teacher Leave System",
                 "Approval Workflow",
-                "Leave Balance Tracking",
                 "Leave History & Reports"
             ],
             color: "#65a30d"
@@ -104,7 +140,6 @@ const SoftnetPamphletFront = () => {
             title: "Staff & Salary",
             features: [
                 "Staff Profile Management",
-                "Salary Processing",
                 "Auto Salary Slips",
                 "Attendance Tracking",
                 "Payment History"
@@ -118,19 +153,17 @@ const SoftnetPamphletFront = () => {
                 "Custom Templates",
                 "Auto Certificate Generation",
                 "Student Certificates",
-                "Staff Certificates",
                 "PDF Download & Print"
             ],
             color: "#ec4899"
         },
         {
             icon: "🏫",
-            title: "School Administration",
+            title: "School Admin",
             features: [
                 "Multi-School Support",
-                "Class & Section Management",
+                "Class & Section Mgmt",
                 "User Role Management",
-                "Admin Dashboard",
                 "Comprehensive Reports"
             ],
             color: "#6366f1"
@@ -140,12 +173,11 @@ const SoftnetPamphletFront = () => {
             title: "Security & Access",
             features: [
                 "OTP-based Login",
-                "Multi-role Authentication",
-                "Secure Password Reset",
-                "Persistent Sessions",
-                "Encrypted Data Storage"
+                "Multi-role Auth",
+                "Cloud Backup",
+                "Encrypted Data"
             ],
-            color: "#0f766e"
+            color: "#374151"
         }
     ];
 
@@ -204,7 +236,7 @@ const SoftnetPamphletFront = () => {
 
                 {/* Features Section */}
                 <div className="features-comprehensive-section">
-                    <h2 className="front-section-title">12 Complete Modules - Production Ready</h2>
+                    <h2 className="front-section-title">16 Complete Modules - Production Ready</h2>
 
                     <div className="features-mega-grid">
                         {allFeatures.map((module, index) => (
@@ -213,7 +245,7 @@ const SoftnetPamphletFront = () => {
                                     className="module-header"
                                     style={{ background: `linear-gradient(135deg, ${module.color} 0%, ${module.color}dd 100%)` }}
                                 >
-                                    <div className="module-icon-large">{module.icon}</div>
+                                    <div className="module-icon-large">{module.icon === "fees" ? "💰" : module.icon}</div>
                                     <h3 className="module-title-large">{module.title}</h3>
                                 </div>
                                 <div className="module-body">
@@ -239,7 +271,7 @@ const SoftnetPamphletFront = () => {
                 {/* Footer */}
                 <div className="front-footer">
                     <p className="front-footer-text">
-                        <strong>SOFTNET</strong> - Connect to Campus (C2C) | Available on Play Store & App Store
+                        <strong>SOFTNET</strong> - Connect to Campus (C2C) | Available on Play Store
                     </p>
                 </div>
 

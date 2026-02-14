@@ -49,7 +49,7 @@ const CertificateGenerator = () => {
             color: "border-slate-800",
             bg: "bg-slate-50",
             for: 'STUDENT',
-            text: (s) => `TC Number: TC/${new Date().getFullYear()}/${s.id}\n\nName of Student: ${s.name}\nFather's Name: ${s.parent_name || '...'}\nDate of Birth: ${s.dob ? new Date(s.dob).toLocaleDateString() : '...'}\nClass Studying: ${s.class_name || '...'}\n\nThis is to certify that the above student has no dues pending and has returned all library books. The student is hereby permitted to leave the institution.`
+            text: (s) => `TC Number: TC/${new Date().getFullYear()}/${s.id}\n\nName of Student: ${s.name}\nFather's Name: ${s.parent_name || '...'}\nDate of Birth: ${s.dob ? new Date(s.dob).toLocaleDateString('en-GB') : '...'}\nClass Studying: ${s.class_name || '...'}\n\nThis is to certify that the above student has no dues pending and has returned all library books. The student is hereby permitted to leave the institution.`
         },
         sports: {
             title: "CERTIFICATE OF ACHIEVEMENT",
@@ -65,21 +65,21 @@ const CertificateGenerator = () => {
             color: "border-blue-700",
             bg: "bg-blue-50",
             for: 'TEACHER',
-            text: (t) => `This is to certify that Mr./Ms. ${t.name} has been working as a ${t.designation || 'Teacher'} (ID: ${t.employee_id || t.id || '...'}) in our institution since ${t.join_date ? new Date(t.join_date).toLocaleDateString() : '...'}.\n\nDuring his/her tenure, he/she has been hardworking, sincere, and dedicated to the assigned duties. His/Her character and conduct have been excellent.\n\nWe wish him/her success in future endeavors.`
+            text: (t) => `This is to certify that Mr./Ms. ${t.name} has been working as a ${t.designation || 'Teacher'} (ID: ${t.employee_id || t.id || '...'}) in our institution since ${t.join_date ? new Date(t.join_date).toLocaleDateString('en-GB') : '...'}.\n\nDuring his/her tenure, he/she has been hardworking, sincere, and dedicated to the assigned duties. His/Her character and conduct have been excellent.\n\nWe wish him/her success in future endeavors.`
         },
         salary: {
             title: "SALARY CERTIFICATE",
             color: "border-green-700",
             bg: "bg-green-50",
             for: 'TEACHER',
-            text: (t) => `TO WHOMSOEVER IT MAY CONCERN\n\nThis is to certify that Mr./Ms. ${t.name} is employed with us as ${t.designation || 'Teacher'} since ${t.join_date ? new Date(t.join_date).toLocaleDateString() : '...'}.\n\nHis/Her current monthly gross salary is Rs. ${t.salary_per_day ? (t.salary_per_day * 30) : '...'} /-. This certificate is issued upon his/her request for _________________ purpose.`
+            text: (t) => `TO WHOMSOEVER IT MAY CONCERN\n\nThis is to certify that Mr./Ms. ${t.name} is employed with us as ${t.designation || 'Teacher'} since ${t.join_date ? new Date(t.join_date).toLocaleDateString('en-GB') : '...'}.\n\nHis/Her current monthly gross salary is Rs. ${t.salary_per_day ? (t.salary_per_day * 30) : '...'} /-. This certificate is issued upon his/her request for _________________ purpose.`
         },
         experience: {
             title: "EXPERIENCE CERTIFICATE",
             color: "border-purple-700",
             bg: "bg-purple-50",
             for: 'TEACHER',
-            text: (t) => `This is to certify that Mr./Ms. ${t.name} worked as a ${t.designation || 'Teacher'} in our school from ${t.join_date ? new Date(t.join_date).toLocaleDateString() : '...'} to ${new Date().toLocaleDateString()}.\n\nHe/She was responsible for teaching ${t.subject_specialization || '...'} to high school students. We found him/her to be professional and knowledgeable in the subject matter.\n\nWe wish him/her the very best.`
+            text: (t) => `This is to certify that Mr./Ms. ${t.name} worked as a ${t.designation || 'Teacher'} in our school from ${t.join_date ? new Date(t.join_date).toLocaleDateString('en-GB') : '...'} to ${new Date().toLocaleDateString('en-GB')}.\n\nHe/She was responsible for teaching ${t.subject_specialization || '...'} to high school students. We found him/her to be professional and knowledgeable in the subject matter.\n\nWe wish him/her the very best.`
         }
 
     };

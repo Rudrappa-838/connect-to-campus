@@ -445,7 +445,7 @@ const BookManagement = () => {
                                                 {book.status}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-slate-500">{new Date(book.created_at).toLocaleDateString()}</td>
+                                        <td className="p-4 text-slate-500">{new Date(book.created_at).toLocaleDateString('en-GB')}</td>
                                         <td className="p-4 text-right flex justify-end gap-2">
                                             <button
                                                 onClick={() => handleDuplicate(book)}
