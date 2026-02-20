@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import api, { setAuthToken } from '../api/axios';
 import toast from 'react-hot-toast';
 import { Preferences } from '@capacitor/preferences';
@@ -6,31 +6,48 @@ import { Capacitor } from '@capacitor/core';
 
 const AuthContext = createContext(null);
 
+// Roles that use WEB browser (session-only, auto-logout on inactivity/close)
+const ADMIN_ROLES = ['SCHOOL_ADMIN', 'SUPER_ADMIN'];
+// Inactivity timeout: 10 minutes for admin roles
+const ADMIN_INACTIVITY_MS = 10 * 60 * 1000;
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const inactivityTimer = useRef(null);
 
-    // Storage helpers - use Capacitor Preferences on mobile, localStorage on web
-    const getStorageItem = async (key) => {
+    // Storage helpers:
+    // - ADMIN roles → sessionStorage (cleared when browser tab/window closes)
+    // - Mobile / Staff / Teacher / Student → Capacitor Preferences or localStorage (persistent)
+    const isAdminRole = (role) => ADMIN_ROLES.includes(role);
+
+    const getStorageItem = async (key, role) => {
         if (Capacitor.isNativePlatform()) {
             const { value } = await Preferences.get({ key });
             return value;
         }
+        if (isAdminRole(role)) {
+            return sessionStorage.getItem(key);
+        }
         return localStorage.getItem(key);
     };
 
-    const setStorageItem = async (key, value) => {
+    const setStorageItem = async (key, value, role) => {
         if (Capacitor.isNativePlatform()) {
             await Preferences.set({ key, value });
+        } else if (isAdminRole(role)) {
+            sessionStorage.setItem(key, value);
         } else {
             localStorage.setItem(key, value);
         }
     };
 
-    const removeStorageItem = async (key) => {
+    const removeStorageItem = async (key, role) => {
         if (Capacitor.isNativePlatform()) {
             await Preferences.remove({ key });
         } else {
+            // Remove from both storages to be safe
+            sessionStorage.removeItem(key);
             localStorage.removeItem(key);
         }
     };
@@ -39,36 +56,46 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const restoreSession = async () => {
             try {
-                const token = await getStorageItem('token');
-                const storedUser = await getStorageItem('user');
+                // Try sessionStorage first (for admin roles), then localStorage (for persistent roles)
+                // On native platform, always use Capacitor Preferences
+                let token = null;
+                let storedUser = null;
+
+                if (Capacitor.isNativePlatform()) {
+                    const { value: t } = await Preferences.get({ key: 'token' });
+                    const { value: u } = await Preferences.get({ key: 'user' });
+                    token = t; storedUser = u;
+                } else {
+                    // Check sessionStorage first (admins)
+                    token = sessionStorage.getItem('token');
+                    storedUser = sessionStorage.getItem('user');
+                    // If not in session, check localStorage (staff/teacher/student)
+                    if (!token) {
+                        token = localStorage.getItem('token');
+                        storedUser = localStorage.getItem('user');
+                    }
+                }
 
                 if (token && storedUser) {
                     try {
-                        // CRITICAL: Set token in memory immediately for API calls
-                        setAuthToken(token);
-
                         const parsedUser = JSON.parse(storedUser);
+                        setAuthToken(token);
                         setUser(parsedUser);
-                        // DEBUG: Visual confirmation
-                        if (Capacitor.isNativePlatform()) {
-                            toast.success(`Welcome back, ${parsedUser.first_name || 'User'}!`, { duration: 3000, icon: '👋' });
+
+                        // Start inactivity timer if admin
+                        if (isAdminRole(parsedUser.role) && !Capacitor.isNativePlatform()) {
+                            resetInactivityTimer(parsedUser);
                         }
 
+                        if (Capacitor.isNativePlatform() && process.env.NODE_ENV === 'development') {
+                            console.log(`[Auth] Session restored for ${parsedUser.email}`);
+                        }
                     } catch (e) {
                         console.error("Failed to parse stored user", e);
-                        await removeStorageItem('token');
-                        await removeStorageItem('user');
-                        setAuthToken(null);
-                        if (Capacitor.isNativePlatform()) toast.error('Session corrupted. Please login again.');
-                    }
-                } else {
-                    // DEBUG: No Session
-                    if (Capacitor.isNativePlatform()) {
-                        toast('Please Log In', { icon: '🔐', duration: 3000 });
                     }
                 }
             } catch (error) {
-                console.error("Failed to restore session", error);
+                console.error("Critical: Failed to restore session", error);
             } finally {
                 setLoading(false);
             }
@@ -106,29 +133,58 @@ export const AuthProvider = ({ children }) => {
         };
     }, [user]);
 
+    // ── Inactivity Timer (Admin only) ─────────────────────────────────────────
+    const resetInactivityTimer = useCallback((currentUser) => {
+        if (!currentUser || !isAdminRole(currentUser.role)) return;
+        if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+        inactivityTimer.current = setTimeout(() => {
+            console.log('[Auth] Admin inactivity timeout - logging out');
+            logout(true);
+        }, ADMIN_INACTIVITY_MS);
+    }, []);
+
+    // Listen for user activity and reset timer (admin web only)
+    useEffect(() => {
+        if (!user || !isAdminRole(user.role) || Capacitor.isNativePlatform()) return;
+
+        const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart', 'click'];
+        const handleActivity = () => resetInactivityTimer(user);
+
+        events.forEach(e => window.addEventListener(e, handleActivity, { passive: true }));
+        resetInactivityTimer(user); // Start timer on mount
+
+        return () => {
+            events.forEach(e => window.removeEventListener(e, handleActivity));
+            if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+        };
+    }, [user, resetInactivityTimer]);
+
     const login = async (email, password, role) => {
         try {
             const response = await api.post('/auth/login', { email, password, role });
             const { token, user } = response.data;
 
             // CRITICAL: Set token in memory immediately to prevent race condition
-            // Do this BEFORE saving to storage
             setAuthToken(token);
 
-            // Save to storage (Capacitor Preferences on mobile, localStorage on web)
-            await setStorageItem('token', token);
-            await setStorageItem('user', JSON.stringify(user));
+            // Save to correct storage based on role:
+            // Admin → sessionStorage (cleared on browser close)
+            // Others → persistent storage (localStorage / Capacitor Preferences)
+            await setStorageItem('token', token, user.role);
+            await setStorageItem('user', JSON.stringify(user), user.role);
 
             setUser(user);
 
-            // DEBUG: Login Success removed for production
+            // Start inactivity timer for admin roles on web
+            if (isAdminRole(user.role) && !Capacitor.isNativePlatform()) {
+                resetInactivityTimer(user);
+            }
 
-
-            // Broadcast (web only)
+            // Broadcast login to other tabs (web only) - kills old sessions for admins
             if (!Capacitor.isNativePlatform()) {
                 try {
                     const channel = new BroadcastChannel('school_auth_channel');
-                    channel.postMessage({ type: 'LOGIN_SUCCESS', userId: user.id });
+                    channel.postMessage({ type: 'LOGIN_SUCCESS', userId: user.id, role: user.role });
                     channel.close();
                 } catch (bcError) {
                     console.warn('BroadcastChannel suppressed:', bcError);
@@ -173,15 +229,13 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = async (isAutoLogout = false, isRemote = false) => {
+        const currentUser = user; // Capture before clearing
         try {
-            // DEBUG: Logout Called removed for production
-
-
             if (!isRemote && !isAutoLogout) {
-                // Broadcast
+                // Broadcast logout to other tabs
                 try {
                     const channel = new BroadcastChannel('school_auth_channel');
-                    channel.postMessage({ type: 'LOGOUT', userId: user?.id });
+                    channel.postMessage({ type: 'LOGOUT', userId: currentUser?.id });
                     channel.close();
                 } catch (e) { console.warn('BroadcastChannel suppressed inside logout'); }
 
@@ -190,19 +244,33 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             console.error("Logout API failed", error);
         } finally {
-            await removeStorageItem('token');
-            await removeStorageItem('user');
+            // Clear inactivity timer
+            if (inactivityTimer.current) {
+                clearTimeout(inactivityTimer.current);
+                inactivityTimer.current = null;
+            }
 
-            // Clear memory token and axios header
+            // Clear from both storages (safe for all roles)
+            await removeStorageItem('token', currentUser?.role);
+            await removeStorageItem('user', currentUser?.role);
+
             setAuthToken(null);
-
             setUser(null);
-            if (isAutoLogout) alert("Session timed out due to inactivity.");
+
+            if (isAutoLogout) {
+                toast.error('⏰ Session expired due to inactivity. Please login again.');
+            }
         }
     };
 
-    // NO AUTO-LOGOUT - Users stay logged in until they manually logout
-    // This is better for mobile apps where users expect to stay logged in
+    // ── Summary of session strategy ───────────────────────────────────────────
+    // SCHOOL_ADMIN / SUPER_ADMIN (Web browser):
+    //   • sessionStorage → auto-cleared when browser closes
+    //   • 10-min inactivity timer → auto-logout
+    //   • BroadcastChannel → new login kills old session in other tabs
+    // STUDENT / TEACHER / STAFF (Mobile app):
+    //   • Capacitor Preferences (persistent) → survives app close
+    //   • No auto-logout → manual logout only
 
     return (
         <AuthContext.Provider value={{ user, login, logout, loading }}>

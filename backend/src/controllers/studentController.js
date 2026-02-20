@@ -29,6 +29,22 @@ exports.addStudent = async (req, res) => {
         // Convert empty section_id to null
         const safe_section_id = (section_id === '' || section_id === 'null' || section_id === undefined) ? null : section_id;
 
+        // 0. Duplicate Check (Name + Father Name + DOB)
+        const dbDuplicateCheck = await client.query(
+            `SELECT id, admission_no FROM students 
+                 WHERE school_id = $1 
+                 AND TRIM(LOWER(name)) = TRIM(LOWER($2)) 
+                 AND TRIM(LOWER(father_name)) = TRIM(LOWER($3))
+                 AND (dob = $4 OR (dob IS NULL AND $4 IS NULL))`,
+            [school_id, name, father_name, dob]
+        );
+
+        if (dbDuplicateCheck.rows.length > 0) {
+            return res.status(400).json({
+                message: `Student "${name}" with Father's Name "${father_name}" already exists in the database (Admission No: ${dbDuplicateCheck.rows[0].admission_no}).`
+            });
+        }
+
         // Generate Admission No if not provided
         let admission_no = req.body.admission_no;
         if (!admission_no) {
@@ -185,6 +201,7 @@ exports.bulkUploadStudents = async (req, res) => {
         let failureCount = 0;
         const errors = [];
         const addedStudents = [];
+        const processedStudents = new Set(); // For deduplication within the file
 
         await client.query('BEGIN');
 
@@ -193,83 +210,115 @@ exports.bulkUploadStudents = async (req, res) => {
             const rowNum = i + 2; // Excel row number (1-index + header)
 
             try {
-                // Validation - Updated for Split Names
-                // Helper handles case-insensitive lookup
+                // 1. Data Extraction
                 const firstName = (getValue(row, 'First Name') || getValue(row, 'First_Name') || '').toString().trim();
                 const middleName = (getValue(row, 'Middle Name') || getValue(row, 'Middle_Name') || '').toString().trim();
                 const lastName = (getValue(row, 'Last Name') || getValue(row, 'Last_Name') || '').toString().trim();
 
                 // Combine into full name
                 let name = [firstName, middleName, lastName].filter(Boolean).join(' ').trim();
-
-                // Fallback to single 'Name' or 'Student Name'
                 if (!name) {
                     name = (getValue(row, 'Student Name') || getValue(row, 'Name') || '').toString().trim();
                 }
 
                 const className = getValue(row, 'Class');
-                const sectionName = getValue(row, 'Section'); // Optional
-
-                if (!name || !className) {
-                    throw new Error('Student Name (or First Name) and Class are required');
-                }
-
-                // Resolve Class ID (Robust matching)
-                const classKey = className.toString().trim().toLowerCase();
-                let classId = classMap.get(classKey);
-
-                // Fallback: try adding/removing 'Class ' prefix
-                if (!classId) {
-                    if (classKey.startsWith('class ')) {
-                        classId = classMap.get(classKey.replace('class ', '').trim());
-                    } else {
-                        classId = classMap.get(`class ${classKey}`);
-                    }
-                }
-
-                if (!classId) {
-                    const available = Array.from(classMap.keys()).slice(0, 5).join(', ');
-                    throw new Error(`Class "${className}" not found. Please use exact names like: ${available}...`);
-                }
-
-                // Resolve Section ID (Optional)
-                let sectionId = null;
-                if (sectionName) {
-                    const sectionNameClean = sectionName.toString().trim().toLowerCase();
-                    const sectionKey = `${sectionNameClean}_${classId}`;
-                    sectionId = sectionMap.get(sectionKey);
-
-                    // Fallback: try adding/removing 'Section ' prefix (less common but safe)
-                    if (!sectionId) {
-                        if (sectionNameClean.startsWith('section ')) {
-                            sectionId = sectionMap.get(`${sectionNameClean.replace('section ', '').trim()}_${classId}`);
-                        } else {
-                            sectionId = sectionMap.get(`section ${sectionNameClean}_${classId}`);
-                        }
-                    }
-
-                    if (!sectionId && sectionNameClean !== 'null' && sectionNameClean !== '') {
-                        throw new Error(`Section "${sectionName}" not found for Class "${className}"`);
-                    }
-                }
-
-                // Prepare Data
+                const sectionName = getValue(row, 'Section');
                 const dobRaw = getValue(row, 'Date of Birth') || getValue(row, 'DOB');
-                const dob = dobRaw ? (dobRaw instanceof Date ? dobRaw : new Date(dobRaw)) : null;
-
-                const admissionDate = new Date(); // Always current date
-
-                const gender = getValue(row, 'Gender') || 'Not Specified';
                 const fatherName = getValue(row, 'Father\'s Name') || getValue(row, 'Father Name') || '';
                 const motherName = getValue(row, 'Mother\'s Name') || getValue(row, 'Mother Name') || '';
-                const contact = getValue(row, 'Mobile Number') || getValue(row, 'Contact Number') || '';
-                const email = getValue(row, 'Email Address') || getValue(row, 'Email') || '';
-                const address = getValue(row, 'Address') || '';
-
+                const contact = (getValue(row, 'Mobile Number') || getValue(row, 'Contact Number') || '').toString().trim();
+                const email = (getValue(row, 'Email Address') || getValue(row, 'Email') || '').toString().trim();
+                const address = (getValue(row, 'Address') || '').toString().trim();
                 let admissionNo = getValue(row, 'Admission No')?.toString().trim();
 
-                // Auto-Generate Admission No if missing
+                // 2. Strict Validation
+                if (!name) throw new Error('Student Name is required');
+                if (!className) throw new Error('Class Name is required');
+
+                // Name validation: Only characters and spaces
+                if (!/^[a-zA-Z\s.]+$/.test(name)) {
+                    throw new Error(`Invalid Name: "${name}". Only characters and spaces allowed.`);
+                }
+
+                // Mobile number validation: Exactly 10 digits
+                if (contact && !/^\d{10}$/.test(contact)) {
+                    throw new Error(`Invalid Mobile: "${contact}". Must be exactly 10 digits.`);
+                }
+
+                // Email validation (optional)
+                if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    throw new Error(`Invalid Email: "${email}"`);
+                }
+
+                // 3. Deduplication (Within Excel File)
+                // We create a unique key based on Name, Father Name, and DOB (if available)
+                const dobTime = dobRaw ? (dobRaw instanceof Date ? dobRaw.getTime() : new Date(dobRaw).getTime()) : 'no-dob';
+                const uniqueKey = `${name.toLowerCase()}|${fatherName.toLowerCase()}|${dobTime}`.replace(/\s+/g, '');
+
+                if (processedStudents.has(uniqueKey)) {
+                    console.log(`[Bulk] Skipping duplicate row ${rowNum}: ${name}`);
+                    continue; // Skip this row as it's a duplicate of a previously processed one
+                }
+
+                // Also check if admission_no is provided and duplicate in this file
+                if (admissionNo && processedStudents.has(`adm|${admissionNo.toLowerCase()}`)) {
+                    console.log(`[Bulk] Skipping duplicate Admission No at row ${rowNum}: ${admissionNo}`);
+                    continue;
+                }
+
+                // Mark as processed
+                processedStudents.add(uniqueKey);
+                if (admissionNo) processedStudents.add(`adm|${admissionNo.toLowerCase()}`);
+
+                // 4. Resolve IDs
+                const classKey = className.toString().trim().toLowerCase();
+                let classId = classMap.get(classKey);
+                if (!classId) {
+                    if (classKey.startsWith('class ')) classId = classMap.get(classKey.replace('class ', '').trim());
+                    else classId = classMap.get(`class ${classKey}`);
+                }
+
+                if (!classId) throw new Error(`Class "${className}" not found in system.`);
+
+                let sectionId = null;
+                if (sectionName && sectionName !== 'null' && sectionName !== '') {
+                    const sn = sectionName.toString().trim().toLowerCase();
+                    sectionId = sectionMap.get(`${sn}_${classId}`) ||
+                        sectionMap.get(`${sn.replace('section ', '').trim()}_${classId}`) ||
+                        sectionMap.get(`section ${sn}_${classId}`);
+
+                    if (!sectionId) throw new Error(`Section "${sectionName}" not found for Class "${className}"`);
+                }
+
+                // 5. Database Checks & Preparation
+                const dob = dobRaw ? (dobRaw instanceof Date ? dobRaw : new Date(dobRaw)) : null;
+                const gender = getValue(row, 'Gender') || 'Not Specified';
+                const admissionDate = new Date();
+
+                // Check for existing student in DB with same Admission No
+                if (admissionNo) {
+                    const dbExists = await client.query('SELECT id FROM students WHERE admission_no = $1 AND school_id = $2', [admissionNo, school_id]);
+                    if (dbExists.rows.length > 0) {
+                        throw new Error(`Admission No "${admissionNo}" already exists in the database.`);
+                    }
+                }
+
+                // Check for existing student in DB with same Name, Father's Name and DOB (to restrict duplicates across database)
+                const dbDuplicateCheck = await client.query(
+                    `SELECT id, admission_no FROM students 
+                     WHERE school_id = $1 
+                     AND TRIM(LOWER(name)) = TRIM(LOWER($2)) 
+                     AND TRIM(LOWER(father_name)) = TRIM(LOWER($3))
+                     AND (dob = $4 OR (dob IS NULL AND $4 IS NULL))`,
+                    [school_id, name, fatherName, dob]
+                );
+
+                if (dbDuplicateCheck.rows.length > 0) {
+                    throw new Error(`Student "${name}" with Father's Name "${fatherName}" and this DOB already exists in the database (Admission No: ${dbDuplicateCheck.rows[0].admission_no}).`);
+                }
+
                 if (!admissionNo) {
+                    // Auto-Generate Admission No
                     let isUnique = false;
                     while (!isUnique) {
                         const rand4 = Math.floor(1000 + Math.random() * 9000);
@@ -279,10 +328,8 @@ exports.bulkUploadStudents = async (req, res) => {
                     }
                 }
 
-                // Generate Attendance ID
+                // Attendance ID & Roll Number
                 const attendanceId = Math.floor(100000 + Math.random() * 900000).toString();
-
-                // Calculate Roll No
                 let rollCheck;
                 if (sectionId) {
                     rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id = $2', [classId, sectionId]);
@@ -291,25 +338,17 @@ exports.bulkUploadStudents = async (req, res) => {
                 }
                 const rollNumber = (rollCheck.rows[0].max_roll || 0) + 1;
 
-                // Minimal Insert for Debugging
-                /*
-                const instRes = await client.query(
-                    `INSERT INTO students 
-                    (school_id, name, admission_no, roll_number, gender, dob, class_id, section_id, 
-                     father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
-                    [school_id, name, admissionNo, rollNumber, gender, dob, classId, sectionId,
-                        fatherName, motherName, contact, email, address, attendanceId, admissionDate]
-                );
-                */
+                // Insert Student using the proper schema
+                const nameParts = name.trim().split(' ');
+                const db_first_name = firstName || nameParts[0] || '';
+                const db_last_name = lastName || nameParts.slice(1).join(' ') || '';
 
-                // Use EXACT query from working test_insert.js
                 const instRes = await client.query(
                     `INSERT INTO public.students 
                     (school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, class_id, section_id, 
-                     father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
-                    [school_id, name, firstName, lastName, admissionNo, rollNumber, gender, dob, classId, sectionId,
+                     father_name, mother_name, contact_number, email, address, attendance_id, admission_date, status) 
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'Active') RETURNING id`,
+                    [school_id, name, db_first_name, db_last_name, admissionNo, rollNumber, gender, dob, classId, sectionId,
                         fatherName, motherName, contact, email, address, attendanceId, admissionDate]
                 );
                 console.log('Insert Success:', instRes.rows[0].id);
@@ -806,6 +845,7 @@ exports.permanentDeleteStudent = async (req, res) => {
 
 
 // Mark Attendance (Bulk - Optimized for Scale)
+// Mark Attendance (Bulk - Optimized with Conditional Notifications)
 exports.markAttendance = async (req, res) => {
     const client = await pool.connect();
     try {
@@ -818,8 +858,32 @@ exports.markAttendance = async (req, res) => {
 
         await client.query('BEGIN');
 
-        // Extract arrays for bulk insertion using UNNEST
+        // 1. Fetch Existing Attendance for these students on this date
         const studentIds = attendanceData.map(r => r.student_id);
+        const existingRes = await client.query(
+            `SELECT student_id, status FROM attendance WHERE school_id = $1 AND date = $2 AND student_id = ANY($3::int[])`,
+            [school_id, date, studentIds]
+        );
+
+        // Map: StudentID -> OldStatus
+        const existingMap = new Map();
+        existingRes.rows.forEach(row => existingMap.set(row.student_id, row.status));
+
+        // 2. Identify Changes & Prepare Bulk Update
+        const notificationsToSend = [];
+        const validStatuses = ['Present', 'Absent', 'Late', 'Half Day'];
+
+        attendanceData.forEach(record => {
+            const oldStatus = existingMap.get(record.student_id);
+            const newStatus = record.status;
+
+            // Notification Logic: Only if status CHANGED and is a valid active status
+            if (oldStatus !== newStatus && validStatuses.includes(newStatus)) {
+                notificationsToSend.push({ student_id: record.student_id, status: newStatus });
+            }
+        });
+
+        // 3. Perform Bulk Upsert
         const statuses = attendanceData.map(r => r.status);
 
         const bulkQuery = `
@@ -831,23 +895,26 @@ exports.markAttendance = async (req, res) => {
 
         await client.query(bulkQuery, [school_id, studentIds, date, statuses]);
 
-        // Send notifications asynchronously without blocking response
-        // Note: For 100k scale, you'd usually push these to a background worker (Redis/BullMQ)
-        attendanceData.forEach(async (record) => {
-            if (['Absent', 'Present', 'Late'].includes(record.status)) {
+        // 4. Send Notifications Only for CHANGED records
+        if (notificationsToSend.length > 0) {
+            console.log(`[Attendance] Sending ${notificationsToSend.length} notifications (Status Changed only)`);
+            notificationsToSend.forEach(async (record) => {
                 try {
                     const studentRes = await pool.query('SELECT name, contact_number, id, school_id FROM students WHERE id = $1', [record.student_id]);
                     if (studentRes.rows.length > 0) {
-                        // Ensure we pass the full object needed by notificationService -> user object needs id, name, contact_number
                         const studentObj = studentRes.rows[0];
                         sendAttendanceNotification(studentObj, record.status);
                     }
-                } catch (e) { console.error('Notification error:', e); }
-            }
-        });
+                } catch (e) {
+                    console.error(`Notification error for Student ${record.student_id}:`, e.message);
+                }
+            });
+        } else {
+            console.log('[Attendance] No status changes detected. Notifications skipped.');
+        }
 
         await client.query('COMMIT');
-        res.json({ message: 'Attendance updated successfully' });
+        res.json({ message: 'Attendance updated successfully', notificationsSent: notificationsToSend.length });
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Bulk attendance error:', error);

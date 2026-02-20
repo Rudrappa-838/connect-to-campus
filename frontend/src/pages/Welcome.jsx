@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plane, Cloud, Zap } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 
 const Welcome = ({ onComplete }) => {
+    const { user, loading } = useAuth();
     const [schoolName, setSchoolName] = useState('Connect to Campus');
     const navigate = useNavigate();
     const hasNavigated = React.useRef(false);
@@ -11,6 +10,19 @@ const Welcome = ({ onComplete }) => {
     const handleComplete = () => {
         if (hasNavigated.current) return;
         hasNavigated.current = true;
+
+        // Skip if already logged in and navigating to login
+        if (user && !onComplete) {
+            switch (user.role) {
+                case 'SUPER_ADMIN': navigate('/super-admin', { replace: true }); return;
+                case 'SCHOOL_ADMIN': navigate('/school-admin', { replace: true }); return;
+                case 'TEACHER': navigate('/teacher', { replace: true }); return;
+                case 'STUDENT': navigate('/student', { replace: true }); return;
+                case 'STAFF':
+                case 'DRIVER': navigate('/staff', { replace: true }); return;
+                default: navigate('/login', { replace: true }); return;
+            }
+        }
 
         // Mark welcome as shown in session
         sessionStorage.setItem('welcome_shown', 'true');
@@ -23,11 +35,11 @@ const Welcome = ({ onComplete }) => {
     };
 
     useEffect(() => {
-        // Check if welcome was already shown in this session
-        const welcomeShown = sessionStorage.getItem('welcome_shown');
-        if (welcomeShown === 'true') {
-            // Skip welcome and go directly to login
-            navigate('/login', { replace: true });
+        if (loading) return;
+
+        // If user is already logged in, skip welcome entirely
+        if (user) {
+            handleComplete();
             return;
         }
 

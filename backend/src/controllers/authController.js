@@ -169,6 +169,11 @@ const login = async (req, res) => {
         }
 
         // Generate Token
+        // Admin roles: short-lived (8h) — they use browser sessions, not mobile app
+        // Mobile roles: long-lived (365d) — they stay logged in on device until manual logout
+        const ADMIN_ROLES = ['SCHOOL_ADMIN', 'SUPER_ADMIN'];
+        const tokenExpiry = ADMIN_ROLES.includes(user.role) ? '8h' : '365d';
+
         const token = jwt.sign(
             {
                 id: user.id,
@@ -178,7 +183,7 @@ const login = async (req, res) => {
                 linkedId: linkedId // Embedded ID for fast access
             },
             process.env.JWT_SECRET,
-            { expiresIn: '365d' }
+            { expiresIn: tokenExpiry }
         );
 
         // Update user with new session token

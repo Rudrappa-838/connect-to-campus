@@ -73,6 +73,44 @@ const ProtectedRoute = ({ children, role }) => {
   return children;
 };
 
+// Root Redirect Component
+const RootRedirect = () => {
+  const { user, loading } = useAuth();
+  if (loading) return <SplashScreen />;
+
+  if (user) {
+    switch (user.role) {
+      case 'SUPER_ADMIN': return <Navigate to="/super-admin" />;
+      case 'SCHOOL_ADMIN': return <Navigate to="/school-admin" />;
+      case 'TEACHER': return <Navigate to="/teacher" />;
+      case 'STUDENT': return <Navigate to="/student" />;
+      case 'STAFF':
+      case 'DRIVER': return <Navigate to="/staff" />;
+      default: return <Navigate to="/login" />;
+    }
+  }
+  return <Navigate to="/welcome" />;
+};
+
+// Login Redirect Component (If already logged in, go to dashboard)
+const LoginRedirect = () => {
+  const { user, loading } = useAuth();
+  if (loading) return <SplashScreen />;
+
+  if (user) {
+    switch (user.role) {
+      case 'SUPER_ADMIN': return <Navigate to="/super-admin" />;
+      case 'SCHOOL_ADMIN': return <Navigate to="/school-admin" />;
+      case 'TEACHER': return <Navigate to="/teacher" />;
+      case 'STUDENT': return <Navigate to="/student" />;
+      case 'STAFF':
+      case 'DRIVER': return <Navigate to="/staff" />;
+      default: return <Login />;
+    }
+  }
+  return <Login />;
+};
+
 // Inner App Component to access LoadingContext
 const AppContent = () => {
   const { startLoading, stopLoading } = useLoading();
@@ -109,9 +147,9 @@ const AppContent = () => {
             <div className="min-h-screen bg-gray-50">
               <Toaster position="top-center" />
               <Routes>
-                <Route path="/" element={<Navigate to="/welcome" />} />
+                <Route path="/" element={<RootRedirect />} />
                 <Route path="/welcome" element={<Welcome />} />
-                <Route path="/login" element={<Login />} />
+                <Route path="/login" element={<LoginRedirect />} />
                 <Route path="/templates" element={<TemplatesDemo />} />
                 <Route path="/download" element={<DownloadApp />} />
                 <Route path="/download-desktop" element={<DownloadDesktop />} />

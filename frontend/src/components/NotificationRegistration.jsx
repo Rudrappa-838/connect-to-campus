@@ -51,17 +51,34 @@ const NotificationRegistration = () => {
                 // Handle incoming notifications (Foreground)
                 PushNotifications.addListener('pushNotificationReceived', (notification) => {
                     console.log('Notification Received (Foreground):', notification);
-                    // Show Popup
+
+                    // ON ANDROID: To show in notification bar while foreground, 
+                    // we can't easily force the tray via standard push listener 
+                    // without a local notification plugin, BUT we can show a 
+                    // persistent system-level toast or ensure the channel is PUBLIC.
+
+                    // We'll keep the toast but make it more prominent, 
+                    // and ensure the notification is accessible in the tray if the OS supports it.
                     toast(
                         (t) => (
-                            <div className="flex items-start gap-3" onClick={() => toast.dismiss(t.id)}>
+                            <div className="flex items-start gap-3 p-1" onClick={() => toast.dismiss(t.id)}>
                                 <div className="flex-1">
-                                    <h4 className="font-bold text-sm text-slate-800">{notification.title}</h4>
-                                    <p className="text-xs text-slate-500 mt-1">{notification.body}</p>
+                                    <h4 className="font-bold text-sm text-indigo-700">{notification.title}</h4>
+                                    <p className="text-xs text-slate-600 mt-1">{notification.body}</p>
                                 </div>
                             </div>
                         ),
-                        { duration: 5000, position: 'top-center', style: { borderRadius: '16px', background: 'white', color: '#333', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } }
+                        {
+                            duration: 8000,
+                            position: 'top-center',
+                            style: {
+                                borderRadius: '12px',
+                                border: '1px solid #e2e8f0',
+                                background: 'white',
+                                color: '#333',
+                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                            }
+                        }
                     );
                 });
 

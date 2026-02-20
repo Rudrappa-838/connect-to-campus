@@ -47,6 +47,16 @@ const sendPushNotification = async (token, title, body, data = {}) => {
             title,
             body
         },
+        android: {
+            priority: 'high',
+            notification: {
+                channelId: 'school_notifications', // Matches the channel created in frontend
+                icon: 'stock_ticker_update',
+                color: '#0ea5e9',
+                sticky: false,
+                visibility: 'public'
+            }
+        },
         data: {
             ...data,
             click_action: 'FLUTTER_NOTIFICATION_CLICK' // Standard for Android
@@ -61,7 +71,6 @@ const sendPushNotification = async (token, title, body, data = {}) => {
             return response;
         } catch (error) {
             console.error('Error sending push notification:', error);
-            // If token is invalid, we might want to remove it from DB
             return null;
         }
     } else {
