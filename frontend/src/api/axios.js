@@ -3,8 +3,8 @@ import toast from 'react-hot-toast';
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 
-// Production API URL
-const PROD_URL = "http://52.66.13.31/api";
+// Production API URL (HTTPS via domain - fixes Mixed Content block)
+const PROD_URL = "https://connect2campus.co.in/api";
 
 // Dynamic URL for local development (Laptop)
 const DEV_URL = `http://${window.location.hostname}:5000/api`;
