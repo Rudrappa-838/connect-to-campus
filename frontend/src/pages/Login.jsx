@@ -37,12 +37,11 @@ const Login = () => {
     React.useEffect(() => {
         const wakeServer = async () => {
             try {
-                // Determine health check URL
-                // Use dynamic hostname to support network access (e.g. 192.168.x.x)
-                const apiHost = window.location.hostname;
-                const healthUrl = Capacitor.isNativePlatform()
-                    ? 'http://52.66.13.31/api' // Production URL for mobile
-                    : `http://${apiHost}:5000/api`; // Dynamic Dev URL
+                // Use HTTPS domain in production, HTTP only for local dev
+                const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                const healthUrl = isLocalDev
+                    ? `http://${window.location.hostname}:5000/api`
+                    : 'https://connect2campus.co.in/api'; // Production HTTPS (web + mobile)
 
                 await fetch(healthUrl).catch(() => { });
             } catch (e) {
