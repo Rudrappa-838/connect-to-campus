@@ -38,13 +38,15 @@ app.use(helmet({
 // Configure CORS with environment-based whitelist
 const allowedOrigins = process.env.NODE_ENV === 'production'
     ? [
+        'https://connect2campus.co.in',          // Production domain
+        'https://www.connect2campus.co.in',       // Production domain (www)
         'https://connect-to-campus-b56ac.web.app', // Firebase (Testing)
-        process.env.FRONTEND_URL, // AWS S3/CloudFront (Production)
-        'capacitor://localhost', // Mobile App (iOS)
-        'http://localhost', // Mobile App (Android - Debug)
-        'https://localhost', // Mobile App (Android - Release/Debug)
+        process.env.FRONTEND_URL,                 // Fallback env override
+        'capacitor://localhost',                  // Mobile App (iOS)
+        'http://localhost',                       // Mobile App (Android - Debug)
+        'https://localhost',                      // Mobile App (Android - Release)
     ].filter(Boolean) // Remove undefined values
-    : ['http://localhost:5173', 'http://localhost:5174', 'capacitor://localhost', 'http://localhost'];
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'capacitor://localhost', 'http://localhost'];
 
 app.use(cors({
     origin: (origin, callback) => {
