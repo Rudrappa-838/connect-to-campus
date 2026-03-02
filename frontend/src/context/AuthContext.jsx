@@ -3,6 +3,7 @@ import api, { setAuthToken } from '../api/axios';
 import toast from 'react-hot-toast';
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
+import { registerPushNotifications } from '../api/push-notifications';
 
 const AuthContext = createContext(null);
 
@@ -89,6 +90,11 @@ export const AuthProvider = ({ children }) => {
 
                         if (Capacitor.isNativePlatform() && process.env.NODE_ENV === 'development') {
                             console.log(`[Auth] Session restored for ${parsedUser.email}`);
+                        }
+
+                        // Register for Push Notifications on Native platform
+                        if (Capacitor.isNativePlatform()) {
+                            registerPushNotifications(parsedUser.id);
                         }
                     } catch (e) {
                         console.error("Failed to parse stored user", e);
@@ -178,6 +184,11 @@ export const AuthProvider = ({ children }) => {
             // Start inactivity timer for admin roles on web
             if (isAdminRole(user.role) && !Capacitor.isNativePlatform()) {
                 resetInactivityTimer(user);
+            }
+
+            // Register for Push Notifications on Native platform
+            if (Capacitor.isNativePlatform()) {
+                registerPushNotifications(user.id);
             }
 
             // Broadcast login to other tabs (web only) - kills old sessions for admins
