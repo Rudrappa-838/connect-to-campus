@@ -27,6 +27,7 @@ import Welcome from './pages/Welcome';
 import DownloadApp from './pages/DownloadApp';
 import DownloadDesktop from './components/DownloadDesktop';
 import TemplatesDemo from './pages/TemplatesDemo';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 // Components
 import DriverTracking from './components/dashboard/transport/DriverTracking';
@@ -153,6 +154,7 @@ const AppContent = () => {
                 <Route path="/templates" element={<TemplatesDemo />} />
                 <Route path="/download" element={<DownloadApp />} />
                 <Route path="/download-desktop" element={<DownloadDesktop />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password/:token" element={<ResetPassword />} />
                 <Route path="/change-password" element={<ChangePassword />} />
