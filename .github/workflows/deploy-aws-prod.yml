@@ -39,7 +39,7 @@ jobs:
       - name: Build for Production
         run: npm run build
         env:
-          VITE_API_URL: http://${{ secrets.AWS_EC2_HOST }}/api # Points to EC2 Domain/IP
+          VITE_API_URL: https://connect2campus.co.in/api # Fix Mixed Content block
           NODE_ENV: production
 
       - name: Configure AWS Credentials
