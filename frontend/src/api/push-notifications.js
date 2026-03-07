@@ -24,8 +24,8 @@ export const registerPushNotifications = async (userId) => {
         // 3. Create High Importance Channel for Android (Critical for tray visibility)
         if (Capacitor.getPlatform() === 'android') {
             PushNotifications.createChannel({
-                id: 'c2c_notifications',
-                name: 'School Alerts',
+                id: 'school_notifications',
+                name: 'School Notifications',
                 description: 'Important announcements and alerts from school',
                 importance: 5, // 5 = High (Tray + Popup)
                 visibility: 1, // 1 = Public

@@ -33,7 +33,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import DriverTracking from './components/dashboard/transport/DriverTracking';
 import NotificationRegistration from './components/NotificationRegistration';
 
-import { PushNotifications } from '@capacitor/push-notifications';
+import { Preferences } from '@capacitor/preferences';
 import SplashScreen from './components/SplashScreen';
 
 // Protected Route Wrapper
@@ -42,7 +42,6 @@ const ProtectedRoute = ({ children, role }) => {
   const [isChecking, setIsChecking] = React.useState(true);
 
   React.useEffect(() => {
-    // Small delay to ensure user state is fully set after login
     const timer = setTimeout(() => {
       setIsChecking(false);
     }, 50);
@@ -52,20 +51,16 @@ const ProtectedRoute = ({ children, role }) => {
   if (loading || isChecking) return <SplashScreen />;
 
   if (!user) {
-
     return <Navigate to="/login" />;
   }
 
-  // Create checks
   if (role) {
     if (Array.isArray(role)) {
       if (!role.includes(user.role)) {
-
         return <Navigate to="/login" />;
       }
     } else {
       if (user.role !== role) {
-
         return <Navigate to="/login" />;
       }
     }
@@ -73,11 +68,33 @@ const ProtectedRoute = ({ children, role }) => {
 
   return children;
 };
-
-// Root Redirect Component
 const RootRedirect = () => {
   const { user, loading } = useAuth();
-  if (loading) return <SplashScreen />;
+  const [welcomeChecked, setWelcomeChecked] = React.useState(false);
+  const [shouldShowWelcome, setShouldShowWelcome] = React.useState(true);
+
+  React.useEffect(() => {
+    const checkWelcome = async () => {
+      if (loading) return;
+      try {
+        let shown = false;
+        if (Capacitor.isNativePlatform()) {
+          const { value } = await Preferences.get({ key: 'welcome_shown' });
+          shown = value === 'true';
+        } else {
+          shown = localStorage.getItem('welcome_shown') === 'true';
+        }
+        setShouldShowWelcome(!shown);
+      } catch (e) {
+        console.warn('Welcome check failed', e);
+      } finally {
+        setWelcomeChecked(true);
+      }
+    };
+    checkWelcome();
+  }, [loading]);
+
+  if (loading || !welcomeChecked) return <SplashScreen />;
 
   if (user) {
     switch (user.role) {
@@ -90,7 +107,12 @@ const RootRedirect = () => {
       default: return <Navigate to="/login" />;
     }
   }
-  return <Navigate to="/welcome" />;
+
+  if (shouldShowWelcome) {
+    return <Navigate to="/welcome" />;
+  }
+
+  return <Navigate to="/login" />;
 };
 
 // Login Redirect Component (If already logged in, go to dashboard)

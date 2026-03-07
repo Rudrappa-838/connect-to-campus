@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
 import api from '../api/axios';
 import { useAuth } from './AuthContext';
 import toast from 'react-hot-toast';
@@ -12,6 +14,17 @@ export const NotificationProvider = ({ children }) => {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const lastNotificationIdRef = useRef(null);
+
+    // Sync badge count with app unread count
+    useEffect(() => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                PushNotifications.setBadgeCount({ count: unreadCount });
+            } catch (err) {
+                console.warn('Failed to set badge count:', err);
+            }
+        }
+    }, [unreadCount]);
 
     const fetchNotifications = async (showToast = false) => {
         if (!user) return;
@@ -73,21 +86,31 @@ export const NotificationProvider = ({ children }) => {
         }
     };
 
-    // Poll for notifications
+    // Poll for notifications and listen for live pushes
     useEffect(() => {
         if (user) {
-            // Small delay to ensure token is set in axios headers after login
+            // 1. Initial Fetch
             const initialFetchTimer = setTimeout(() => {
-                fetchNotifications(false); // Initial fetch
+                fetchNotifications(false);
             }, 200);
 
+            // 2. Regular interval refresh
             const interval = setInterval(() => {
-                fetchNotifications(true); // Poll fetch
-            }, 10000); // Check every 10 seconds
+                fetchNotifications(true);
+            }, 10000);
+
+            // 3. LISTEN for live pushes to refresh count INSTANTLY
+            let pushListener = null;
+            if (Capacitor.isNativePlatform()) {
+                pushListener = PushNotifications.addListener('pushNotificationReceived', () => {
+                    fetchNotifications(true); // Refresh count immediately on new push
+                });
+            }
 
             return () => {
                 clearTimeout(initialFetchTimer);
                 clearInterval(interval);
+                if (pushListener) pushListener.remove();
             };
         }
     }, [user]);

@@ -37,13 +37,14 @@ const Login = () => {
     React.useEffect(() => {
         const wakeServer = async () => {
             try {
-                // On Capacitor native (Android/iOS), always use production HTTPS
-                // On web, use local dev URL only if actually on localhost
+                // On Capacitor native or in production mode, use the production URL
+                // On local web development (laptop), use the local dev URL
                 const isNative = Capacitor.isNativePlatform();
                 const isLocalDev = !isNative && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
                 const healthUrl = isLocalDev
                     ? `http://${window.location.hostname}:5000/api`
-                    : 'https://connect2campus.co.in/api'; // Production HTTPS (web + mobile)
+                    : 'https://connect2campus.co.in/api';
 
                 await fetch(healthUrl).catch(() => { });
             } catch (e) {

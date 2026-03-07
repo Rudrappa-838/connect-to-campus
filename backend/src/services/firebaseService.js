@@ -39,7 +39,7 @@ if (fs.existsSync(serviceAccountPath)) {
 /**
  * Send push notification to a specific token
  */
-const sendPushNotification = async (token, title, body, data = {}) => {
+const sendPushNotification = async (token, title, body, data = {}, badge = null) => {
     if (!token) return;
 
     const message = {
@@ -51,15 +51,26 @@ const sendPushNotification = async (token, title, body, data = {}) => {
             priority: 'high',
             notification: {
                 channelId: 'school_notifications', // Matches the channel created in frontend
-                icon: 'stock_ticker_update',
+                icon: 'ic_launcher',
                 color: '#0ea5e9',
                 sticky: false,
-                visibility: 'public'
+                visibility: 'public',
+                notificationCount: badge ? parseInt(badge) : undefined,
+                defaultSound: true,
+                defaultVibrateTimings: true
+            }
+        },
+        apns: {
+            payload: {
+                aps: {
+                    badge: badge ? parseInt(badge) : undefined,
+                    sound: 'default'
+                }
             }
         },
         data: {
             ...data,
-            click_action: 'FLUTTER_NOTIFICATION_CLICK' // Standard for Android
+            click_action: 'OPEN_NOTIFICATIONS'
         },
         token
     };

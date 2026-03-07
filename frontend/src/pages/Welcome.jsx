@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Cloud } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { Preferences } from '@capacitor/preferences';
+import { Capacitor } from '@capacitor/core';
 
 
 const Welcome = ({ onComplete }) => {
@@ -27,8 +29,12 @@ const Welcome = ({ onComplete }) => {
             }
         }
 
-        // Mark welcome as shown in session
-        sessionStorage.setItem('welcome_shown', 'true');
+        // Mark welcome as shown in permanent storage (Survives app restart)
+        if (Capacitor.isNativePlatform()) {
+            Preferences.set({ key: 'welcome_shown', value: 'true' });
+        } else {
+            localStorage.setItem('welcome_shown', 'true');
+        }
 
         if (onComplete) {
             onComplete();
@@ -39,6 +45,19 @@ const Welcome = ({ onComplete }) => {
 
     useEffect(() => {
         if (loading) return;
+
+        const checkShown = async () => {
+            let shown = false;
+            if (Capacitor.isNativePlatform()) {
+                const { value } = await Preferences.get({ key: 'welcome_shown' });
+                shown = value === 'true';
+            } else {
+                shown = localStorage.getItem('welcome_shown') === 'true';
+            }
+
+            if (shown && !user) navigate('/login', { replace: true });
+        };
+        checkShown();
 
         // If user is already logged in, skip welcome entirely
         if (user) {
@@ -59,7 +78,7 @@ const Welcome = ({ onComplete }) => {
         }
 
         return () => clearTimeout(timeout);
-    }, [onComplete, navigate]);
+    }, [loading, user, onComplete, navigate]);
 
     return (
         <div className="relative w-full h-[100dvh] bg-sky-300 overflow-hidden flex flex-col justify-between">

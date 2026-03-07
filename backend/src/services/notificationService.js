@@ -103,7 +103,11 @@ const sendPushNotification = async (recipientId, title, body, roleHint = null) =
             const userTokenRes = await client.query('SELECT fcm_token FROM users WHERE id = $1', [dbUserId]);
             const token = userTokenRes.rows[0]?.fcm_token;
             if (token) {
-                await sendRealPush(token, title, body, { role: finalRole });
+                // Calculate Unread Count for badge (Include the current new one)
+                const unreadRes = await client.query('SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false', [dbUserId]);
+                const badgeCount = parseInt(unreadRes.rows[0].count);
+
+                await sendRealPush(token, title, body, { role: finalRole }, badgeCount);
             }
 
             console.log(`[REAL PUSH] Processed for User ID: ${dbUserId}`);
