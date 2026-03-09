@@ -32,6 +32,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 // Components
 import DriverTracking from './components/dashboard/transport/DriverTracking';
 import NotificationRegistration from './components/NotificationRegistration';
+import AppUpdateChecker from './components/AppUpdateChecker';
 
 import { Preferences } from '@capacitor/preferences';
 import SplashScreen from './components/SplashScreen';
@@ -166,6 +167,8 @@ const AppContent = () => {
       <InstitutionProvider>
         <NotificationProvider>
           <NotificationRegistration />
+          <AppUpdateChecker />
+
           <Router>
             <div className="min-h-screen bg-gray-50">
               <Toaster position="top-center" />

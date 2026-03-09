@@ -148,9 +148,28 @@ app.all('/iclock/getrequest', (req, res) => res.send('OK'));
 app.all('/iclock/devicecmd', (req, res) => res.send('OK'));
 app.all('/iclock/options', (req, res) => res.send('OK'));
 
+// ==========================================
+// 📱 APP VERSION CHECK (In-App Update)
+// ==========================================
+// Update MINIMUM_VERSION whenever you release a critical update
+// that ALL users MUST install. Users below this version will be
+// forced to update from the Play Store.
+const MINIMUM_APP_VERSION = 21; // Version Code (not name). Update this to force update.
+const LATEST_APP_VERSION = 21;  // Current latest version code.
+
+app.get(['/api/app-version', '/app-version'], (req, res) => {
+    res.json({
+        minimum_version: MINIMUM_APP_VERSION,
+        latest_version: LATEST_APP_VERSION,
+        play_store_url: 'https://play.google.com/store/apps/details?id=com.rudrappa.connect2campus',
+        update_message: 'A new version of Connect to Campus is available. Please update to continue using the app.'
+    });
+});
+
 app.get('/app-launch', (req, res) => {
     res.redirect(`https://connect-to-campus-b56ac.web.app?t=${Date.now()}`);
 });
+
 
 app.get(['/api/download-app', '/download-app'], (req, res) => {
     const file = path.join(__dirname, '../public/school_app_optimized.apk');
