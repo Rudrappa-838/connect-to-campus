@@ -1,4 +1,5 @@
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
 import api from './axios';
 
@@ -51,6 +52,23 @@ export const registerPushNotifications = async (userId) => {
         // 6. Push Notification Received Listener (Foreground)
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
             console.log('Push received:', notification);
+            
+            // On Android, foreground push notifications are often not shown in the system tray. 
+            // We use LocalNotifications to explicitly show them.
+            if (Capacitor.getPlatform() === 'android') {
+                LocalNotifications.schedule({
+                    notifications: [
+                        {
+                            title: notification.title || "New Notification",
+                            body: notification.body || "You have a new message",
+                            id: Math.floor(Math.random() * 2147483647), // Must be an int32
+                            schedule: { at: new Date(Date.now() + 200) },
+                            extra: notification.data || null,
+                            channelId: 'school_notifications'
+                        }
+                    ]
+                });
+            }
         });
 
         // 7. Push Notification Action Listener (Clicking the notification)

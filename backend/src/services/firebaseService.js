@@ -51,7 +51,6 @@ const sendPushNotification = async (token, title, body, data = {}, badge = null)
             priority: 'high',
             notification: {
                 channelId: 'school_notifications', // Matches the channel created in frontend
-                icon: 'ic_launcher',
                 color: '#0ea5e9',
                 sticky: false,
                 visibility: 'public',
