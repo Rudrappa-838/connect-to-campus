@@ -58,6 +58,20 @@ const startServer = async () => {
             await client.query(`
                 ALTER TABLE schools ADD COLUMN IF NOT EXISTS logo TEXT;
             `);
+            
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'announcements') THEN
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'announcements' AND column_name = 'attachment_url') THEN
+                            ALTER TABLE announcements ADD COLUMN attachment_url TEXT;
+                        END IF;
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'announcements' AND column_name = 'attachment_type') THEN
+                            ALTER TABLE announcements ADD COLUMN attachment_type VARCHAR(100);
+                        END IF;
+                    END IF;
+                END $$;
+            `);
 
             // Fix: Add missing columns to users table (Session & Security)
             await client.query(`
