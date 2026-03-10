@@ -96,7 +96,7 @@ exports.getAnnouncements = async (req, res) => {
 
         // Base Query
         let query = `
-            SELECT a.*, c.name as class_name, s.name as section_name
+            SELECT a.*, c.name as class_name, s.name as section_name, a.attachment_url, a.attachment_type
             FROM announcements a
             LEFT JOIN classes c ON a.class_id = c.id
             LEFT JOIN sections s ON a.section_id = s.id
@@ -179,7 +179,7 @@ exports.addAnnouncement = async (req, res) => {
             school_id = req.body.schoolId || null;
         }
 
-        const { title, message, target_role, priority, valid_until, class_id, section_id } = req.body;
+        const { title, message, target_role, priority, valid_until, class_id, section_id, attachment_data, attachment_type } = req.body;
 
         // Enforce Valid Until Date
         if (!valid_until || valid_until === '') {
@@ -187,14 +187,44 @@ exports.addAnnouncement = async (req, res) => {
         }
 
         const effectiveValidUntil = valid_until;
+        
+        let attachment_url = null;
+        let attachment_storage_type = null;
+
+        if (attachment_data) {
+            try {
+                // If it's a base64 string, save it
+                const matches = attachment_data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+                if (matches && matches.length === 3) {
+                    attachment_storage_type = matches[1];
+                    const buffer = Buffer.from(matches[2], 'base64');
+                    
+                    const uploadsDir = path.join(__dirname, '../../public/uploads/announcements');
+                    if (!fs.existsSync(uploadsDir)) {
+                        fs.mkdirSync(uploadsDir, { recursive: true });
+                    }
+                    
+                    const ext = attachment_storage_type.split('/')[1] || 'bin';
+                    const filename = `ann_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+                    const filepath = path.join(uploadsDir, filename);
+                    
+                    fs.writeFileSync(filepath, buffer);
+                    attachment_url = `/uploads/announcements/${filename}`;
+                }
+            } catch (err) {
+                console.error("Failed to parse and save attachment:", err);
+            }
+        }
 
         // 1. Insert Announcement
         const result = await pool.query(
-            `INSERT INTO announcements (school_id, title, message, target_role, priority, valid_until, created_by, class_id, section_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+            `INSERT INTO announcements (school_id, title, message, target_role, priority, valid_until, created_by, class_id, section_id, attachment_url, attachment_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
             [school_id, title, message, target_role, priority, effectiveValidUntil, req.user.id,
                 target_role === 'Class' ? class_id : null,
-                target_role === 'Class' ? section_id : null]
+                target_role === 'Class' ? section_id : null,
+                attachment_url,
+                attachment_storage_type || attachment_type || null]
         );
 
         const announcement = result.rows[0];

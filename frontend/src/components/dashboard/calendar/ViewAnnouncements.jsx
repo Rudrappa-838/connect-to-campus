@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Clock, AlertCircle } from 'lucide-react';
+import { Bell, Clock, AlertCircle, FileText, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 
@@ -129,12 +129,26 @@ const ViewAnnouncements = () => {
                                 </span>
                             </div>
 
-                            <p className="text-sm opacity-90 leading-relaxed whitespace-pre-wrap relative z-10">
+                            <p className="text-sm opacity-90 leading-relaxed whitespace-pre-wrap relative z-10 mb-4">
                                 {item.message}
                             </p>
 
+                            {item.attachment_url && (
+                                <div className="mb-4 relative z-10">
+                                    <a 
+                                        href={`${api.defaults.baseURL.replace('/api', '')}${item.attachment_url}`} 
+                                        target="_blank" 
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-2 px-3 py-2 bg-white/50 border border-black/10 rounded-lg text-sm font-medium hover:bg-white/80 transition-all text-current"
+                                    >
+                                        {(item.attachment_type || '').includes('pdf') ? <FileText size={16} /> : <ImageIcon size={16} />}
+                                        View Attachment
+                                    </a>
+                                </div>
+                            )}
+
                             {item.valid_until && (
-                                <div className="mt-4 pt-3 border-t border-black/5 text-xs font-medium opacity-60 flex items-center gap-2">
+                                <div className="mt-4 pt-3 border-t border-black/5 text-xs font-medium opacity-60 flex items-center gap-2 relative z-10">
                                     <span>Valid until: {new Date(item.valid_until).toLocaleDateString('en-GB')}</span>
                                 </div>
                             )}
