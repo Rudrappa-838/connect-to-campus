@@ -4,7 +4,7 @@ import { App } from '@capacitor/app';
 import axios from 'axios';
 
 // ⚠️ UPDATE THIS to match versionCode in android/app/build.gradle
-const CURRENT_VERSION_CODE = 23;
+const CURRENT_VERSION_CODE = 24;
 
 
 const APP_VERSION_URL = 'https://connect2campus.co.in/api/app-version';
