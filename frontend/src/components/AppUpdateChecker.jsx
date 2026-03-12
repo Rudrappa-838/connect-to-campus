@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import axios from 'axios';
 
 // ⚠️ UPDATE THIS to match versionCode in android/app/build.gradle
@@ -13,40 +14,57 @@ const AppUpdateChecker = () => {
     const [showUpdate, setShowUpdate] = useState(false);
     const [updateMessage, setUpdateMessage] = useState('');
     const [isMandatory, setIsMandatory] = useState(false);
+    const [isChecking, setIsChecking] = useState(false);
+
+    const checkVersion = useCallback(async () => {
+        if (!Capacitor.isNativePlatform()) return;
+        
+        setIsChecking(true);
+        try {
+            const currentVersionCode = CURRENT_VERSION_CODE;
+
+            // Check server for minimum required version
+            const res = await axios.get(`${APP_VERSION_URL}?t=${Date.now()}`, { timeout: 8000 });
+            const { minimum_version, latest_version, update_message } = res.data;
+
+            if (currentVersionCode >= latest_version) {
+                // Already updated! Hide everything
+                setShowUpdate(false);
+            } else if (currentVersionCode < minimum_version) {
+                // MANDATORY update - must update to continue
+                setIsMandatory(true);
+                setUpdateMessage(update_message || 'A critical update is required. Please update the app.');
+                setShowUpdate(true);
+            } else if (currentVersionCode < latest_version) {
+                // OPTIONAL update - suggest updating
+                setIsMandatory(false);
+                setUpdateMessage('A new version is available. Update now for the best experience!');
+                setShowUpdate(true);
+            }
+        } catch (err) {
+            console.warn('Version check failed:', err.message);
+        } finally {
+            setIsChecking(false);
+        }
+    }, []);
 
     useEffect(() => {
-        if (!Capacitor.isNativePlatform()) return;
+        // Initial check
+        const timer = setTimeout(checkVersion, 2000);
 
-        const checkVersion = async () => {
-            try {
-                const currentVersionCode = CURRENT_VERSION_CODE;
-
-
-                // Check server for minimum required version
-                const res = await axios.get(APP_VERSION_URL, { timeout: 5000 });
-                const { minimum_version, latest_version, update_message } = res.data;
-
-                if (currentVersionCode < minimum_version) {
-                    // MANDATORY update - must update to continue
-                    setIsMandatory(true);
-                    setUpdateMessage(update_message || 'A critical update is required. Please update the app.');
-                    setShowUpdate(true);
-                } else if (currentVersionCode < latest_version) {
-                    // OPTIONAL update - suggest updating
-                    setIsMandatory(false);
-                    setUpdateMessage('A new version is available. Update now for the best experience!');
-                    setShowUpdate(true);
-                }
-            } catch (err) {
-                // Silently fail - don't block app if version check fails
-                console.warn('Version check failed:', err.message);
+        // Listener: Re-check when user returns to app (e.g. from Play Store)
+        const appStateListener = App.addListener('appStateChange', ({ isActive }) => {
+            if (isActive) {
+                console.log('App resumed, re-checking version...');
+                checkVersion();
             }
-        };
+        });
 
-        // Check after 3 seconds (let the app load first)
-        const timer = setTimeout(checkVersion, 3000);
-        return () => clearTimeout(timer);
-    }, []);
+        return () => {
+            clearTimeout(timer);
+            appStateListener.then(l => l.remove());
+        };
+    }, [checkVersion]);
 
     const openPlayStore = () => {
         window.open(PLAY_STORE_URL, '_system');
@@ -58,70 +76,76 @@ const AppUpdateChecker = () => {
         <div style={{
             position: 'fixed',
             top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.7)',
+            backgroundColor: 'rgba(0,0,0,0.85)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 99999,
-            padding: '20px'
+            padding: '20px',
+            backdropFilter: 'blur(4px)'
         }}>
             <div style={{
                 backgroundColor: 'white',
-                borderRadius: '16px',
-                padding: '28px 24px',
+                borderRadius: '24px',
+                padding: '32px 24px',
                 maxWidth: '340px',
                 width: '100%',
                 textAlign: 'center',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)'
             }}>
                 {/* Icon */}
                 <div style={{
-                    width: '64px', height: '64px',
-                    backgroundColor: '#0ea5e9',
-                    borderRadius: '50%',
+                    width: '72px', height: '72px',
+                    backgroundColor: isMandatory ? '#ef4444' : '#0ea5e9',
+                    borderRadius: '22px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    margin: '0 auto 16px'
+                    margin: '0 auto 20px',
+                    transform: 'rotate(-5deg)',
+                    boxShadow: '0 10px 15px -3px rgba(14, 165, 233, 0.3)'
                 }}>
-                    <span style={{ fontSize: '28px' }}>🔄</span>
+                    <span style={{ fontSize: '32px' }}>{isChecking ? '⏳' : '🚀'}</span>
                 </div>
 
                 {/* Title */}
                 <h2 style={{
-                    fontSize: '20px', fontWeight: '700',
-                    color: '#1e293b', margin: '0 0 10px'
+                    fontSize: '22px', fontWeight: '800',
+                    color: '#0f172a', margin: '0 0 12px'
                 }}>
-                    {isMandatory ? 'Update Required' : 'Update Available'}
+                    {isMandatory ? 'Update Required' : 'New Version Ready'}
                 </h2>
 
                 {/* Message */}
                 <p style={{
-                    fontSize: '14px', color: '#64748b',
-                    lineHeight: '1.6', margin: '0 0 24px'
+                    fontSize: '15px', color: '#64748b',
+                    lineHeight: '1.6', margin: '0 0 28px'
                 }}>
-                    {updateMessage}
+                    {isChecking ? 'Checking for updates...' : updateMessage}
                 </p>
 
                 {/* Update Button */}
                 <button
                     onClick={openPlayStore}
+                    disabled={isChecking}
                     style={{
                         width: '100%',
-                        padding: '14px',
-                        backgroundColor: '#0ea5e9',
+                        padding: '16px',
+                        backgroundColor: isMandatory ? '#ef4444' : '#0ea5e9',
                         color: 'white',
                         border: 'none',
-                        borderRadius: '10px',
+                        borderRadius: '14px',
                         fontSize: '16px',
-                        fontWeight: '600',
+                        fontWeight: '700',
                         cursor: 'pointer',
-                        marginBottom: isMandatory ? '0' : '10px'
+                        marginBottom: isMandatory ? '0' : '12px',
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                        opacity: isChecking ? 0.7 : 1
                     }}
                 >
-                    Update Now
+                    {isChecking ? 'Verifying...' : 'Update from Play Store'}
                 </button>
 
                 {/* Skip Button (only for optional updates) */}
-                {!isMandatory && (
+                {!isMandatory && !isChecking && (
                     <button
                         onClick={() => setShowUpdate(false)}
                         style={{
@@ -131,11 +155,18 @@ const AppUpdateChecker = () => {
                             color: '#94a3b8',
                             border: 'none',
                             fontSize: '14px',
+                            fontWeight: '600',
                             cursor: 'pointer'
                         }}
                     >
                         Maybe Later
                     </button>
+                )}
+                
+                {isMandatory && !isChecking && (
+                    <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '15px' }}>
+                        App will auto-refresh after update
+                    </p>
                 )}
             </div>
         </div>
