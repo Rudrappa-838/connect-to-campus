@@ -3,8 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import axios from 'axios';
 
-// ⚠️ UPDATE THIS to match versionCode in android/app/build.gradle
-const CURRENT_VERSION_CODE = 24;
+// Using dynamic version checking via @capacitor/app
 
 
 const APP_VERSION_URL = 'https://connect2campus.co.in/api/app-version';
@@ -21,7 +20,14 @@ const AppUpdateChecker = () => {
         
         setIsChecking(true);
         try {
-            const currentVersionCode = CURRENT_VERSION_CODE;
+            // Get native version dynamically, fall back to robust default
+            let currentVersionCode = 24;
+            try {
+                const info = await App.getInfo();
+                currentVersionCode = parseInt(info.build, 10) || 24;
+            } catch (e) {
+                console.warn('Could not get native app info', e);
+            }
 
             // Check server for minimum required version
             const res = await axios.get(`${APP_VERSION_URL}?t=${Date.now()}`, { timeout: 8000 });
