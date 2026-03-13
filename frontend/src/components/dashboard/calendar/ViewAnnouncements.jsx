@@ -3,6 +3,7 @@ import { Bell, Clock, AlertCircle, FileText, Image as ImageIcon } from 'lucide-r
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 
+import { Browser } from '@capacitor/browser';
 import { useAuth } from '../../../context/AuthContext';
 
 const ViewAnnouncements = () => {
@@ -96,17 +97,7 @@ const ViewAnnouncements = () => {
                             key={item.id}
                             className={`relative overflow-hidden rounded-xl border p-6 transition-all hover:shadow-md ${getPriorityColor(item.priority)}`}
                         >
-                            {/* Target Badge - Visible to All */}
-                            <div className="absolute top-0 right-0 p-3 flex gap-2">
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${item.target_role === 'All' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-500 border-slate-200'
-                                    }`}>
-                                    {item.target_role === 'Class' && item.class_name ? `To ${item.class_name}` :
-                                        item.target_role === 'Student' ? 'To Students' :
-                                            item.target_role === 'Teacher' ? 'To Teachers' :
-                                                item.target_role === 'Staff' ? 'To Staffs' :
-                                                    `Universal Notice`}
-                                </span>
-                            </div>
+                            {/* Target Badge moved to title row to prevent overlap */}
                             {item.priority === 'Urgent' && (
                                 <div className="absolute top-0 right-0 p-2 opacity-10">
                                     <AlertCircle size={80} />
@@ -117,11 +108,19 @@ const ViewAnnouncements = () => {
                                 <div className="flex items-center gap-3">
                                     <h3 className="font-bold text-lg">{item.title}</h3>
                                     {item.priority !== 'Normal' && (
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${item.priority === 'Urgent' ? 'bg-red-100 border-red-200 text-red-700' : 'bg-orange-100 border-orange-200 text-orange-700'
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border flex-shrink-0 ${item.priority === 'Urgent' ? 'bg-red-100 border-red-200 text-red-700' : 'bg-orange-100 border-orange-200 text-orange-700'
                                             }`}>
                                             {item.priority}
                                         </span>
                                     )}
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${item.target_role === 'All' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-500 border-slate-200'
+                                        }`}>
+                                        {item.target_role === 'Class' && item.class_name ? `To ${item.class_name}` :
+                                            item.target_role === 'Student' ? 'To Students' :
+                                                item.target_role === 'Teacher' ? 'To Teachers' :
+                                                    item.target_role === 'Staff' ? 'To Staffs' :
+                                                        `Universal Notice`}
+                                    </span>
                                 </div>
                                 <span className="text-xs font-medium opacity-60 flex items-center gap-1">
                                     <Clock size={12} />
@@ -135,15 +134,16 @@ const ViewAnnouncements = () => {
 
                             {item.attachment_url && (
                                 <div className="mb-4 relative z-10">
-                                    <a 
-                                        href={`${api.defaults.baseURL.replace('/api', '')}${item.attachment_url}`} 
-                                        target="_blank" 
-                                        rel="noreferrer"
+                                    <button 
+                                        onClick={async () => {
+                                            const url = `${api.defaults.baseURL.replace('/api', '')}${item.attachment_url}`;
+                                            await Browser.open({ url });
+                                        }}
                                         className="inline-flex items-center gap-2 px-3 py-2 bg-white/50 border border-black/10 rounded-lg text-sm font-medium hover:bg-white/80 transition-all text-current"
                                     >
                                         {(item.attachment_type || '').includes('pdf') ? <FileText size={16} /> : <ImageIcon size={16} />}
                                         View Attachment
-                                    </a>
+                                    </button>
                                 </div>
                             )}
 

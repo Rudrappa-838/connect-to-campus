@@ -24,7 +24,7 @@ export const registerPushNotifications = async (userId) => {
 
         // 3. Create High Importance Channel for Android (Critical for tray visibility)
         if (Capacitor.getPlatform() === 'android') {
-            PushNotifications.createChannel({
+            await PushNotifications.createChannel({
                 id: 'school_notifications',
                 name: 'School Notifications',
                 description: 'Important announcements and alerts from school',

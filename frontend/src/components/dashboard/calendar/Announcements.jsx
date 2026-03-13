@@ -253,15 +253,18 @@ const Announcements = () => {
                             
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1">Attachment (Image/PDF up to 5MB)</label>
-                                <div className="relative">
-                                    <input
-                                        type="file"
-                                        accept="image/*,application/pdf"
-                                        onChange={handleFileChange}
-                                        ref={fileInputRef}
-                                        className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors border border-slate-200 rounded-lg p-1"
-                                    />
-                                    {attachmentName && (
+                                <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    onChange={handleFileChange}
+                                    ref={fileInputRef}
+                                    className={`w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors border border-slate-200 rounded-lg p-1 ${attachmentName ? 'hidden' : 'block'}`}
+                                />
+                                {attachmentName && (
+                                    <div className="flex items-center justify-between p-2 border border-slate-200 bg-slate-50 rounded-lg">
+                                        <span className="text-sm font-medium text-slate-700 truncate mr-2 flex-1" title={attachmentName}>
+                                            📎 {attachmentName}
+                                        </span>
                                         <button 
                                             type="button" 
                                             onClick={() => {
@@ -270,12 +273,12 @@ const Announcements = () => {
                                                 setAttachmentType('');
                                                 if (fileInputRef.current) fileInputRef.current.value = '';
                                             }}
-                                            className="absolute right-2 top-2 text-red-500 hover:text-red-700 text-sm font-semibold px-2"
+                                            className="text-white bg-red-500 hover:bg-red-600 text-xs font-bold px-3 py-1.5 rounded outline-none transition-colors shadow-sm ml-2 flex-shrink-0"
                                         >
                                             Remove
                                         </button>
-                                    )}
-                                </div>
+                                    </div>
+                                )}
                             </div>
                             
                             <div>
