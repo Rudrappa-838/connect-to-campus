@@ -245,34 +245,29 @@ async function broadcastAnnouncement(item, school_id) {
     let targetUsers = [];
 
     try {
-        if (item.target_role === 'All') {
+        if (item.target_role === 'All' || item.target_role === 'all') {
             const res = await pool.query('SELECT id FROM users WHERE school_id = $1', [school_id]);
             targetUsers = res.rows;
-        } else if (item.target_role === 'Student') {
+        } else if (item.target_role === 'Student' || item.target_role === 'student') {
             const res = await pool.query(`
-                SELECT u.id 
-                FROM students s 
-                JOIN users u ON (LOWER(s.email) = LOWER(u.email) OR u.email = LOWER(s.admission_no) || '@student.school.com') 
-                WHERE s.school_id = $1 AND u.role = 'STUDENT'
+                SELECT id FROM users 
+                WHERE school_id = $1 AND role = 'STUDENT'
             `, [school_id]);
             targetUsers = res.rows;
-        } else if (item.target_role === 'Teacher') {
+        } else if (item.target_role === 'Teacher' || item.target_role === 'teacher') {
             const res = await pool.query(`
-                SELECT u.id 
-                FROM teachers t 
-                JOIN users u ON (LOWER(t.email) = LOWER(u.email) OR u.email = LOWER(t.employee_id) || '@teacher.school.com') 
-                WHERE t.school_id = $1 AND u.role = 'TEACHER'
+                SELECT id FROM users 
+                WHERE school_id = $1 AND role = 'TEACHER'
             `, [school_id]);
             targetUsers = res.rows;
-        } else if (item.target_role === 'Staff') {
+        } else if (item.target_role === 'Staff' || item.target_role === 'staff') {
             const res = await pool.query(`
-                SELECT u.id 
-                FROM staff s 
-                JOIN users u ON (LOWER(s.email) = LOWER(u.email) OR u.email = LOWER(s.employee_id) || '@staff.school.com') 
-                WHERE s.school_id = $1 AND u.role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER')
+                SELECT id FROM users 
+                WHERE school_id = $1 AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER')
             `, [school_id]);
             targetUsers = res.rows;
-        } else if (item.target_role === 'Class') {
+        } else if (item.target_role === 'Class' || item.target_role === 'class') {
+            // Students in a class still need the join because class_id is in the students table
             let q = `
                 SELECT u.id 
                 FROM students s 
