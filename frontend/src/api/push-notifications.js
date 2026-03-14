@@ -9,9 +9,14 @@ export const registerPushNotifications = async (userId) => {
     try {
         // 1. Request Permission
         let permStatus = await PushNotifications.checkPermissions();
-
         if (permStatus.receive === 'prompt') {
             permStatus = await PushNotifications.requestPermissions();
+        }
+
+        // Also request LocalNotifications permission (Critical for Android 13+)
+        let localPerm = await LocalNotifications.checkPermissions();
+        if (localPerm.display === 'prompt') {
+            localPerm = await LocalNotifications.requestPermissions();
         }
 
         if (permStatus.receive !== 'granted') {
@@ -31,6 +36,7 @@ export const registerPushNotifications = async (userId) => {
                 importance: 5, // 5 = High (Tray + Popup)
                 visibility: 1, // 1 = Public
                 vibration: true,
+                sound: 'default'
             });
         }
 
@@ -38,6 +44,8 @@ export const registerPushNotifications = async (userId) => {
         PushNotifications.addListener('registration', async (token) => {
             console.log('Push Registration Success, token:', token.value);
             try {
+                // Store token in localStorage for backup
+                localStorage.setItem('fcm_token', token.value);
                 await api.post('/notifications/token', { token: token.value, userId });
             } catch (err) {
                 console.error('Failed to sync push token with backend:', err);
@@ -51,30 +59,33 @@ export const registerPushNotifications = async (userId) => {
 
         // 6. Push Notification Received Listener (Foreground)
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            console.log('Push received:', notification);
+            console.log('Push received in foreground:', notification);
             
-            // On Android, foreground push notifications are often not shown in the system tray. 
-            // We use LocalNotifications to explicitly show them.
+            // On Android, foreground push notifications are often not shown in the system tray automatically.
+            // We force it using LocalNotifications.
             if (Capacitor.getPlatform() === 'android') {
                 LocalNotifications.schedule({
                     notifications: [
                         {
-                            title: notification.title || "New Notification",
-                            body: notification.body || "You have a new message",
-                            id: Math.floor(Math.random() * 2147483647), // Must be an int32
-                            schedule: { at: new Date(Date.now() + 200) },
-                            extra: notification.data || null,
-                            channelId: 'school_notifications'
+                            title: notification.title || "New Message",
+                            body: notification.body || "View details in the app",
+                            id: Date.now() % 2147483647,
+                            schedule: { at: new Date(Date.now() + 100) },
+                            extra: notification.data || {},
+                            channelId: 'school_notifications',
+                            smallIcon: 'ic_stat_notification', // Common standard icon name
+                            actionTypeId: 'OPEN_NOTIFICATIONS'
                         }
                     ]
                 });
             }
         });
 
-        // 7. Push Notification Action Listener (Clicking the notification)
+        // 7. Push Notification Action Listener
         PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
             console.log('Push action performed:', notification);
-            // Logic to navigate can be added here
+            // Close the notification from tray
+            PushNotifications.removeAllDeliveredNotifications();
         });
 
     } catch (error) {
