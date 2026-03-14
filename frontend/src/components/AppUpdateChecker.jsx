@@ -102,7 +102,7 @@ const AppUpdateChecker = () => {
                 {/* Icon */}
                 <div style={{
                     width: '72px', height: '72px',
-                    backgroundColor: isMandatory ? '#ef4444' : '#0ea5e9',
+                    backgroundColor: '#0ea5e9',
                     borderRadius: '22px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     margin: '0 auto 20px',
@@ -135,7 +135,7 @@ const AppUpdateChecker = () => {
                     style={{
                         width: '100%',
                         padding: '16px',
-                        backgroundColor: isMandatory ? '#ef4444' : '#0ea5e9',
+                        backgroundColor: '#0ea5e9',
                         color: 'white',
                         border: 'none',
                         borderRadius: '14px',
