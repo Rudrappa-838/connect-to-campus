@@ -295,7 +295,7 @@ async function broadcastAnnouncement(item, school_id) {
         for (let i = 0; i < targetUsers.length; i += batchSize) {
             const batch = targetUsers.slice(i, i + batchSize);
             await Promise.all(batch.map(user =>
-                sendPushNotification(user.id, item.title, item.message, item.target_role)
+                sendPushNotification(user.id, item.title, item.message, item.target_role, item.attachment_url, item.attachment_type)
             ));
         }
     } catch (err) {

@@ -18,7 +18,7 @@ const sendSMS = async (phoneNumber, message) => {
 
 // Real Push Notification Service (Firebase/FCM)
 // AND Save to DB for In-App Notification Center
-const sendPushNotification = async (recipientId, title, body, roleHint = null) => {
+const sendPushNotification = async (recipientId, title, body, roleHint = null, attachment_url = null, attachment_type = null) => {
     const client = await pool.connect();
     try {
         console.log(`[PUSH REQUEST] Recipient: ${recipientId} | Title: ${title}`);
@@ -95,8 +95,8 @@ const sendPushNotification = async (recipientId, title, body, roleHint = null) =
         // 2. Insert into Notifications Table
         if (dbUserId) {
             await client.query(
-                'INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)',
-                [dbUserId, title, body, 'ALERT']
+                'INSERT INTO notifications (user_id, title, message, type, attachment_url, attachment_type) VALUES ($1, $2, $3, $4, $5, $6)',
+                [dbUserId, title, body, 'ALERT', attachment_url, attachment_type]
             );
 
             // 3. Send via Firebase

@@ -95,6 +95,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, '../public'))); // Serve static files (APKs, etc.)
+app.use('/api', express.static(path.join(__dirname, '../public'))); // Serve under /api so Nginx routes to Node
 
 // Rate Limiter (Prevent Crashing from DoS/Spam)
 const limiter = rateLimit({

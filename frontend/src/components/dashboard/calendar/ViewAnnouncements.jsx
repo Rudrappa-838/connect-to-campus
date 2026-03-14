@@ -136,7 +136,7 @@ const ViewAnnouncements = () => {
                                 <div className="mb-4 relative z-10">
                                     <button 
                                         onClick={async () => {
-                                            const url = `${api.defaults.baseURL.replace('/api', '')}${item.attachment_url}`;
+                                            const url = `${api.defaults.baseURL}${item.attachment_url}`;
                                             try {
                                                 await Browser.open({ url });
                                             } catch (e) {

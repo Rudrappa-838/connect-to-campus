@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Bell, Check, X } from 'lucide-react';
+import { Bell, Check, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
+import { Browser } from '@capacitor/browser';
+import api from '../api/axios';
 
 const NotificationBell = () => {
     const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
@@ -155,9 +157,28 @@ const NotificationBell = () => {
                                 })}
                             </p>
                             
-                            <div className="text-slate-600 leading-relaxed whitespace-pre-wrap text-base">
+                            <div className="text-slate-600 leading-relaxed whitespace-pre-wrap text-base mb-8">
                                 {selectedNotification.message}
                             </div>
+
+                            {selectedNotification.attachment_url && (
+                                <div className="mt-4 pt-6 border-t border-slate-100">
+                                    <button
+                                        onClick={async () => {
+                                            const url = `${api.defaults.baseURL}${selectedNotification.attachment_url}`;
+                                            try {
+                                                await Browser.open({ url });
+                                            } catch (e) {
+                                                window.open(url, '_blank', 'noreferrer');
+                                            }
+                                        }}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 font-semibold hover:bg-indigo-100 transition-all"
+                                    >
+                                        {(selectedNotification.attachment_type || '').includes('pdf') ? <FileText size={18} /> : <ImageIcon size={18} />}
+                                        View Attachment
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         
                         {/* Footer */}
