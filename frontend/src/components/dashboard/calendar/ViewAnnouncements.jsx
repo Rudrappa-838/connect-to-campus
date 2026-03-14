@@ -137,7 +137,12 @@ const ViewAnnouncements = () => {
                                     <button 
                                         onClick={async () => {
                                             const url = `${api.defaults.baseURL.replace('/api', '')}${item.attachment_url}`;
-                                            await Browser.open({ url });
+                                            try {
+                                                await Browser.open({ url });
+                                            } catch (e) {
+                                                // Fallback for Web browser or if Capacitor Native plugin fails
+                                                window.open(url, '_blank', 'noreferrer');
+                                            }
                                         }}
                                         className="inline-flex items-center gap-2 px-3 py-2 bg-white/50 border border-black/10 rounded-lg text-sm font-medium hover:bg-white/80 transition-all text-current"
                                     >
