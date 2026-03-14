@@ -111,6 +111,7 @@ const updateToken = async (req, res) => {
 
 module.exports = {
     getMyNotifications,
+    markAsRead,
     markAllAsRead,
     createNotification,
     updateToken
