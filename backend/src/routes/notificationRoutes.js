@@ -6,6 +6,7 @@ const { authenticateToken } = require('../middleware/authMiddleware');
 // All routes require authentication
 router.use(authenticateToken);
 
+router.post('/token', notificationController.updateToken);
 router.get('/', notificationController.getMyNotifications);
 router.put('/:id/read', notificationController.markAsRead);
 router.put('/mark-all-read', notificationController.markAllAsRead);

@@ -86,9 +86,32 @@ const createNotification = async (userId, title, message, type = 'INFO', data = 
     }
 };
 
+// Update FCM token for a user
+const updateToken = async (req, res) => {
+    try {
+        const { token } = req.body;
+        const userId = req.user.id;
+
+        if (!token) {
+            return res.status(400).json({ message: 'Token is required' });
+        }
+
+        await pool.query(
+            'UPDATE users SET fcm_token = $1 WHERE id = $2',
+            [token, userId]
+        );
+
+        console.log(`[PUSH] Token updated for user ${userId}`);
+        res.json({ message: 'Token updated successfully' });
+    } catch (error) {
+        console.error('Error updating FCM token:', error);
+        res.status(500).json({ message: 'Server error updating token' });
+    }
+};
+
 module.exports = {
     getMyNotifications,
-    markAsRead,
     markAllAsRead,
-    createNotification
+    createNotification,
+    updateToken
 };
