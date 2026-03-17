@@ -301,7 +301,7 @@ const Login = () => {
                                 className="w-full flex items-center justify-center gap-2 text-gray-400 hover:text-yellow-400 transition-colors text-xs font-semibold group"
                             >
                                 <Smartphone size={16} className="group-hover:scale-110 transition-transform" />
-                                Download App for Android
+                                Get it on Google Play
                             </Link>
                         </div>
                     )}

@@ -173,13 +173,7 @@ app.get('/app-launch', (req, res) => {
 
 
 app.get(['/api/download-app', '/download-app'], (req, res) => {
-    const file = path.join(__dirname, '../public/school_app_optimized.apk');
-    res.download(file, 'school_app_optimized.apk', (err) => {
-        if (err) {
-            console.error('Error downloading file:', err);
-            res.status(404).send('App file not found on server.');
-        }
-    });
+    res.redirect('https://play.google.com/store/apps/details?id=com.rudrappa.connect2campus');
 });
 
 app.get(['/api', '/'], async (req, res) => {

@@ -1,7 +1,7 @@
 @echo off
 echo 🔨 Setting up Android Environment...
 set "SDK_PATH=%LOCALAPPDATA:\=/%"
-echo sdk.dir=%SDK_PATH%/Android/Sdk > frontend\android\local.properties
+echo sdk.dir=%SDK_PATH%/Android/Sdk>frontend\android\local.properties
 
 echo 🚀 Building APK with Driver Back Button Fix...
 cd frontend\android
