@@ -25,7 +25,7 @@ const SoftnetClientAd = () => {
     ];
 
     const testimonials = [
-        { school: "St. Mary's School", feedback: "SOFTNET transformed our administration. Highly recommended!", rating: 5 },
+        { school: "St. Mary's School", feedback: "SoftForge Technologies transformed our administration. Highly recommended!", rating: 5 },
         { school: "Delhi Public School", feedback: "Best school management software we've ever used!", rating: 5 },
         { school: "National Academy", feedback: "Excellent support and features. Worth every penny!", rating: 5 }
     ];
@@ -48,7 +48,7 @@ const SoftnetClientAd = () => {
                     <div className="hero-bg-pattern"></div>
                     <div className="hero-content-wrapper">
                         <div className="softnet-logo-large">
-                            <div className="logo-text">SOFTNET</div>
+                            <div className="logo-text">SoftForge Technologies</div>
                             <div className="logo-tagline">School Management System</div>
                         </div>
 
@@ -74,9 +74,9 @@ const SoftnetClientAd = () => {
                     </div>
                 </div>
 
-                {/* Why Choose SOFTNET */}
+                {/* Why Choose SoftForge Technologies */}
                 <div className="why-section">
-                    <h2 className="section-title-main">Why Schools Choose SOFTNET?</h2>
+                    <h2 className="section-title-main">Why Schools Choose SoftForge Technologies?</h2>
                     <p className="section-subtitle">Everything you need to run your school efficiently in one powerful platform</p>
 
                     <div className="benefits-showcase">
@@ -170,7 +170,7 @@ const SoftnetClientAd = () => {
                 <div className="final-cta-section">
                     <div className="final-cta-content">
                         <h2 className="final-cta-heading">Ready to Digitize Your School?</h2>
-                        <p className="final-cta-text">Join 100+ schools already using SOFTNET. Start your free trial today!</p>
+                        <p className="final-cta-text">Join 100+ schools already using SoftForge Technologies. Start your free trial today!</p>
                         <div className="final-cta-buttons">
                             <button className="btn-final-primary">Start Free 30-Day Trial</button>
                             <button className="btn-final-secondary">Book a Live Demo</button>
@@ -207,7 +207,7 @@ const SoftnetClientAd = () => {
                 {/* Footer */}
                 <div className="softnet-footer">
                     <p className="footer-main-text">
-                        <strong>SOFTNET</strong> - India's Leading School Management Solution
+                        <strong>SoftForge Technologies</strong> - India's Leading School Management Solution
                     </p>
                     <p className="footer-sub-text">Empowering Education Through Technology Since 2020</p>
                 </div>

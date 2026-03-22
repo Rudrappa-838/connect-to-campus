@@ -16,7 +16,7 @@ const TemplatesDemo = () => {
             <div className="control-panel no-print">
                 <div className="control-header">
                     <h1 className="demo-title">📄 CONNECT TO CAMPUS</h1>
-                    <p className="demo-subtitle">By SOFTNET Technologies | Advertisement Pamphlet</p>
+                    <p className="demo-subtitle">By SoftForge Technologies | Advertisement Pamphlet</p>
                 </div>
 
                 <div className="template-selector">

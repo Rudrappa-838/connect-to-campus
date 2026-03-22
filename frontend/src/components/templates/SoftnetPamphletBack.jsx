@@ -21,7 +21,7 @@ const SoftnetPamphletBack = () => {
                 <div className="back-hero-section">
                     <div className="back-hero-content">
                         <h1 className="back-main-title">CONNECT TO CAMPUS</h1>
-                        <p className="back-subtitle">Complete School Management by SOFTNET</p>
+                        <p className="back-subtitle">Complete School Management by SoftForge Technologies</p>
                         <div className="app-badge">📱 Available on Play Store</div>
                     </div>
                 </div>
@@ -124,13 +124,13 @@ const SoftnetPamphletBack = () => {
                 {/* Footer */}
                 <div className="footer-compact">
                     <p className="footer-main-compact">
-                        <strong>SOFTNET</strong> - Connect to Campus (C2C)
+                        <strong>SoftForge Technologies</strong> - Connect to Campus (C2C)
                     </p>
                     <p className="footer-sub-compact">
                         Complete School Management Solution | Available on Play Store
                     </p>
                     <p className="footer-sub-compact">
-                        © 2025 SOFTNET Technologies. All Rights Reserved.
+                        © 2025 SoftForge Technologies. All Rights Reserved.
                     </p>
                 </div>
 

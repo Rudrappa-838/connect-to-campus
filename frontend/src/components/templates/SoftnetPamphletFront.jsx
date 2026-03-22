@@ -189,7 +189,7 @@ const SoftnetPamphletFront = () => {
                 <div className="front-hero">
                     <div className="front-hero-content">
                         <div className="softnet-branding-front">
-                            <div className="company-name-front">SOFTNET</div>
+                            <div className="company-name-front">SoftForge Technologies</div>
                             <div className="presents-text">presents</div>
                             <div className="software-name-front">CONNECT TO CAMPUS</div>
                             <div className="software-tagline-front">Complete School Management Solution</div>
@@ -271,7 +271,7 @@ const SoftnetPamphletFront = () => {
                 {/* Footer */}
                 <div className="front-footer">
                     <p className="front-footer-text">
-                        <strong>SOFTNET</strong> - Connect to Campus (C2C) | Available on Play Store
+                        <strong>SoftForge Technologies</strong> - Connect to Campus (C2C) | Available on Play Store
                     </p>
                 </div>
 

@@ -20,7 +20,7 @@ const StudentIDCard = ({ studentData }) => {
                 {/* Header Section */}
                 <div className="id-card-header">
                     <div className="softnet-branding">
-                        <div className="softnet-logo">SOFTNET</div>
+                        <div className="softnet-logo">SoftForge Technologies</div>
                         <div className="softnet-tagline">School Management System</div>
                     </div>
                 </div>
@@ -96,7 +96,7 @@ const StudentIDCard = ({ studentData }) => {
 
                 {/* Footer */}
                 <div className="id-card-footer">
-                    <p>Powered by <strong>SOFTNET</strong> | School Management System</p>
+                    <p>Powered by <strong>SoftForge Technologies</strong> | School Management System</p>
                 </div>
             </div>
         </div>

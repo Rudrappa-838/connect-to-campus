@@ -22,7 +22,7 @@ const Section = ({ icon: Icon, title, children, color = '#4F46E5' }) => (
 const PrivacyPolicy = () => {
     const lastUpdated = 'March 2, 2026';
     const appName = 'Connect to Campus (C2C)';
-    const companyName = 'SOFTNET';
+    const companyName = 'SoftForge Technologies';
     const email = 'support@connect2campus.co.in';
     const website = 'https://connect2campus.co.in';
 
