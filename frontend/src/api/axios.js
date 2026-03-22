@@ -139,9 +139,13 @@ api.interceptors.response.use(
             }
         }
 
-        const config = error.config;
+        // Handle Network/Offline Errors specifically
+        if (error.message === 'Network Error' || (error.code === 'ERR_NETWORK')) {
+            toast.error('Network Connection Error 📡❌', { id: 'network-error-toast' });
+            return Promise.reject(error);
+        }
 
-        // If config does not exist or the retry option is set to false, reject
+        const config = error.config;
         if (!config || !config.retry) {
             return Promise.reject(error);
         }
