@@ -33,6 +33,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import DriverTracking from './components/dashboard/transport/DriverTracking';
 import NotificationRegistration from './components/NotificationRegistration';
 import AppUpdateChecker from './components/AppUpdateChecker';
+import OfflineBanner from './components/OfflineBanner';
 
 import { Preferences } from '@capacitor/preferences';
 import SplashScreen from './components/SplashScreen';
@@ -168,6 +169,7 @@ const AppContent = () => {
         <NotificationProvider>
           <NotificationRegistration />
           <AppUpdateChecker />
+          <OfflineBanner />
 
           <Router>
             <div className="min-h-screen bg-gray-50">

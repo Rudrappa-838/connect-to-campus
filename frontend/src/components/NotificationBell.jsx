@@ -99,7 +99,13 @@ const NotificationBell = () => {
                                                     {notification.message}
                                                 </p>
                                                 <p className="text-[10px] text-gray-400 mt-2">
-                                                    {new Date(notification.created_at).toLocaleString()}
+                                                    {new Date(notification.created_at).toLocaleDateString('en-GB', {
+                                                        day: '2-digit',
+                                                        month: '2-digit',
+                                                        year: '2-digit',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
                                                 </p>
                                             </div>
                                             {!notification.is_read && (
@@ -152,8 +158,9 @@ const NotificationBell = () => {
                                 {selectedNotification.title}
                             </h2>
                             <p className="text-xs text-slate-400 mb-6 pb-4 border-b border-slate-100">
-                                {new Date(selectedNotification.created_at).toLocaleString('en-US', {
-                                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                {new Date(selectedNotification.created_at).toLocaleDateString('en-GB', {
+                                    day: '2-digit', month: '2-digit', year: '2-digit', 
+                                    hour: '2-digit', minute: '2-digit'
                                 })}
                             </p>
                             

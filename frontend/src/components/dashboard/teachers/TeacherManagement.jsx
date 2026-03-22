@@ -148,6 +148,7 @@ const TeacherManagement = ({ config }) => {
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[11px] tracking-wider border-b border-slate-100">
                             <tr>
                                 <th className="p-4 pl-6">ID</th>
+                                <th className="p-4">Join Date</th>
                                 <th className="p-4">Name & Subject</th>
                                 <th className="p-4">Assigned Class</th>
                                 <th className="p-4">Salary/Month</th>
@@ -180,6 +181,9 @@ const TeacherManagement = ({ config }) => {
                                     {teachers.map(t => (
                                         <tr key={t.id} className="group hover:bg-slate-50/50 transition-colors">
                                             <td className="p-4 pl-6 font-mono text-slate-400 text-xs">{t.employee_id || '-'}</td>
+                                            <td className="p-4 font-mono text-slate-500 text-xs">
+                                                {t.join_date ? new Date(t.join_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-'}
+                                            </td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
@@ -210,7 +214,21 @@ const TeacherManagement = ({ config }) => {
                                             </td>
                                             <td className="p-4 pr-6 text-right">
                                                 <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => { setIsEditing(true); setFieldErrors({}); setSelectedId(t.id); setFormData({ ...t, assign_class_id: t.assigned_class_id || '', assign_section_id: t.assigned_section_id || '', salary_per_month: t.salary_per_day ? (parseFloat(t.salary_per_day) * 26).toString() : '' }); setIsClassTeacher(!!t.assigned_class_id); setShowModal(true); }} className="text-indigo-500 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={18} /></button>
+                                                    <button onClick={() => { 
+                                                        setIsEditing(true); 
+                                                        setFieldErrors({}); 
+                                                        setSelectedId(t.id); 
+                                                        // Ensure salary_per_month is at least '0' if salary_per_day is 0 or null
+                                                        const monthlySalary = t.salary_per_day ? (parseFloat(t.salary_per_day) * 26).toFixed(0) : '0';
+                                                        setFormData({ 
+                                                            ...t, 
+                                                            assign_class_id: t.assigned_class_id || '', 
+                                                            assign_section_id: t.assigned_section_id || '', 
+                                                            salary_per_month: monthlySalary 
+                                                        }); 
+                                                        setIsClassTeacher(!!t.assigned_class_id); 
+                                                        setShowModal(true); 
+                                                    }} className="text-indigo-500 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={18} /></button>
                                                     <button onClick={() => handleDelete(t.id)} disabled={isSubmitting} className={`text-rose-500 hover:bg-rose-50 p-2 rounded-lg transition-colors ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}><Trash2 size={18} /></button>
                                                 </div>
                                             </td>
@@ -234,26 +252,40 @@ const TeacherManagement = ({ config }) => {
                     <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <h3 className="text-lg font-bold mb-4">{isEditing ? 'Edit Teacher' : 'Add Teacher'}</h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="label">Full Name <span className="text-red-500">*</span></label>
-                                <input
-                                    className="input"
-                                    id="teacher-name"
-                                    name="name"
-                                    placeholder="Full Name"
-                                    required
-                                    pattern="[A-Za-z\s]+"
-                                    title="Letters and spaces only"
-                                    autoComplete="off"
-                                    value={formData.name}
-                                    onCopy={e => e.preventDefault()}
-                                    onPaste={e => e.preventDefault()}
-                                    onChange={e => {
-                                        if (/^[A-Za-z\s]*$/.test(e.target.value)) {
-                                            setFormData({ ...formData, name: e.target.value });
-                                        }
-                                    }}
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-1">
+                                    <label className="label">Full Name <span className="text-red-500">*</span></label>
+                                    <input
+                                        className="input"
+                                        id="teacher-name"
+                                        name="name"
+                                        placeholder="Full Name"
+                                        required
+                                        pattern="[A-Za-z\s]+"
+                                        title="Letters and spaces only"
+                                        autoComplete="off"
+                                        value={formData.name}
+                                        onCopy={e => e.preventDefault()}
+                                        onPaste={e => e.preventDefault()}
+                                        onChange={e => {
+                                            if (/^[A-Za-z\s]*$/.test(e.target.value)) {
+                                                setFormData({ ...formData, name: e.target.value });
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="label">Employee ID (e.g. T1234)</label>
+                                    <input
+                                        className="input"
+                                        id="teacher-id"
+                                        name="employee_id"
+                                        placeholder="Auto-generated if empty"
+                                        autoComplete="off"
+                                        value={formData.employee_id || ''}
+                                        onChange={e => setFormData({ ...formData, employee_id: e.target.value.toUpperCase() })}
+                                    />
+                                </div>
                             </div>
 
                             {/* Subject Selection */}

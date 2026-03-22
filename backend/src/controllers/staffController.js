@@ -134,7 +134,7 @@ exports.updateStaff = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { name, email, phone, role, gender, address, join_date, salary_per_day } = req.body;
+        const { name, email, phone, role, gender, address, join_date, salary_per_day, employee_id } = req.body;
 
         await client.query('BEGIN');
 
@@ -165,6 +165,19 @@ exports.updateStaff = async (req, res) => {
                 });
             }
         }
+        // Check if employee_id already exists for another staff member
+        if (employee_id) {
+            const idCheck = await client.query(
+                'SELECT id, name FROM staff WHERE employee_id = $1 AND school_id = $2 AND id != $3',
+                [employee_id, school_id, id]
+            );
+            if (idCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    message: `Employee ID already exists for staff: ${idCheck.rows[0].name}`
+                });
+            }
+        }
 
         // Get Existing Staff to check for email change
         const existingStaff = await client.query('SELECT email, employee_id FROM staff WHERE id = $1', [id]);
@@ -183,12 +196,12 @@ exports.updateStaff = async (req, res) => {
         const safe_salary = (salary_per_day === '' || salary_per_day === 'null' || salary_per_day === undefined) ? 0 : salary_per_day;
 
         const result = await client.query(
-            `UPDATE staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
-             first_name = $9, last_name = $10
+            `UPDATE public.staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
+             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id)
              WHERE id = $11 AND school_id = $12 RETURNING *`,
             [name, email, phone, role, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
-                id, school_id]
+                id, school_id, employee_id]
         );
 
         if (result.rows.length === 0) {

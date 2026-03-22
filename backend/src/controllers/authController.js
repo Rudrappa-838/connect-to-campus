@@ -31,10 +31,10 @@ const login = async (req, res) => {
                 const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id = $1', [email]);
                 if (tRes.rows.length > 0) checkEmails.push(tRes.rows[0].email);
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) { // Staff roles
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) { // Staff roles
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
-                const stRes = await pool.query('SELECT email FROM staff WHERE employee_id = $1', [email]);
+                const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) checkEmails.push(stRes.rows[0].email);
             }
             else if (role === 'SCHOOL_ADMIN') {
@@ -55,7 +55,7 @@ const login = async (req, res) => {
 
         if (role) {
             if (role === 'STAFF') {
-                query += ` AND role IN ('STAFF', 'DRIVER')`; // Allow both for Staff login
+                query += ` AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')`; // Allow both for Staff login
             } else {
                 query += ` AND role = $2`;
                 params.push(role);
@@ -373,7 +373,7 @@ const forgotPassword = async (req, res) => {
                     userDetails.email = tRes.rows[0].email;
                 }
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) {
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 // Use 'name' column as first_name/last_name might not exist
                 const stRes = await pool.query('SELECT email, employee_id, name FROM staff WHERE employee_id ILIKE $1', [email]);
@@ -408,7 +408,7 @@ const forgotPassword = async (req, res) => {
         let params = [checkEmails];
 
         if (role === 'STAFF') {
-            query += ` AND role IN ('STAFF', 'DRIVER')`;
+            query += ` AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')`;
         } else {
             query += ` AND role = $2`;
             params.push(role);
@@ -528,28 +528,28 @@ const getUserDetails = async (req, res) => {
 
         if (!isEmail && role) {
             if (role === 'STUDENT') {
-                const sRes = await pool.query('SELECT email, admission_no, first_name, last_name FROM students WHERE admission_no ILIKE $1', [email]);
+                const sRes = await pool.query('SELECT email, admission_no, first_name, last_name, name FROM students WHERE admission_no ILIKE $1', [email]);
                 if (sRes.rows.length > 0) {
                     const student = sRes.rows[0];
-                    userInfo.name = `${student.first_name || ''} ${student.last_name || ''}`.trim();
+                    userInfo.name = `${student.first_name || ''} ${student.last_name || ''}`.trim() || student.name;
                     userInfo.email = student.email;
                     userInfo.id = student.admission_no;
                 }
             }
             else if (role === 'TEACHER') {
-                const tRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM teachers WHERE employee_id ILIKE $1', [email]);
+                const tRes = await pool.query('SELECT email, employee_id, first_name, last_name, name FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) {
                     const teacher = tRes.rows[0];
-                    userInfo.name = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim();
+                    userInfo.name = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim() || teacher.name;
                     userInfo.email = teacher.email;
                     userInfo.id = teacher.employee_id;
                 }
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
-                const stRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM staff WHERE employee_id ILIKE $1', [email]);
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) {
+                const stRes = await pool.query('SELECT email, employee_id, first_name, last_name, name FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) {
                     const staff = stRes.rows[0];
-                    userInfo.name = `${staff.first_name || ''} ${staff.last_name || ''}`.trim();
+                    userInfo.name = `${staff.first_name || ''} ${staff.last_name || ''}`.trim() || staff.name;
                     userInfo.email = staff.email;
                     userInfo.id = staff.employee_id;
                 }
@@ -607,7 +607,7 @@ const verifyOTP = async (req, res) => {
                 const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) checkEmails.push(tRes.rows[0].email);
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) {
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
@@ -628,7 +628,7 @@ const verifyOTP = async (req, res) => {
         let params = [checkEmails, otp.trim(), Date.now()];
 
         if (role === 'STAFF') {
-            query += ` AND role IN ('STAFF', 'DRIVER')`;
+            query += ` AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')`;
         } else {
             query += ` AND role = $4`;
             params.push(role);
@@ -679,7 +679,7 @@ const resetPassword = async (req, res) => {
                 const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) checkEmails.push(tRes.rows[0].email);
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) {
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
@@ -700,7 +700,7 @@ const resetPassword = async (req, res) => {
         let params = [checkEmails, otp.trim(), Date.now()];
 
         if (role === 'STAFF') {
-            query += ` AND role IN ('STAFF', 'DRIVER')`;
+            query += ` AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')`;
         } else {
             query += ` AND role = $4`;
             params.push(role);

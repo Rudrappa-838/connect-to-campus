@@ -188,7 +188,7 @@ exports.updateTeacher = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day } = req.body;
+        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day, employee_id } = req.body;
 
         await client.query('BEGIN');
 
@@ -219,6 +219,19 @@ exports.updateTeacher = async (req, res) => {
                 });
             }
         }
+        // Check if employee_id already exists for another teacher
+        if (employee_id) {
+            const idCheck = await client.query(
+                'SELECT id, name FROM teachers WHERE employee_id = $1 AND school_id = $2 AND id != $3',
+                [employee_id, school_id, id]
+            );
+            if (idCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    message: `Employee ID already exists for: ${idCheck.rows[0].name}`
+                });
+            }
+        }
 
         // Get Existing Teacher to check for email change
         const existingTeacher = await client.query('SELECT email, employee_id FROM teachers WHERE id = $1', [id]);
@@ -238,11 +251,11 @@ exports.updateTeacher = async (req, res) => {
 
         const result = await client.query(
             `UPDATE teachers SET name = $1, email = $2, phone = $3, subject_specialization = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
-             first_name = $9, last_name = $10
+             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id)
              WHERE id = $11 AND school_id = $12 RETURNING *`,
             [name, email, phone, subject_specialization, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
-                id, school_id]
+                id, school_id, employee_id]
         );
 
         if (result.rows.length === 0) {

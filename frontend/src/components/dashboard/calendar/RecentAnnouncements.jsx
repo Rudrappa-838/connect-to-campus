@@ -91,7 +91,7 @@ const RecentAnnouncements = ({ limit = 3, onMoreClick }) => {
                             </p>
                             <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
                                 <Clock size={10} />
-                                <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                                <span>{new Date(item.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
                                 {item.target_role !== 'All' && (
                                     <span className="bg-white px-1.5 py-0.5 rounded shadow-sm border border-slate-100 ml-auto text-slate-500">
                                         {item.target_role}

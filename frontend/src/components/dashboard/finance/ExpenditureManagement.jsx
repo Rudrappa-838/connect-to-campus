@@ -348,7 +348,7 @@ const ExpenditureManagement = () => {
                                             )}
                                         </td>
                                         <td className="px-6 py-3 text-slate-500">
-                                            {new Date(item.expense_date).toLocaleDateString()}
+                                            {new Date(item.expense_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                                         </td>
                                         <td className="px-6 py-3 font-bold text-red-600">
                                             -₹{parseFloat(item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
