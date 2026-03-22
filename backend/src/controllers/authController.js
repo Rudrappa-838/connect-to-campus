@@ -50,19 +50,7 @@ const login = async (req, res) => {
         }
 
         // Find user by Email(s) AND Role (if provided)
-        let query = `SELECT * FROM users WHERE email = ANY($1::text[])`;
-        let params = [checkEmails];
-
-        if (role) {
-            if (role === 'STAFF') {
-                query += ` AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')`; // Allow both for Staff login
-            } else {
-                query += ` AND role = $2`;
-                params.push(role);
-            }
-        }
-
-        const result = await pool.query(query, params);
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[])', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase())]);
 
         let user = null;
         if (result.rows.length > 0) {
@@ -277,7 +265,7 @@ const changePassword = async (req, res) => {
             }
 
             // Find user matching ANY of these emails
-            const eRes = await pool.query('SELECT * FROM users WHERE email = ANY($1::text[])', [checkEmails]);
+            const eRes = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[])', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase())]);
             user = eRes.rows[0];
         }
 
@@ -404,17 +392,7 @@ const forgotPassword = async (req, res) => {
         }
 
         // Find user
-        let query = `SELECT * FROM users WHERE email = ANY($1::text[])`;
-        let params = [checkEmails];
-
-        if (role === 'STAFF') {
-            query += ` AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')`;
-        } else {
-            query += ` AND role = $2`;
-            params.push(role);
-        }
-
-        const result = await pool.query(query, params);
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[])', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase())]);
         const user = result.rows[0];
 
         if (!user) {
@@ -623,18 +601,7 @@ const verifyOTP = async (req, res) => {
             }
         }
 
-        // Find user with matching OTP
-        let query = `SELECT * FROM users WHERE email = ANY($1::text[]) AND reset_password_token = $2 AND reset_password_expires > $3`;
-        let params = [checkEmails, otp.trim(), Date.now()];
-
-        if (role === 'STAFF') {
-            query += ` AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')`;
-        } else {
-            query += ` AND role = $4`;
-            params.push(role);
-        }
-
-        const result = await pool.query(query, params);
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[]) AND reset_password_token = $2 AND reset_password_expires > $3', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase()), otp.trim(), Date.now()]);
         const user = result.rows[0];
 
         if (!user) {
@@ -695,18 +662,7 @@ const resetPassword = async (req, res) => {
             }
         }
 
-        // Find user with valid OTP and expiry
-        let query = `SELECT * FROM users WHERE email = ANY($1::text[]) AND reset_password_token = $2 AND reset_password_expires > $3`;
-        let params = [checkEmails, otp.trim(), Date.now()];
-
-        if (role === 'STAFF') {
-            query += ` AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')`;
-        } else {
-            query += ` AND role = $4`;
-            params.push(role);
-        }
-
-        const result = await pool.query(query, params);
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[]) AND reset_password_token = $2 AND reset_password_expires > $3', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase()), otp.trim(), Date.now()]);
         const user = result.rows[0];
 
         if (!user) {
