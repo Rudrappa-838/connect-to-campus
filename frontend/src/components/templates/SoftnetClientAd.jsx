@@ -184,17 +184,17 @@ const SoftnetClientAd = () => {
                         <div className="contact-footer-item">
                             <div className="contact-footer-icon">📞</div>
                             <h4>Call Us</h4>
-                            <p>+91 XXX XXX XXXX</p>
+                            <p>+91 86186 02743</p>
                         </div>
                         <div className="contact-footer-item">
                             <div className="contact-footer-icon">✉️</div>
                             <h4>Email</h4>
-                            <p>sales@softnet.com</p>
+                            <p>contact@softforge.co.in</p>
                         </div>
                         <div className="contact-footer-item">
                             <div className="contact-footer-icon">🌐</div>
                             <h4>Website</h4>
-                            <p>www.softnet.com</p>
+                            <p>https://softforge.co.in/</p>
                         </div>
                         <div className="contact-footer-item">
                             <div className="contact-footer-icon">💬</div>

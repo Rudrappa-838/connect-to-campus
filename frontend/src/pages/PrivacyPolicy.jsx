@@ -23,8 +23,8 @@ const PrivacyPolicy = () => {
     const lastUpdated = 'March 2, 2026';
     const appName = 'Connect to Campus (C2C)';
     const companyName = 'SoftForge Technologies';
-    const email = 'support@connect2campus.co.in';
-    const website = 'https://connect2campus.co.in';
+    const email = 'contact@softforge.co.in';
+    const website = 'https://softforge.co.in';
 
     return (
         <div style={{

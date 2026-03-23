@@ -105,12 +105,12 @@ const SoftnetPamphletBack = () => {
                         <div className="contact-item-compact">
                             <div className="contact-icon-compact">✉️</div>
                             <p className="contact-label-compact">Email</p>
-                            <p className="contact-value-compact" style={{ fontSize: '9px' }}>softnetbgk@gmail.com</p>
+                            <p className="contact-value-compact" style={{ fontSize: '9px' }}>contact@softforge.co.in</p>
                         </div>
                         <div className="contact-item-compact">
                             <div className="contact-icon-compact">🌐</div>
                             <p className="contact-label-compact">Website</p>
-                            <p className="contact-value-compact">www.softnet.com</p>
+                            <p className="contact-value-compact">https://softforge.co.in/</p>
                         </div>
                     </div>
                 </div>
