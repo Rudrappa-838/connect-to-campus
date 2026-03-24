@@ -156,7 +156,7 @@ app.all('/iclock/options', (req, res) => res.send('OK'));
 // that ALL users MUST install. Users below this version will be
 // forced to update from the Play Store.
 const MINIMUM_APP_VERSION = 24; // Version Code (not name). Update this to force update.
-const LATEST_APP_VERSION = 29;  // Current latest version code.
+const LATEST_APP_VERSION = 30;  // Current latest version code.
 
 app.get(['/api/app-version', '/app-version'], (req, res) => {
     res.json({

@@ -46,8 +46,8 @@ const Welcome = ({ onComplete }) => {
     useEffect(() => {
         if (loading) return;
 
-        // If user is already logged in, skip welcome entirely
-        if (user) {
+        // Skip for Native App (per user request: "flights/buses only in web")
+        if (user || Capacitor.isNativePlatform()) {
             handleComplete();
             return;
         }
