@@ -77,21 +77,8 @@ const RootRedirect = () => {
 
   React.useEffect(() => {
     const checkWelcome = async () => {
-      if (loading) return;
-      try {
-        let shown = false;
-        if (Capacitor.isNativePlatform()) {
-          const { value } = await Preferences.get({ key: 'welcome_shown' });
-          shown = value === 'true';
-        } else {
-          shown = localStorage.getItem('welcome_shown') === 'true';
-        }
-        setShouldShowWelcome(!shown);
-      } catch (e) {
-        console.warn('Welcome check failed', e);
-      } finally {
-        setWelcomeChecked(true);
-      }
+      setShouldShowWelcome(true);
+      setWelcomeChecked(true);
     };
     checkWelcome();
   }, [loading]);

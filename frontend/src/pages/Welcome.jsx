@@ -46,19 +46,6 @@ const Welcome = ({ onComplete }) => {
     useEffect(() => {
         if (loading) return;
 
-        const checkShown = async () => {
-            let shown = false;
-            if (Capacitor.isNativePlatform()) {
-                const { value } = await Preferences.get({ key: 'welcome_shown' });
-                shown = value === 'true';
-            } else {
-                shown = localStorage.getItem('welcome_shown') === 'true';
-            }
-
-            if (shown && !user) navigate('/login', { replace: true });
-        };
-        checkShown();
-
         // If user is already logged in, skip welcome entirely
         if (user) {
             handleComplete();
