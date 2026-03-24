@@ -18,9 +18,9 @@ const cron = require('node-cron');
 const { checkAndSendAbsentNotifications } = require('./services/notificationService');
 
 // Schedule Absentee Check at 10:00 AM every day
-cron.schedule('0 10 * * *', () => {
-    checkAndSendAbsentNotifications();
-});
+// cron.schedule('0 10 * * *', () => {
+//     checkAndSendAbsentNotifications();
+// });
 
 const PORT = process.env.PORT || 5000;
 
