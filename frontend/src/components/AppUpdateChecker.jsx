@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
+import { Preferences } from '@capacitor/preferences';
 import axios from 'axios';
 
 // Using dynamic version checking via @capacitor/app
@@ -14,6 +15,7 @@ const AppUpdateChecker = () => {
     const [updateMessage, setUpdateMessage] = useState('');
     const [isMandatory, setIsMandatory] = useState(false);
     const [isChecking, setIsChecking] = useState(false);
+    const [latestVersion, setLatestVersion] = useState(null);
 
     const checkVersion = useCallback(async () => {
         if (!Capacitor.isNativePlatform()) return;
@@ -21,10 +23,10 @@ const AppUpdateChecker = () => {
         setIsChecking(true);
         try {
             // Get native version dynamically, fall back to robust default
-            let currentVersionCode = 24;
+            let currentVersionCode = 31;
             try {
                 const info = await App.getInfo();
-                currentVersionCode = parseInt(info.build, 10) || 24;
+                currentVersionCode = parseInt(info.build, 10) || 31;
             } catch (e) {
                 console.warn('Could not get native app info', e);
             }
@@ -32,6 +34,10 @@ const AppUpdateChecker = () => {
             // Check server for minimum required version
             const res = await axios.get(`${APP_VERSION_URL}?t=${Date.now()}`, { timeout: 8000 });
             const { minimum_version, latest_version, update_message } = res.data;
+            setLatestVersion(latest_version);
+
+            // Check if this version was already dismissed
+            const { value: dismissedVersion } = await Preferences.get({ key: 'dismissed_version' });
 
             if (currentVersionCode >= latest_version) {
                 // Already updated! Hide everything
@@ -43,9 +49,12 @@ const AppUpdateChecker = () => {
                 setShowUpdate(true);
             } else if (currentVersionCode < latest_version) {
                 // OPTIONAL update - suggest updating
-                setIsMandatory(false);
-                setUpdateMessage('A new version is available. Update now for the best experience!');
-                setShowUpdate(true);
+                // Only show if this version hasn't been dismissed
+                if (dismissedVersion !== latest_version.toString()) {
+                    setIsMandatory(false);
+                    setUpdateMessage('A new version is available. Update now for the best experience!');
+                    setShowUpdate(true);
+                }
             }
         } catch (err) {
             console.warn('Version check failed:', err.message);
@@ -74,6 +83,16 @@ const AppUpdateChecker = () => {
 
     const openPlayStore = () => {
         window.open(PLAY_STORE_URL, '_system');
+    };
+
+    const skipUpdate = async () => {
+        if (latestVersion) {
+            await Preferences.set({
+                key: 'dismissed_version',
+                value: latestVersion.toString()
+            });
+        }
+        setShowUpdate(false);
     };
 
     if (!showUpdate) return null;
@@ -153,7 +172,7 @@ const AppUpdateChecker = () => {
                 {/* Skip Button (only for optional updates) */}
                 {!isMandatory && !isChecking && (
                     <button
-                        onClick={() => setShowUpdate(false)}
+                        onClick={skipUpdate}
                         style={{
                             width: '100%',
                             padding: '12px',
