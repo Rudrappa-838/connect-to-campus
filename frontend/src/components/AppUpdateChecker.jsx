@@ -23,10 +23,10 @@ const AppUpdateChecker = () => {
         setIsChecking(true);
         try {
             // Get native version dynamically, fall back to robust default
-            let currentVersionCode = 31;
+            let currentVersionCode = 32;
             try {
                 const info = await App.getInfo();
-                currentVersionCode = parseInt(info.build, 10) || 31;
+                currentVersionCode = parseInt(info.build, 10) || 32;
             } catch (e) {
                 console.warn('Could not get native app info', e);
             }
