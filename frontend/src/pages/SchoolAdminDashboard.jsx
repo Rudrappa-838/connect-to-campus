@@ -695,7 +695,7 @@ const styles = `
         padding: 0.6rem 0.85rem; 
         border: 1px solid #e2e8f0; 
         border-radius: 0.75rem; 
-        font-size: 0.875rem; 
+        font-size: 16px; /* 16px prevents mobile browsers from auto-zooming! */
         outline: none; 
         transition: all 0.2s; 
         background: white; 

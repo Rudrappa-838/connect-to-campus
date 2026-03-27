@@ -7,7 +7,7 @@ const StaffManagement = () => {
     const [staff, setStaff] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '' });
+    const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '' });
     const [selectedId, setSelectedId] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [loading, setLoading] = useState(true);
@@ -25,7 +25,7 @@ const StaffManagement = () => {
     const openAddModal = () => {
         setIsEditing(false);
         setFieldErrors({});
-        setFormData({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '' });
+        setFormData({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '' });
         setShowModal(true);
     };
 
@@ -158,6 +158,8 @@ const StaffManagement = () => {
                                             <td className="p-4">
                                                 <div className="text-slate-600 text-sm">{t.phone}</div>
                                                 <div className="text-slate-400 text-xs">{t.email}</div>
+                                                {t.library_access && <div className="mt-1"><span className="bg-indigo-50 text-indigo-600 text-[10px] px-1.5 py-0.5 rounded-md font-bold border border-indigo-100">Library Access</span></div>}
+                                                {t.hostel_access && <div className="mt-1"><span className="bg-rose-50 text-rose-600 text-[10px] px-1.5 py-0.5 rounded-md font-bold border border-rose-100">Hostel Access</span></div>}
                                             </td>
                                             <td className="p-4 pr-6 text-right">
                                                 <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -168,7 +170,10 @@ const StaffManagement = () => {
                                                         const monthlySalary = t.salary_per_day ? (parseFloat(t.salary_per_day) * 26).toFixed(0) : '0';
                                                         setFormData({ 
                                                             ...t, 
-                                                            salary_per_month: monthlySalary 
+                                                            join_date: t.join_date ? t.join_date.split('T')[0] : '',
+                                                            salary_per_month: monthlySalary,
+                                                            library_access: t.library_access || false,
+                                                            hostel_access: t.hostel_access || false
                                                         }); 
                                                         setShowModal(true); 
                                                     }} className="text-indigo-500 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={18} /></button>
@@ -203,8 +208,18 @@ const StaffManagement = () => {
                         </div>
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
+                                {isEditing && (
+                                    <div className="col-span-1">
+                                        <label className="label">Employee ID</label>
+                                        <input
+                                            className="input bg-slate-50"
+                                            readOnly
+                                            autoComplete="off"
+                                            value={formData.employee_id || ''}
+                                        />
+                                    </div>
+                                )}
+                                <div className={isEditing ? "col-span-1" : "col-span-2"}>
                                      <label className="label">Full Name <span className="text-red-500">*</span></label>
                                      <input
                                          className="input"
@@ -216,8 +231,6 @@ const StaffManagement = () => {
                                          title="Letters and spaces only"
                                          autoComplete="off"
                                          value={formData.name}
-                                         onCopy={e => e.preventDefault()}
-                                         onPaste={e => e.preventDefault()}
                                          onChange={e => {
                                              if (/^[A-Za-z\s]*$/.test(e.target.value)) {
                                                  setFormData({ ...formData, name: e.target.value });
@@ -225,38 +238,17 @@ const StaffManagement = () => {
                                          }}
                                      />
                                 </div>
-                                <div>
-                                    <label className="label">Employee ID</label>
-                                    <input
-                                        className="input"
-                                        id="staff-id"
-                                        name="employee_id"
-                                        placeholder="Auto if empty"
-                                        autoComplete="off"
-                                        value={formData.employee_id || ''}
-                                        onChange={e => setFormData({ ...formData, employee_id: e.target.value.toUpperCase() })}
-                                    />
-                                </div>
-                            </div>
-                                <div>
+                                <div className={isEditing ? "col-span-2" : "col-span-1"}>
                                     <label className="label">Role <span className="text-red-500">*</span></label>
                                     <input
                                         className="input"
                                         id="staff-role"
                                         name="role"
-                                        placeholder="Role (e.g., Clerk, Peon)"
+                                        placeholder="Role (e.g., Clerk)"
                                         required
-                                        pattern="[A-Za-z\s]+"
-                                        title="Letters and spaces only"
                                         autoComplete="off"
                                         value={formData.role}
-                                        onCopy={e => e.preventDefault()}
-                                        onPaste={e => e.preventDefault()}
-                                        onChange={e => {
-                                            if (/^[A-Za-z\s]*$/.test(e.target.value)) {
-                                                setFormData({ ...formData, role: e.target.value });
-                                            }
-                                        }}
+                                        onChange={e => setFormData({ ...formData, role: e.target.value })}
                                     />
                                 </div>
                             </div>
@@ -335,6 +327,26 @@ const StaffManagement = () => {
                                         onChange={e => setFormData({ ...formData, salary_per_month: e.target.value })}
                                     />
                                     <p className="text-xs text-slate-500 mt-1">Daily rate: ₹{formData.salary_per_month ? (parseFloat(formData.salary_per_month) / 26).toFixed(2) : '0'}/day</p>
+                                </div>
+                                <div className="col-span-1 flex flex-col justify-center gap-2 mt-[1rem]">
+                                    <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-200">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-colors"
+                                            checked={formData.library_access}
+                                            onChange={e => setFormData({ ...formData, library_access: e.target.checked })}
+                                        />
+                                        <span className="text-sm font-semibold text-slate-700">Allow Library Access</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-200">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 transition-colors"
+                                            checked={formData.hostel_access}
+                                            onChange={e => setFormData({ ...formData, hostel_access: e.target.checked })}
+                                        />
+                                        <span className="text-sm font-semibold text-slate-700">Allow Hostel Access</span>
+                                    </label>
                                 </div>
                             </div>
                             <textarea

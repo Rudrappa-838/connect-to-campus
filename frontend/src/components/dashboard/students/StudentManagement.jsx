@@ -44,6 +44,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
         email: '',
         address: '',
         attendance_id: '',
+        roll_number: '',
         admission_date: new Date().toISOString().split('T')[0]
     });
 
@@ -303,6 +304,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             email: student.email || '',
             address: student.address || '',
             attendance_id: student.attendance_id || '',
+            roll_number: student.roll_number || '',
             admission_date: student.admission_date ? student.admission_date.split('T')[0] : ''
         });
         setShowModal(true);
@@ -330,6 +332,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             email: '',
             address: '',
             attendance_id: autoAttendanceId, // Auto preset
+            roll_number: '',
             admission_date: new Date().toISOString().split('T')[0]
         });
         setShowModal(true);
@@ -337,89 +340,136 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
 
     const handlePrint = () => {
         const className = config.classes?.find(c => c.class_id === parseInt(filterClass))?.class_name || 'All Classes';
-        const sectionName = config.classes?.find(c => c.class_id === parseInt(filterClass))?.sections?.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
+        const sectionName = availableSections?.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
 
         const printContent = `
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="UTF-8">
-                <title>Student List - ${className} ${sectionName !== 'All Sections' ? '- ' + sectionName : ''}</title>
+                <title>Student Admission List - ${className} ${sectionName !== 'All Sections' ? '- ' + sectionName : ''}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body { 
-                        font-family: Arial, sans-serif; 
-                        padding: 20px; 
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                        padding: 30px; 
                         background: white;
+                        color: #1e293b;
+                    }
+                    .header {
+                        text-align: center;
+                        margin-bottom: 30px;
+                        border-bottom: 2px solid #4f46e5;
+                        padding-bottom: 20px;
                     }
                     h1 { 
-                        text-align: center; 
-                        color: #333; 
-                        font-size: 24px; 
-                        margin-bottom: 5px; 
+                        color: #1e2a78; 
+                        font-size: 28px; 
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        margin-bottom: 5px;
                     }
                     h2 { 
-                        text-align: center; 
-                        color: #666; 
+                        color: #64748b; 
                         font-size: 18px; 
-                        margin-top: 0; 
-                        margin-bottom: 20px; 
+                        margin-bottom: 10px;
+                    }
+                    .info-bar {
+                        display: flex;
+                        justify-content: space-between;
+                        font-size: 12px;
+                        font-weight: bold;
+                        color: #475569;
+                        margin-bottom: 10px;
                     }
                     table { 
                         width: 100%; 
                         border-collapse: collapse; 
-                        margin-top: 20px; 
+                        margin-top: 10px;
+                        table-layout: fixed;
                     }
                     th, td { 
-                        border: 1px solid #ddd; 
-                        padding: 12px; 
+                        border: 1px solid #e2e8f0; 
+                        padding: 10px 8px; 
                         text-align: left; 
+                        font-size: 11px;
+                        word-wrap: break-word;
                     }
                     th { 
                         background-color: #4f46e5; 
                         color: white; 
-                        font-weight: bold; 
+                        font-weight: bold;
+                        text-transform: uppercase;
+                        font-size: 10px;
                     }
                     tr:nth-child(even) { 
-                        background-color: #f9f9f9; 
+                        background-color: #f8fafc; 
                     }
+                    .demo-cell { line-height: 1.4; }
+                    .demo-label { color: #64748b; font-weight: normal; font-size: 9px; }
                     .footer { 
                         text-align: center; 
-                        margin-top: 30px; 
-                        font-size: 12px; 
-                        color: #666; 
+                        margin-top: 40px; 
+                        font-size: 11px; 
+                        color: #94a3b8;
+                        border-top: 1px solid #e2e8f0;
+                        padding-top: 20px;
                     }
                     @media print {
-                        body { padding: 10px; }
-                        @page { margin: 1cm; }
+                        body { padding: 0; }
+                        @page { 
+                            margin: 1.5cm; 
+                            size: landscape; 
+                        }
+                        th { -webkit-print-color-adjust: exact; }
                     }
                 </style>
             </head>
             <body>
-                <h1>Student List</h1>
-                <h2>${className}${sectionName !== 'All Sections' ? ' - ' + sectionName : ''}</h2>
+                <div class="header">
+                    <h1>Student Admission List</h1>
+                    <h2>${className} ${sectionName !== 'All Sections' ? ' - ' + sectionName : ''}</h2>
+                </div>
+                <div class="info-bar">
+                    <span>Total Students: ${students.length}</span>
+                    <span>Printed on: ${new Date().toLocaleDateString('en-GB')}</span>
+                </div>
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 20%;">Roll No.</th>
-                            <th style="width: 80%;">Student Name</th>
+                            <th style="width: 60px;">Roll No</th>
+                            <th style="width: 100px;">Admission ID</th>
+                            <th style="width: 180px;">Student Full Name</th>
+                            <th style="width: 150px;">Demographics</th>
+                            <th>Parents / Contact</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${students.map(student => `
                             <tr>
-                                <td>${student.roll_number || '-'}</td>
-                                <td>${student.name}</td>
+                                <td style="text-align: center; font-weight: bold;">${student.roll_number || '-'}</td>
+                                <td style="font-family: monospace;">${student.admission_no}</td>
+                                <td style="font-weight: bold; font-size: 12px;">${student.name}</td>
+                                <td class="demo-cell">
+                                    <div><span class="demo-label">Gender:</span> ${student.gender || '-'}</div>
+                                    <div><span class="demo-label">DOB:</span> ${student.dob ? new Date(student.dob).toLocaleDateString('en-GB') : '-'}</div>
+                                    <div><span class="demo-label">Age:</span> ${student.age || '-'} Yrs</div>
+                                </td>
+                                <td class="demo-cell">
+                                    <div style="font-weight: bold;">F: ${student.father_name || '-'}</div>
+                                    <div style="color: #4f46e5; border-top: 1px solid #f1f5f9; margin-top: 4px; padding-top: 2px;">📞 ${student.contact_number || '-'}</div>
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
                 <div class="footer">
-                    <p>Printed on: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p>School Management System - Official Admission Record</p>
                 </div>
                 <script>
                     window.onload = function() {
                         window.print();
+                        setTimeout(() => window.close(), 500);
                     }
                 </script>
             </body>
@@ -898,25 +948,36 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                         </div>
                         <form onSubmit={handleSubmit} autoComplete="off" className="p-6 grid grid-cols-2 gap-4 overflow-y-auto">
 
-                            {/* Personal Details */}
                             <div className="col-span-2">
-                                <h3 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-3">Personal Details</h3>
+                                <h3 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-3">System Identifiers</h3>
                                 <div className="grid grid-cols-3 gap-4 mb-4">
                                     <div className="col-span-1">
-                                        <label className="label">Admission No (Student ID)</label>
+                                        <label className="label">Roll Number</label>
                                         <input
+                                            type="number"
                                             className="input"
-                                            id="student-id"
-                                            name="admission_no"
+                                            id="student-roll-no"
+                                            name="roll_number"
                                             placeholder="Auto if empty"
                                             autoComplete="off"
-                                            value={formData.admission_no || ''}
-                                            onChange={e => setFormData({ ...formData, admission_no: e.target.value.toUpperCase() })}
+                                            value={formData.roll_number || ''}
+                                            onChange={e => setFormData({ ...formData, roll_number: e.target.value })}
                                         />
                                     </div>
-                                    <div className="col-span-2">
-                                        <p className="text-[11px] text-slate-400 mt-6 italic">* Student ID will be automatically generated if left empty.</p>
-                                    </div>
+                                    {isEditing && (
+                                        <div className="col-span-1">
+                                            <label className="label">Admission No (Student ID)</label>
+                                            <input
+                                                className="input bg-slate-50"
+                                                readOnly
+                                                id="student-id"
+                                                name="admission_no"
+                                                placeholder="Admission No"
+                                                autoComplete="off"
+                                                value={formData.admission_no || ''}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

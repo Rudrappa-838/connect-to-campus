@@ -19,7 +19,8 @@ const TeacherManagement = ({ config }) => {
     const [formData, setFormData] = useState({
         name: '', email: '', phone: '', subject_specialization: '',
         gender: '', address: '', join_date: new Date().toISOString().split('T')[0],
-        assign_class_id: '', assign_section_id: '', salary_per_day: '', salary_per_month: ''
+        assign_class_id: '', assign_section_id: '', salary_per_day: '', salary_per_month: '',
+        employee_id: ''
     });
     const [selectedId, setSelectedId] = useState(null);
 
@@ -124,7 +125,8 @@ const TeacherManagement = ({ config }) => {
             gender: '', address: '', join_date: new Date().toISOString().split('T')[0],
             assign_class_id: prev.assign_class_id,
             assign_section_id: prev.assign_section_id,
-            salary_per_day: '', salary_per_month: ''
+            salary_per_day: '', salary_per_month: '',
+            employee_id: ''
         }));
         setShowModal(true);
     };
@@ -222,6 +224,7 @@ const TeacherManagement = ({ config }) => {
                                                         const monthlySalary = t.salary_per_day ? (parseFloat(t.salary_per_day) * 26).toFixed(0) : '0';
                                                         setFormData({ 
                                                             ...t, 
+                                                            join_date: t.join_date ? t.join_date.split('T')[0] : '',
                                                             assign_class_id: t.assigned_class_id || '', 
                                                             assign_section_id: t.assigned_section_id || '', 
                                                             salary_per_month: monthlySalary 
@@ -253,7 +256,18 @@ const TeacherManagement = ({ config }) => {
                         <h3 className="text-lg font-bold mb-4">{isEditing ? 'Edit Teacher' : 'Add Teacher'}</h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="col-span-1">
+                                {isEditing && (
+                                    <div className="col-span-1">
+                                        <label className="label">Employee ID</label>
+                                        <input
+                                            className="input bg-slate-50"
+                                            readOnly
+                                            autoComplete="off"
+                                            value={formData.employee_id || ''}
+                                        />
+                                    </div>
+                                )}
+                                <div className={isEditing ? "col-span-1" : "col-span-2"}>
                                     <label className="label">Full Name <span className="text-red-500">*</span></label>
                                     <input
                                         className="input"
@@ -272,18 +286,6 @@ const TeacherManagement = ({ config }) => {
                                                 setFormData({ ...formData, name: e.target.value });
                                             }
                                         }}
-                                    />
-                                </div>
-                                <div className="col-span-1">
-                                    <label className="label">Employee ID (e.g. T1234)</label>
-                                    <input
-                                        className="input"
-                                        id="teacher-id"
-                                        name="employee_id"
-                                        placeholder="Auto-generated if empty"
-                                        autoComplete="off"
-                                        value={formData.employee_id || ''}
-                                        onChange={e => setFormData({ ...formData, employee_id: e.target.value.toUpperCase() })}
                                     />
                                 </div>
                             </div>

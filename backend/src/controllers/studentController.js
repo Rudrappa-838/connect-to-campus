@@ -71,14 +71,28 @@ exports.addStudent = async (req, res) => {
         }
 
         // Logic to get roll number (handle null section)
-        let rollCheck;
-        if (safe_section_id) {
-            rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id = $2', [class_id, safe_section_id]);
+        let roll_number = req.body.roll_number;
+        
+        if (roll_number) {
+            // Check if this roll number is already taken in this class/section
+            let rollDup;
+            if (safe_section_id) {
+                rollDup = await client.query('SELECT id FROM students WHERE class_id = $1 AND section_id = $2 AND roll_number = $3 AND school_id = $4 AND (status IS NULL OR status != \'Deleted\')', [class_id, safe_section_id, roll_number, school_id]);
+            } else {
+                rollDup = await client.query('SELECT id FROM students WHERE class_id = $1 AND section_id IS NULL AND roll_number = $2 AND school_id = $3 AND (status IS NULL OR status != \'Deleted\')', [class_id, roll_number, school_id]);
+            }
+            if (rollDup.rows.length > 0) {
+                return res.status(400).json({ message: `Roll Number ${roll_number} is already assigned in this class.` });
+            }
         } else {
-            rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id IS NULL', [class_id]);
+            let rollCheck;
+            if (safe_section_id) {
+                rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id = $2 AND (status IS NULL OR status != \'Deleted\')', [class_id, safe_section_id]);
+            } else {
+                rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id IS NULL AND (status IS NULL OR status != \'Deleted\')', [class_id]);
+            }
+            roll_number = (parseInt(rollCheck.rows[0].max_roll) || 0) + 1;
         }
-
-        const roll_number = (rollCheck.rows[0].max_roll || 0) + 1;
 
         // 1. Insert Student
         const result = await client.query(
@@ -499,7 +513,7 @@ exports.updateStudent = async (req, res) => {
             name, gender, dob, age,
             class_id, section_id,
             father_name, mother_name, contact_number, email, address,
-            attendance_id, admission_date, status, admission_no
+            attendance_id, admission_date, status, admission_no, roll_number
         } = req.body;
 
         const safe_section_id = (section_id === '' || section_id === 'null' || section_id === undefined) ? null : section_id;
@@ -537,16 +551,30 @@ exports.updateStudent = async (req, res) => {
             }
         }
 
+        // Duplicate Check for Roll Number
+        if (roll_number) {
+            let rollDup;
+            if (safe_section_id) {
+                rollDup = await pool.query('SELECT id FROM students WHERE class_id = $1 AND section_id = $2 AND roll_number = $3 AND school_id = $4 AND id != $5 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, safe_section_id, roll_number, req.user.schoolId, id]);
+            } else {
+                rollDup = await pool.query('SELECT id FROM students WHERE class_id = $1 AND section_id IS NULL AND roll_number = $2 AND school_id = $3 AND id != $4 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, roll_number, req.user.schoolId, id]);
+            }
+            if (rollDup.rows.length > 0) {
+                return res.status(400).json({ message: `Roll Number ${roll_number} is already assigned to another student in this class.` });
+            }
+        }
+
         const result = await pool.query(
             `UPDATE students SET 
             name = $1, gender = $2, dob = $3, age = $4, class_id = $5, section_id = $6, 
             father_name = $7, mother_name = $8, contact_number = $9, email = $10, address = $11, attendance_id = $12, admission_date = $13,
-            first_name = $14, last_name = $15, status = $16, admission_no = COALESCE($19, admission_no)
+            first_name = $14, last_name = $15, status = $16, admission_no = COALESCE($19, admission_no),
+            roll_number = COALESCE($20, roll_number)
             WHERE id = $17 AND school_id = $18 RETURNING *`,
             [name, gender, safe_dob, safe_age, safe_class_id, safe_section_id,
                 father_name, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date,
                 first_name, last_name, status,
-                id, req.user.schoolId, safe_admission_no]
+                id, req.user.schoolId, safe_admission_no, roll_number]
         );
 
         if (result.rows.length === 0) {

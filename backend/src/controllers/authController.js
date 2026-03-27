@@ -31,7 +31,7 @@ const login = async (req, res) => {
                 const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id = $1', [email]);
                 if (tRes.rows.length > 0) checkEmails.push(tRes.rows[0].email);
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) { // Staff roles
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(role)) { // Staff roles
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
@@ -76,9 +76,10 @@ const login = async (req, res) => {
         }
 
         // Role verification (Redundant due to SQL filter but good for safety/custom logic)
+        const STAFF_SUB_ROLES = ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'];
         if (role) {
-            if (role === 'STAFF') {
-                // strict check if needed
+            if (STAFF_SUB_ROLES.includes(role) && STAFF_SUB_ROLES.includes(user.role)) {
+                // Allowed: Any staff sub-role can log in as STAFF or vice-versa
             } else if (user.role !== role) {
                 return res.status(403).json({ message: `Access denied. You are not a ${role}` });
             }
@@ -147,13 +148,17 @@ const login = async (req, res) => {
             }
             if (tRes.rows.length > 0) linkedId = tRes.rows[0].id;
 
-        } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(user.role)) {
-            let stRes = await pool.query('SELECT id FROM staff WHERE school_id = $1 AND email = $2', [user.school_id, user.email]);
+        } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(user.role)) {
+            let stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE school_id = $1 AND email = $2', [user.school_id, user.email]);
             if (stRes.rows.length === 0) {
                 const potentialEmpId = user.email.split('@')[0];
-                stRes = await pool.query('SELECT id FROM staff WHERE school_id = $1 AND employee_id = $2', [user.school_id, potentialEmpId]);
+                stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE school_id = $1 AND employee_id = $2', [user.school_id, potentialEmpId]);
             }
-            if (stRes.rows.length > 0) linkedId = stRes.rows[0].id;
+            if (stRes.rows.length > 0) {
+                linkedId = stRes.rows[0].id;
+                user.library_access = stRes.rows[0].library_access;
+                user.hostel_access = stRes.rows[0].hostel_access;
+            }
         }
 
         // Generate Token
@@ -195,6 +200,8 @@ const login = async (req, res) => {
                 role: user.role,
                 schoolId: user.school_id,
                 institutionType: schoolType,
+                libraryAccess: user.library_access || user.role === 'LIBRARIAN' || false,
+                hostelAccess: user.hostel_access || user.role === 'WARDEN' || false,
                 mustChangePassword: user.must_change_password || false
             }
         });

@@ -7,7 +7,7 @@ exports.addStaff = async (req, res) => {
     const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
-        const { name, email, phone, role, gender, address, join_date, salary_per_day } = req.body;
+        const { name, email, phone, role, gender, address, join_date, salary_per_day, library_access, hostel_access } = req.body;
 
         await client.query('BEGIN');
 
@@ -64,9 +64,9 @@ exports.addStaff = async (req, res) => {
         }
 
         const result = await client.query(
-            `INSERT INTO staff (school_id, name, email, phone, role, gender, address, join_date, employee_id, salary_per_day)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-            [school_id, name, email, phone, role, gender, address, join_date || new Date(), employee_id, salary_per_day || 0]
+            `INSERT INTO staff (school_id, name, email, phone, role, gender, address, join_date, employee_id, salary_per_day, library_access, hostel_access)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+            [school_id, name, email, phone, role, gender, address, join_date || new Date(), employee_id, salary_per_day || 0, library_access || false, hostel_access || false]
         );
 
         // Create User Login
@@ -78,8 +78,7 @@ exports.addStaff = async (req, res) => {
         // But if I create user as STAFF, it's safer. However, preserving specific role is better.
         // Let's use the provided role if it matches enum, or default to STAFF. 
         // Actually, users table 'role' column likely supports 'STAFF', 'DRIVER'.
-        // Let's just uppercase the role input.
-        const userRole = ['DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role.toUpperCase()) ? role.toUpperCase() : 'STAFF';
+        const userRole = ['DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(role.toUpperCase()) ? role.toUpperCase() : 'STAFF';
 
         let userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, userRole]);
         if (userCheck.rows.length > 0) {
@@ -134,7 +133,7 @@ exports.updateStaff = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { name, email, phone, role, gender, address, join_date, salary_per_day, employee_id } = req.body;
+        const { name, email, phone, role, gender, address, join_date, salary_per_day, employee_id, library_access, hostel_access } = req.body;
 
         await client.query('BEGIN');
 
@@ -197,11 +196,11 @@ exports.updateStaff = async (req, res) => {
 
         const result = await client.query(
             `UPDATE public.staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
-             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id)
+             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id), library_access = $14, hostel_access = $15
              WHERE id = $11 AND school_id = $12 RETURNING *`,
             [name, email, phone, role, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
-                id, school_id, employee_id]
+                id, school_id, employee_id, library_access || false, hostel_access || false]
         );
 
         if (result.rows.length === 0) {
