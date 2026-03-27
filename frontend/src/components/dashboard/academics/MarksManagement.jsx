@@ -572,8 +572,17 @@ const MarksManagement = ({ config }) => {
         window.print();
     };
 
-    // Filter subjects to show only those in the Exam Schedule
+    // Ensure we also show subjects that already have marks, even if the schedule was deleted.
     const scheduledSubjectIds = new Set(examSchedule?.map(s => parseInt(s.subject_id)) || []);
+    
+    // Add subjects from existing marks so columns don't disappear if schedule is deleted later
+    Object.keys(marks).forEach(key => {
+        const [studentId, subjectId] = key.split('-');
+        if (subjectId) {
+            scheduledSubjectIds.add(parseInt(subjectId));
+        }
+    });
+
     const displaySubjects = subjects.filter(sub => scheduledSubjectIds.has(parseInt(sub.id)));
 
     return (
@@ -628,8 +637,8 @@ const MarksManagement = ({ config }) => {
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm"
                             disabled={!selectedClass}
                         >
-                            <option value="">{scheduledExams.length === 0 ? (selectedClass ? 'No Scheduled Exams' : 'Select Class First') : 'Select Exam'}</option>
-                            {scheduledExams.map(e => (
+                            <option value="">{examTypes.length === 0 ? 'Loading...' : 'Select Exam'}</option>
+                            {examTypes.map(e => (
                                 <option key={e.id} value={e.id}>
                                     {e.name}
                                 </option>

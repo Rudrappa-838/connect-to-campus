@@ -110,9 +110,9 @@ const Login = () => {
                 // window.alert('Login Success! Redirecting...'); // Uncomment if desperate for visual confirmation
 
                 // Check for must_change_password flag from backend
-                if (result.user?.mustChangePassword) {
-                    toast('Please set a new password for security.', { icon: '🔒' });
-                    navigate('/change-password', { state: { email, role, oldPassword: passwordVal } });
+                if (result.requiresPasswordChange || result.user?.mustChangePassword) {
+                    toast('Please set a new password for security.', { icon: '🔒', duration: 4000 });
+                    navigate('/change-password', { state: { email: emailVal, role, oldPassword: passwordVal } });
                     return;
                 }
 

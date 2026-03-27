@@ -168,7 +168,13 @@ export const AuthProvider = ({ children }) => {
     const login = async (email, password, role) => {
         try {
             const response = await api.post('/auth/login', { email, password, role });
-            const { token, user } = response.data;
+            const { token, user: loggedInUser } = response.data;
+
+            // If user must change password, DO NOT log them in globally yet.
+            // Just return the signal so Login.jsx can redirect them.
+            if (loggedInUser.mustChangePassword) {
+                return { success: true, user: loggedInUser, requiresPasswordChange: true };
+            }
 
             // CRITICAL: Set token in memory immediately to prevent race condition
             setAuthToken(token);
@@ -176,33 +182,33 @@ export const AuthProvider = ({ children }) => {
             // Save to correct storage based on role:
             // Admin → sessionStorage (cleared on browser close)
             // Others → persistent storage (localStorage / Capacitor Preferences)
-            await setStorageItem('token', token, user.role);
-            await setStorageItem('user', JSON.stringify(user), user.role);
+            await setStorageItem('token', token, loggedInUser.role);
+            await setStorageItem('user', JSON.stringify(loggedInUser), loggedInUser.role);
 
-            setUser(user);
+            setUser(loggedInUser);
 
             // Start inactivity timer for admin roles on web
-            if (isAdminRole(user.role) && !Capacitor.isNativePlatform()) {
-                resetInactivityTimer(user);
+            if (isAdminRole(loggedInUser.role) && !Capacitor.isNativePlatform()) {
+                resetInactivityTimer(loggedInUser);
             }
 
             // Register for Push Notifications on Native platform
             if (Capacitor.isNativePlatform()) {
-                registerPushNotifications(user.id);
+                registerPushNotifications(loggedInUser.id);
             }
 
             // Broadcast login to other tabs (web only) - kills old sessions for admins
             if (!Capacitor.isNativePlatform()) {
                 try {
                     const channel = new BroadcastChannel('school_auth_channel');
-                    channel.postMessage({ type: 'LOGIN_SUCCESS', userId: user.id, role: user.role });
+                    channel.postMessage({ type: 'LOGIN_SUCCESS', userId: loggedInUser.id, role: loggedInUser.role });
                     channel.close();
                 } catch (bcError) {
                     console.warn('BroadcastChannel suppressed:', bcError);
                 }
             }
 
-            return { success: true, user };
+            return { success: true, user: loggedInUser };
         } catch (error) {
             console.error("Login failed", error);
 

@@ -445,7 +445,6 @@ const ExpenditureManagement = () => {
                                             <option value="Supplies">Supplies</option>
                                             <option value="Utilities">Utilities</option>
                                             <option value="Salary">Salary</option>
-                                            <option value="Salary">Salary</option>
                                             <option value="Custom">+ Custom Category</option>
                                         </select>
                                     </div>

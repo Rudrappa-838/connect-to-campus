@@ -9,7 +9,7 @@ router.post('/forgot-password', forgotPassword);
 router.post('/get-user-details', getUserDetails);
 router.post('/verify-otp', verifyOTP);
 router.post('/reset-password', resetPassword);
-router.post('/change-password', authenticateToken, changePassword);
+router.post('/change-password', changePassword);
 router.post('/register-fcm', authenticateToken, registerFcmToken);
 router.post('/register-fcm', authenticateToken, registerFcmToken);
 router.post('/setup-admin', require('../controllers/authController').setupSuperAdmin);

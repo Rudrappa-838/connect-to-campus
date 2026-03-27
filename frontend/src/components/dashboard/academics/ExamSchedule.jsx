@@ -568,49 +568,56 @@ const ExamSchedule = () => {
         <div className="h-full flex flex-col space-y-4">
             {/* Header / Selection */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 print:hidden">
-                <div className="flex flex-wrap items-end gap-6">
-                    <div className="min-w-[250px] flex-1">
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Select Exam Type</label>
-                        <div className="flex gap-2">
-                            <select
-                                value={selectedExam}
-                                onChange={(e) => setSelectedExam(e.target.value)}
-                                className="flex-grow px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 min-w-[150px]"
-                            >
-                                <option value="">-- Select Exam --</option>
-                                {examTypes.map(type => (
-                                    <option key={type.id} value={type.id}>{type.name}</option>
-                                ))}
-                            </select>
-                            <button
-                                onClick={openEditModal}
-                                disabled={!selectedExam}
-                                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-2 rounded-lg font-bold flex-shrink-0"
-                                title="Edit Exam Type"
-                            >
-                                <Edit2 size={18} />
-                            </button>
-                            <button
-                                onClick={() => setShowAddExamModal(true)}
-                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg font-bold flex-shrink-0"
-                                title="Add New Exam Type"
-                            >
-                                <Plus size={18} />
-                            </button>
-                            <button
-                                onClick={handleDeleteExamType}
-                                disabled={!selectedExam}
-                                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-3 py-2 rounded-lg font-bold flex-shrink-0"
-                                title="Delete Exam Type"
-                            >
-                                <Trash2 size={18} />
-                            </button>
-                        </div>
+                {/* Row 1: Exam Type Selector */}
+                <div className="flex flex-wrap items-end gap-3 mb-3">
+                    <div className="flex-1 min-w-[180px]">
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Exam Type</label>
+                        <select
+                            value={selectedExam}
+                            onChange={(e) => setSelectedExam(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+                        >
+                            <option value="">-- Select Exam --</option>
+                            {examTypes.map(type => (
+                                <option key={type.id} value={type.id}>{type.name}</option>
+                            ))}
+                        </select>
                     </div>
+                    {/* Exam Type Action Buttons */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                            onClick={openEditModal}
+                            disabled={!selectedExam}
+                            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-sm font-bold transition-all"
+                            title="Edit Exam Type"
+                        >
+                            <Edit2 size={15} /> <span className="hidden sm:inline">Edit</span>
+                        </button>
+                        <button
+                            onClick={() => setShowAddExamModal(true)}
+                            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-bold transition-all"
+                            title="Add New Exam Type"
+                        >
+                            <Plus size={15} /> <span className="hidden sm:inline">New Exam</span>
+                        </button>
+                        <button
+                            onClick={handleDeleteExamType}
+                            disabled={!selectedExam}
+                            className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-sm font-bold transition-all"
+                            title="Delete Exam Type"
+                        >
+                            <Trash2 size={15} /> <span className="hidden sm:inline">Delete</span>
+                        </button>
+                    </div>
+                </div>
 
-                    {/* Class Selector */}
-                    <div className={`min-w-[200px] flex-1 ${!selectedExam || (schedule.length > 0 && schedule.some(s => !s.data_new)) ? 'opacity-50 pointer-events-none' : ''}`}>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Target Classes</label>
+                {/* Divider */}
+                <div className="border-t border-slate-100 my-2" />
+
+                {/* Row 2: Target Classes + Action Buttons */}
+                <div className="flex flex-wrap items-end gap-3">
+                    <div className={`flex-1 min-w-[200px] ${!selectedExam || (schedule.length > 0 && schedule.some(s => !s.data_new)) ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Classes</label>
                         <ClassMultiSelector
                             classes={classes}
                             onAdd={(cls) => setTargetClasses([...targetClasses, cls])}
@@ -619,43 +626,43 @@ const ExamSchedule = () => {
                         />
                     </div>
 
-                    <div className="flex gap-2 print:hidden">
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-2 flex-shrink-0 print:hidden">
                         <button
                             onClick={() => setShowAutoModal(true)}
                             disabled={!selectedExam || (schedule.length > 0 && schedule.some(s => !s.data_new))}
-                            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
-                            title={!selectedExam ? "Please select an exam type first" : (schedule.length > 0 && schedule.some(s => !s.data_new)) ? "Schedule already exists for this exam" : "Auto Generate Schedule"}
+                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                            title={!selectedExam ? "Select an exam type first" : (schedule.length > 0 && schedule.some(s => !s.data_new)) ? "Schedule already exists" : "Auto Generate Schedule"}
                         >
-                            <RefreshCw size={18} /> Auto Generate
+                            <RefreshCw size={16} /> Auto Generate
                         </button>
                         {schedule.length > 0 && (
                             <button
                                 onClick={() => {
                                     setShowAddClassModal(true);
-                                    // Reset fields
                                     setSelectedNewClass('');
                                     setSelectedNewSection('');
                                 }}
                                 disabled={!selectedExam}
-                                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
-                                title={!selectedExam ? "Please select an exam type first" : "Add Class to Schedule"}
+                                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                                title="Add Class to Schedule"
                             >
-                                <Plus size={18} /> Add Class
+                                <Plus size={16} /> Add Class
                             </button>
                         )}
                         <button
                             onClick={handleSave}
                             disabled={schedule.length === 0 || loading}
-                            className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
+                            className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
                         >
-                            <Save size={18} /> Save
+                            <Save size={16} /> Save
                         </button>
                         <button
                             onClick={handlePrint}
                             disabled={schedule.length === 0}
-                            className="bg-slate-600 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
+                            className="flex items-center gap-2 bg-slate-600 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
                         >
-                            <Printer size={18} /> Download
+                            <Printer size={16} /> Print
                         </button>
                     </div>
                 </div>
