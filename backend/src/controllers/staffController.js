@@ -69,8 +69,8 @@ exports.addStaff = async (req, res) => {
             [school_id, name, email, phone, role, gender, address, join_date || new Date(), employee_id, salary_per_day || 0, library_access || false, hostel_access || false]
         );
 
-        // Create User Login
-        let loginEmail = email || `${employee_id}@staff.school.com`;
+        // Create User Login - Always Use Employee ID for Login
+        let loginEmail = employee_id.trim().toLowerCase();
         const defaultPassword = await bcrypt.hash('123456', 10);
 
         // Convert 'DRIVER' to 'STAFF' role for user table simplification, or keep DRIVER? 

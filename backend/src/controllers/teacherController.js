@@ -69,8 +69,8 @@ exports.addTeacher = async (req, res) => {
         );
         const newTeacher = result.rows[0];
 
-        // 3. Create Login for Teacher
-        let loginEmail = email || `${employee_id}@teacher.school.com`;
+        // 3. Create Login for Teacher - Always Use Employee ID for Login
+        let loginEmail = employee_id.trim().toLowerCase();
         const defaultPassword = await bcrypt.hash('123456', 10);
 
         let userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, 'TEACHER']);

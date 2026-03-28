@@ -105,8 +105,8 @@ exports.addStudent = async (req, res) => {
         );
         const newStudent = result.rows[0];
 
-        // 2. Create Login for Student
-        let loginEmail = email || `${admission_no.toLowerCase()}@student.school.com`;
+        // 2. Create Login for Student - Always Use Admission No as Login ID
+        let loginEmail = admission_no.trim().toLowerCase();
         const defaultPassword = await bcrypt.hash('123456', 10);
 
         // Check if user email already exists FOR THIS ROLE
@@ -367,8 +367,8 @@ exports.bulkUploadStudents = async (req, res) => {
                 );
                 console.log('Insert Success:', instRes.rows[0].id);
 
-                // Use provided email or fallback
-                let finalLoginEmail = email || `${admissionNo.toLowerCase()}@student.school.com`;
+                // Create User Login - Always Use Admission No as Login ID
+                let finalLoginEmail = admissionNo.trim().toLowerCase();
                 const defaultPassword = await bcrypt.hash('123456', 10);
 
                 // Check if user exists FOR THIS ROLE (idempotency)
