@@ -73,7 +73,7 @@ const createSchool = async (req, res) => {
         const hashedPassword = await bcrypt.hash(adminPassword, 10);
         await client.query(
             `INSERT INTO users (email, password, role, school_id, must_change_password) 
-             VALUES ($1, $2, 'SCHOOL_ADMIN', $3, TRUE)`,
+             VALUES ($1, $2, 'SCHOOL_ADMIN', $3, FALSE)`,
             [adminEmail, hashedPassword, schoolId]
         );
 

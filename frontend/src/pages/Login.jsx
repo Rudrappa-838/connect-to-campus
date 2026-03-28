@@ -110,7 +110,8 @@ const Login = () => {
                 // window.alert('Login Success! Redirecting...'); // Uncomment if desperate for visual confirmation
 
                 // Check for must_change_password flag from backend
-                if (result.requiresPasswordChange || result.user?.mustChangePassword) {
+                // ONLY for Student, Teacher, and Staff roles (per user request)
+                if ((result.requiresPasswordChange || result.user?.mustChangePassword) && !['SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(role)) {
                     toast('Please set a new password for security.', { icon: '🔒', duration: 4000 });
                     navigate('/change-password', { state: { email: emailVal, role, oldPassword: passwordVal } });
                     return;

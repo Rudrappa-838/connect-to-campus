@@ -172,7 +172,8 @@ export const AuthProvider = ({ children }) => {
 
             // If user must change password, DO NOT log them in globally yet.
             // Just return the signal so Login.jsx can redirect them.
-            if (loggedInUser.mustChangePassword) {
+            // ONLY for Student, Teacher, and Staff roles (per user request)
+            if (loggedInUser.mustChangePassword && !['SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(loggedInUser.role)) {
                 return { success: true, user: loggedInUser, requiresPasswordChange: true };
             }
 
