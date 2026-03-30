@@ -143,21 +143,34 @@ const login = async (req, res) => {
         } else if (user.role === 'TEACHER') {
             let tRes = await pool.query('SELECT id FROM teachers WHERE school_id = $1 AND email = $2', [user.school_id, user.email]);
             if (tRes.rows.length === 0) {
-                const potentialEmpId = user.email.split('@')[0];
-                tRes = await pool.query('SELECT id FROM teachers WHERE school_id = $1 AND employee_id = $2', [user.school_id, potentialEmpId]);
+                const potentialEmpId = (user.email || '').split('@')[0];
+                tRes = await pool.query('SELECT id FROM teachers WHERE school_id = $1 AND employee_id ILIKE $2', [user.school_id, potentialEmpId]);
             }
             if (tRes.rows.length > 0) linkedId = tRes.rows[0].id;
 
         } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(user.role)) {
-            let stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE school_id = $1 AND email = $2', [user.school_id, user.email]);
-            if (stRes.rows.length === 0) {
-                const potentialEmpId = user.email.split('@')[0];
-                stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE school_id = $1 AND employee_id = $2', [user.school_id, potentialEmpId]);
+            // First Priority: Use the linked_id stored directly in the users table
+            if (user.linked_id) {
+                const stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE id = $1 AND school_id = $2', [user.linked_id, user.school_id]);
+                if (stRes.rows.length > 0) {
+                    linkedId = stRes.rows[0].id;
+                    user.library_access = stRes.rows[0].library_access;
+                    user.hostel_access = stRes.rows[0].hostel_access;
+                }
             }
-            if (stRes.rows.length > 0) {
-                linkedId = stRes.rows[0].id;
-                user.library_access = stRes.rows[0].library_access;
-                user.hostel_access = stRes.rows[0].hostel_access;
+            
+            // Second Priority: Fallback to Email / Employee ID matching
+            if (!linkedId) {
+                let stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE school_id = $1 AND email = $2', [user.school_id, user.email]);
+                if (stRes.rows.length === 0) {
+                    const potentialEmpId = (user.email || '').split('@')[0];
+                    stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE school_id = $1 AND employee_id ILIKE $2', [user.school_id, potentialEmpId]);
+                }
+                if (stRes.rows.length > 0) {
+                    linkedId = stRes.rows[0].id;
+                    user.library_access = stRes.rows[0].library_access;
+                    user.hostel_access = stRes.rows[0].hostel_access;
+                }
             }
         }
 
@@ -227,7 +240,7 @@ const logout = async (req, res) => {
 };
 
 const changePassword = async (req, res) => {
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword, role } = req.body;
     let { email } = req.body;
 
     // Use authenticated user ID if available, otherwise rely on email/ID lookup
@@ -273,7 +286,16 @@ const changePassword = async (req, res) => {
 
             // Find user matching ANY of these emails
             const eRes = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[])', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase())]);
-            user = eRes.rows[0];
+            
+            if (role) {
+                if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(role)) {
+                    user = eRes.rows.find(u => ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(u.role));
+                } else {
+                    user = eRes.rows.find(u => u.role === role);
+                }
+            } else {
+                user = eRes.rows[0];
+            }
         }
 
         if (!user) return res.status(404).json({ message: 'User not found' });

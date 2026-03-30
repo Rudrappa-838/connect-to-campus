@@ -8,7 +8,8 @@ import { useAuth } from '../context/AuthContext';
 const ChangePassword = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { logout } = useAuth();
+    const { logout, login } = useAuth();
+    const role = location.state?.role;
 
     // Pre-fill from navigation state
     const [email, setEmail] = useState(location.state?.email || '');
@@ -76,15 +77,16 @@ const ChangePassword = () => {
         try {
             await axios.post('/auth/change-password', {
                 email: cleanEmail,
+                role: role || undefined,
                 oldPassword,
                 newPassword
             });
 
-            toast.success('Password set successfully! Please login again.');
+            toast.success('Password set successfully! Please login again with your new password.');
 
-            // Force logout
+            // Force logout and redirect to login page for manual login
             await logout();
-            navigate('/login');
+            window.location.href = '/login';
 
         } catch (error) {
             console.error(error);

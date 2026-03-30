@@ -8,7 +8,16 @@ import { Capacitor } from '@capacitor/core';
 
 const Welcome = ({ onComplete }) => {
     const { user, loading } = useAuth();
-    const [schoolName, setSchoolName] = useState('Connect to Campus');
+    const [schoolName, setSchoolName] = useState(() => {
+        const stored = localStorage.getItem('school_config');
+        if (stored) {
+            try {
+                const conf = JSON.parse(stored);
+                return conf.school_name || 'Connect to Campus';
+            } catch (e) {}
+        }
+        return 'Connect to Campus';
+    });
     const navigate = useNavigate();
     const hasNavigated = React.useRef(false);
 
@@ -55,14 +64,6 @@ const Welcome = ({ onComplete }) => {
         // Navigation after 5.5 seconds (Matches 5s Animation)
         const timeout = setTimeout(handleComplete, 5500);
 
-        // Fetch School Name
-        const storedConfig = localStorage.getItem('school_config');
-        if (storedConfig) {
-            try {
-                const conf = JSON.parse(storedConfig);
-                if (conf.school_name) setSchoolName(conf.school_name);
-            } catch (e) { }
-        }
 
         return () => clearTimeout(timeout);
     }, [loading, user, onComplete, navigate]);

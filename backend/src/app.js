@@ -140,6 +140,7 @@ route('years', 'academicYearRoutes');
 route('doubts', 'doubtRoutes');
 route('leaves', 'leaveRoutes');
 route('grades', 'gradeRoutes');
+route('student-reviews', 'studentReviewRoutes');
 route('debug', 'debugRoutes');
 
 // --- ADMS / Biometric Device Default Routes ---
@@ -155,8 +156,8 @@ app.all('/iclock/options', (req, res) => res.send('OK'));
 // Update MINIMUM_VERSION whenever you release a critical update
 // that ALL users MUST install. Users below this version will be
 // forced to update from the Play Store.
-const MINIMUM_APP_VERSION = 34; // Version Code (not name). Update this to force update.
-const LATEST_APP_VERSION = 34;  // Current latest version code.
+const MINIMUM_APP_VERSION = 35; // Version Code (not name). Update this to force update.
+const LATEST_APP_VERSION = 35;  // Current latest version code.
 
 app.get(['/api/app-version', '/app-version'], (req, res) => {
     res.json({

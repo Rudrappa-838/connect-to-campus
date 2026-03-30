@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Users, Calendar,
     LogOut, Bell, GraduationCap,
-    CheckSquare, Clock, Bus, MessageSquare, MapPin, BookOpen, Menu, X, Navigation
+    CheckSquare, Clock, Bus, MessageSquare, MapPin, BookOpen, Menu, X, Navigation, DollarSign, ClipboardList
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import api from '../api/axios';
@@ -22,6 +22,8 @@ import ViewAnnouncements from '../components/dashboard/calendar/ViewAnnouncement
 import RecentAnnouncements from '../components/dashboard/calendar/RecentAnnouncements';
 import AdminLiveMap from '../components/dashboard/admin/AdminLiveMap';
 import TeacherProfile from '../components/dashboard/teachers/TeacherProfile';
+import StudentManagement from '../components/dashboard/students/StudentManagement';
+import StudentReviewManagement from '../components/dashboard/students/StudentReviewManagement';
 import { MobileHeader, MobileFooter } from '../components/layout/MobileAppFiles';
 import { Capacitor } from '@capacitor/core';
 
@@ -163,11 +165,12 @@ const TeacherDashboard = () => {
                     <NavButton active={activeTab === 'attendance'} onClick={() => handleTabChange('attendance')} icon={CheckSquare} label="Mark Attendance" />
                     <NavButton active={activeTab === 'timetable'} onClick={() => handleTabChange('timetable')} icon={Calendar} label="My Timetable" />
                     <NavButton active={activeTab === 'doubts'} onClick={() => handleTabChange('doubts')} icon={MessageSquare} label="Student Doubts" />
+                    <NavButton active={activeTab === 'student-reviews'} onClick={() => handleTabChange('student-reviews')} icon={ClipboardList} label="Student Reviews" />
                     <NavButton active={activeTab === 'library'} onClick={() => handleTabChange('library')} icon={BookOpen} label="Library Books" />
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Personal</p>
                     <NavButton active={activeTab === 'my-attendance'} onClick={() => handleTabChange('my-attendance')} icon={Clock} label="My Attendance" />
-                    <NavButton active={activeTab === 'salary'} onClick={() => handleTabChange('salary')} icon={Users} label="My Salary" />
+                    <NavButton active={activeTab === 'salary'} onClick={() => handleTabChange('salary')} icon={DollarSign} label="My Salary" />
                     <NavButton active={activeTab === 'leaves'} onClick={() => handleTabChange('leaves')} icon={Clock} label="Leave Applications" />
                     <NavButton active={activeTab === 'fleet-map'} onClick={() => handleTabChange('fleet-map')} icon={Navigation} label="Live Fleet Map" />
 
@@ -278,6 +281,9 @@ const TeacherDashboard = () => {
                                 {activeTab === 'fleet-map' && <AdminLiveMap />}
 
                                 {activeTab === 'doubts' && <TeacherDoubts />}
+
+                                {activeTab === 'student-reviews' && <StudentReviewManagement />}
+
                                 {activeTab === 'library' && <TeacherLibraryStatus />}
                                 {activeTab === 'leaves' && <TeacherLeaveApplication />}
                                 {activeTab === 'announcements' && <ViewAnnouncements />}
@@ -297,9 +303,9 @@ const TeacherDashboard = () => {
                     onMenuToggle={() => setIsMobileMenuOpen(true)}
                     tabs={[
                         { id: 'overview', label: 'Home', icon: LayoutDashboard },
-                        { id: 'attendance', label: 'Class', icon: CheckSquare },
-                        { id: 'timetable', label: 'Time', icon: Calendar },
+                        { id: 'attendance', label: 'Attendance', icon: CheckSquare },
                         { id: 'doubts', label: 'Doubts', icon: MessageSquare },
+                        { id: 'student-reviews', label: 'Reviews', icon: Users },
                     ]}
                 />
             )}
@@ -451,6 +457,7 @@ const getTabTitle = (tab) => {
         case 'doubts': return 'Student Doubts & Questions';
         case 'library': return 'My Issued Books';
         case 'leaves': return 'Leave Applications';
+        case 'student-reviews': return 'Student Performance & Feedback';
         case 'calendar': return 'Academic Calendar';
         case 'announcements': return 'Announcements';
         case 'profile': return 'My Profile Settings';

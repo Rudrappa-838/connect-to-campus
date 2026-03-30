@@ -20,6 +20,7 @@ import StudentHostel from '../components/dashboard/students/StudentHostel';
 import StudentFees from '../components/dashboard/students/StudentFees';
 import StudentCertificates from '../components/dashboard/students/StudentCertificates';
 import StudentLeaves from '../components/dashboard/students/StudentLeaves';
+import StudentMyReviews from '../components/dashboard/students/StudentMyReviews';
 import ViewAnnouncements from '../components/dashboard/calendar/ViewAnnouncements';
 import AdminLiveMap from '../components/dashboard/admin/AdminLiveMap';
 import RecentAnnouncements from '../components/dashboard/calendar/RecentAnnouncements';
@@ -300,6 +301,7 @@ const StudentDashboard = () => {
                         label="Apply Leave"
                         badge={leaveNotifications.length}
                     />
+                    <NavButton active={activeTab === 'feedback'} onClick={() => handleTabChange('feedback')} icon={MessageSquare} label="Reviews & Feedback" />
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">General</p>
                     <NavButton id="btn-announcements" active={activeTab === 'announcements'} onClick={() => handleTabChange('announcements')} icon={Bell} label="Notice Board" />
@@ -381,6 +383,7 @@ const StudentDashboard = () => {
                         {activeTab === 'certificates' && <StudentCertificates student={studentData} schoolName={schoolName} />}
                         {activeTab === 'academics' && <StudentAcademics />}
                         {activeTab === 'attendance' && <StudentMyAttendance />}
+                        {activeTab === 'feedback' && <StudentMyReviews />}
                         {activeTab === 'announcements' && <ViewAnnouncements />}
                         {activeTab === 'calendar' && <SchoolCalendar />}
                     </div>
@@ -393,10 +396,10 @@ const StudentDashboard = () => {
                         onTabChange={setActiveTab}
                         onMenuToggle={() => setIsMobileMenuOpen(true)}
                         tabs={[
-                            { id: 'overview', label: 'Home', icon: LayoutDashboard },
-                            { id: 'academics', label: 'Academics', icon: BookOpen },
+                            { id: 'overview', label: 'Home', icon: Home },
+                            { id: 'fees', label: 'Fees', icon: DollarSign },
+                            { id: 'feedback', label: 'Reviews', icon: MessageSquare },
                             { id: 'attendance', label: 'Attendance', icon: CheckSquare },
-                            { id: 'doubts', label: 'Doubts', icon: MessageSquare },
                         ]}
                     />
                 )}
@@ -528,6 +531,7 @@ const getTabTitle = (tab) => {
         case 'attendance': return 'Attendance';
         case 'calendar': return 'Academic Calendar';
         case 'announcements': return 'Announcement';
+        case 'feedback': return 'Teacher Feedback';
         default: return 'Dashboard';
     }
 };

@@ -132,6 +132,21 @@ const startServer = async () => {
                         ALTER TABLE student_certificates ADD COLUMN IF NOT EXISTS deleted_student_name VARCHAR(255);
                         ALTER TABLE student_certificates ADD COLUMN IF NOT EXISTS deleted_student_admission_no VARCHAR(50);
                     END IF;
+
+                    -- Create student_reviews table for Teacher-Student individual feedback
+                    IF NOT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'student_reviews') THEN
+                        CREATE TABLE student_reviews (
+                            id SERIAL PRIMARY KEY,
+                            school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                            student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                            sender_id INTEGER NOT NULL, -- User ID of teacher or admin
+                            sender_role VARCHAR(50) NOT NULL, -- TEACHER or SCHOOL_ADMIN
+                            sender_name VARCHAR(255), 
+                            message TEXT NOT NULL,
+                            review_type VARCHAR(50) DEFAULT 'GENERAL', -- GENERAL, PERFORMANCE, DISCIPLINE
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                    END IF;
                 END $$;
             `);
             console.log('✅ Database schema verified.');

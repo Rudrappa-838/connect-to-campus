@@ -3,6 +3,8 @@ import { Filter, Plus, SortAsc, Edit2, Trash2, X, Printer, GraduationCap, Check,
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 import StudentPromotionModal from './StudentPromotionModal';
+import StudentReviewModal from './StudentReviewModal';
+import { MessageSquare as MessageIcon } from 'lucide-react';
 
 const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMode = 'active' }) => {
     const [students, setStudents] = useState([]);
@@ -22,6 +24,10 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
 
     const [loading, setLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Review Modal States
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [studentForReview, setStudentForReview] = useState(null);
 
     // Clear selection when filters change
     useEffect(() => {
@@ -851,9 +857,18 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         {viewMode === 'active' ? (
                                                             <>
-                                                                {!isPromotionView && (
-                                                                    <button onClick={() => handleEdit(student)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit"><Edit2 size={18} /></button>
-                                                                )}
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setStudentForReview(student);
+                                                                        setShowReviewModal(true);
+                                                                    }}
+                                                                    title="Direct Message / Review"
+                                                                    className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                >
+                                                                    <MessageIcon size={18} />
+                                                                </button>
+                                                                <button onClick={() => handleEdit(student)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit"><Edit2 size={18} /></button>
                                                                 <button onClick={() => handleDelete(student.id)} disabled={isSubmitting} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Move to Bin"><Trash2 size={18} /></button>
                                                             </>
                                                         ) : (
@@ -1222,6 +1237,11 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                     fetchStudents();
                     setSelectedStudents([]);
                 }}
+            />
+            <StudentReviewModal 
+                isOpen={showReviewModal}
+                onClose={() => setShowReviewModal(false)}
+                student={studentForReview}
             />
         </div>
     );

@@ -15,7 +15,7 @@ exports.getEvents = async (req, res) => {
             let audienceRole = '';
             if (role === 'STUDENT') audienceRole = 'Students';
             else if (role === 'TEACHER') audienceRole = 'Teachers';
-            else if (['STAFF', 'DRIVER', 'TRANSPORT_MANAGER'].includes(role)) audienceRole = 'Staff';
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN'].includes(role)) audienceRole = 'Staff';
 
             query += ` AND (audience = 'All' OR audience = $2)`;
             params.push(audienceRole);
@@ -140,7 +140,7 @@ exports.getAnnouncements = async (req, res) => {
             } else if (role === 'TEACHER') {
                 roleConditions.push("LOWER(a.target_role) = 'teacher'");
                 // Explicitly check for Teacher-targeted only
-            } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER'].includes(role)) {
+            } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN'].includes(role)) {
                 roleConditions.push("LOWER(a.target_role) = 'staff'");
             }
 
@@ -263,7 +263,7 @@ async function broadcastAnnouncement(item, school_id) {
         } else if (item.target_role === 'Staff' || item.target_role === 'staff') {
             const res = await pool.query(`
                 SELECT id FROM users 
-                WHERE school_id = $1 AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER')
+                WHERE school_id = $1 AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN')
             `, [school_id]);
             targetUsers = res.rows;
         } else if (item.target_role === 'Class' || item.target_role === 'class') {

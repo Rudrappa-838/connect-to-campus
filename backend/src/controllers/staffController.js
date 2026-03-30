@@ -396,34 +396,18 @@ exports.getMyAttendance = async (req, res) => {
         const user_email = req.user.email;
         const { month, year } = req.query;
 
-        // 1. Get Staff ID from User Email
-        // Robust matching: Case insensitive, trim spaces
-        const staffRes = await pool.query(
-            'SELECT id, email, name FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
-            [user_email, school_id]
-        );
+        let staff_id = req.user.linkedId;
 
-        if (staffRes.rows.length === 0) {
-            // FALLBACK: If email is auto-generated (e.g. EMPID@staff.school.com), try finding by Employee ID
-            if (user_email.endsWith('@staff.school.com')) {
-                const potentialEmpId = user_email.split('@')[0].toUpperCase();
-
-                const empIdRes = await pool.query(
-                    'SELECT id, email, name FROM staff WHERE employee_id = $1 AND school_id = $2',
-                    [potentialEmpId, school_id]
-                );
-
-                if (empIdRes.rows.length > 0) {
-                    staffRes.rows = empIdRes.rows; // Found it!
-                } else {
-                    return res.json([]); // Still not found
-                }
-            } else {
-                return res.json([]); // Not found and not auto-generated email
+        // Fallback if missing
+        if (!staff_id) {
+            let staffRes = await pool.query('SELECT id FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2', [user_email, school_id]);
+            if (staffRes.rows.length === 0) {
+                const potentialEmpId = user_email.includes('@') ? user_email.split('@')[0].toUpperCase() : user_email.toUpperCase();
+                staffRes = await pool.query('SELECT id FROM staff WHERE employee_id ILIKE $1 AND school_id = $2', [potentialEmpId, school_id]);
             }
+            if (staffRes.rows.length === 0) return res.json([]);
+            staff_id = staffRes.rows[0].id;
         }
-
-        const staff_id = staffRes.rows[0].id;
 
         // 2. Fetch Attendance
         const startDate = `${year}-${month}-01`;
@@ -459,6 +443,22 @@ exports.getProfile = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const user_email = req.user.email;
+        let staff_id = req.user.linkedId;
+
+        if (!staff_id) {
+            // Try email match first
+            let staffRes = await pool.query('SELECT id FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2', [user_email, school_id]);
+            if (staffRes.rows.length === 0) {
+                // Fallback: treat login email as employee_id (handles both DAD1234 and DAD1234@staff.school.com)
+                const potentialEmpId = user_email.includes('@') ? user_email.split('@')[0].toUpperCase() : user_email.toUpperCase();
+                staffRes = await pool.query('SELECT id FROM staff WHERE employee_id ILIKE $1 AND school_id = $2', [potentialEmpId, school_id]);
+            }
+            if (staffRes.rows.length > 0) staff_id = staffRes.rows[0].id;
+        }
+
+        if (!staff_id) {
+            return res.status(404).json({ message: 'Profile not found' });
+        }
 
         const query = `
             SELECT t.*, 
@@ -467,10 +467,10 @@ exports.getProfile = async (req, res) => {
             FROM staff t
             LEFT JOIN transport_routes tr ON t.transport_route_id = tr.id
             LEFT JOIN transport_vehicles tv ON tr.vehicle_id = tv.id
-            WHERE t.email = $1 AND t.school_id = $2
+            WHERE t.id = $1 AND t.school_id = $2
         `;
 
-        const result = await pool.query(query, [user_email, school_id]);
+        const result = await pool.query(query, [staff_id, school_id]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Profile not found' });
@@ -489,25 +489,17 @@ exports.getSalarySlips = async (req, res) => {
         const school_id = req.user.schoolId;
         const user_email = req.user.email;
 
-        // 1. Get Staff ID (Robust Match)
-        let staffRes = await pool.query(
-            'SELECT id FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
-            [user_email, school_id]
-        );
+        let staff_id = req.user.linkedId;
 
-        if (staffRes.rows.length === 0) {
-            if (user_email.endsWith('@staff.school.com')) {
-                const potentialEmpId = user_email.split('@')[0].toUpperCase();
-                const empIdRes = await pool.query(
-                    'SELECT id FROM staff WHERE employee_id = $1 AND school_id = $2',
-                    [potentialEmpId, school_id]
-                );
-                if (empIdRes.rows.length > 0) staffRes = empIdRes;
+        if (!staff_id) {
+            let staffRes = await pool.query('SELECT id FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2', [user_email, school_id]);
+            if (staffRes.rows.length === 0) {
+                const potentialEmpId = user_email.includes('@') ? user_email.split('@')[0].toUpperCase() : user_email.toUpperCase();
+                staffRes = await pool.query('SELECT id FROM staff WHERE employee_id ILIKE $1 AND school_id = $2', [potentialEmpId, school_id]);
             }
+            if (staffRes.rows.length === 0) return res.json([]);
+            staff_id = staffRes.rows[0].id;
         }
-
-        if (staffRes.rows.length === 0) return res.json([]);
-        const staff_id = staffRes.rows[0].id;
 
         // 2. Fetch Salary Records using the correct schema (employee_id + employee_type)
         const result = await pool.query(`

@@ -30,7 +30,7 @@ const ViewAnnouncements = () => {
                     if (target === 'All') return true;
                     if (userRole === 'STUDENT' && (target === 'Student' || target === 'Class')) return true;
                     if (userRole === 'TEACHER' && target === 'Teacher') return true;
-                    if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(userRole) && target === 'Staff') return true;
+                    if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN'].includes(userRole) && target === 'Staff') return true;
                     return false;
                 });
                 setAnnouncements(filtered);

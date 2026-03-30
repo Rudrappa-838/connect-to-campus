@@ -18,6 +18,7 @@ import StudentManagement from '../components/dashboard/students/StudentManagemen
 import StudentAttendanceMarking from '../components/dashboard/students/StudentAttendanceMarking';
 import DailyAttendanceStatus from '../components/dashboard/students/DailyAttendanceStatus';
 import StudentAttendanceReports from '../components/dashboard/students/StudentAttendanceReports';
+import StudentReviewManagement from '../components/dashboard/students/StudentReviewManagement';
 
 // Teacher Components
 import TeacherManagement from '../components/dashboard/teachers/TeacherManagement';
@@ -258,6 +259,7 @@ const SchoolAdminDashboard = () => {
                         onToggle={() => toggleSection('students')}
                     >
                         <NavSubButton active={activeTab === 'student-list'} onClick={() => handleTabChange('student-list')} label="Admission List" />
+                        <NavSubButton active={activeTab === 'student-reviews-admin'} onClick={() => handleTabChange('student-reviews-admin')} label="Student Reviews" />
                         <NavSubButton active={activeTab === 'student-promotion'} onClick={() => handleTabChange('student-promotion')} label="Promote Students" />
                         <NavSubButton active={activeTab === 'student-attendance'} onClick={() => handleTabChange('student-attendance')} label="Take Attendance" />
                         <NavSubButton active={activeTab === 'student-daily-status'} onClick={() => handleTabChange('student-daily-status')} label="Daily Status" />
@@ -500,6 +502,7 @@ const SchoolAdminDashboard = () => {
                     <div className="max-w-7xl mx-auto animate-in fade-in duration-300">
                         {activeTab === 'overview' && <Overview config={academicConfig} />}
                         {activeTab === 'student-list' && <StudentManagement key="student-list" config={academicConfig} prefillData={activeTabState} />}
+                        {activeTab === 'student-reviews-admin' && <StudentReviewManagement key="student-reviews" config={academicConfig} />}
                         {activeTab === 'student-promotion' && <StudentManagement key="student-promotion" config={academicConfig} isPromotionView={true} />}
                         {activeTab === 'student-bin' && <StudentManagement key="student-bin" config={academicConfig} defaultViewMode="bin" />}
                         {activeTab === 'admissions-crm' && <AdmissionCRM onNavigate={(tab, data) => { setActiveTab(tab); setActiveTabState(data); }} />}
@@ -560,6 +563,12 @@ const SchoolAdminDashboard = () => {
                         activeTab={activeTab}
                         onTabChange={setActiveTab}
                         onMenuToggle={() => setIsMobileMenuOpen(true)}
+                        tabs={[
+                            { id: 'overview', label: 'Home', icon: LayoutDashboard },
+                            { id: 'student-list', label: 'Students', icon: Users },
+                            { id: 'student-reviews-admin', label: 'Reviews', icon: MessageSquare },
+                            { id: 'fee-collection', label: 'Fees', icon: CreditCard },
+                        ]}
                     />
                 )}
             </div>
