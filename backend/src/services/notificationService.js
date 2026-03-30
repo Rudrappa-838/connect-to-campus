@@ -50,11 +50,13 @@ const sendPushNotification = async (recipientId, title, body, roleHint = null, a
             if (finalRole === 'Student') {
                 res = await client.query(`
                     SELECT u.id FROM users u 
-                    LEFT JOIN students s ON s.id = u.linked_id
+                    LEFT JOIN students s ON (s.id = u.linked_id OR LOWER(s.email) = LOWER(u.email))
                     WHERE u.role = 'STUDENT' 
                     AND (
                         (u.linked_id::text = $1) OR 
+                        (s.id::text = $1) OR
                         (s.admission_no ILIKE $1) OR 
+                        (u.email ILIKE $1 || '@student.school.com') OR
                         (LOWER(u.email) = LOWER($1))
                     )
                     LIMIT 1
@@ -62,11 +64,13 @@ const sendPushNotification = async (recipientId, title, body, roleHint = null, a
             } else if (finalRole === 'Teacher') {
                 res = await client.query(`
                     SELECT u.id FROM users u 
-                    LEFT JOIN teachers t ON t.id = u.linked_id
+                    LEFT JOIN teachers t ON (t.id = u.linked_id OR LOWER(t.email) = LOWER(u.email))
                     WHERE u.role = 'TEACHER' 
                     AND (
                         (u.linked_id::text = $1) OR 
+                        (t.id::text = $1) OR
                         (t.employee_id ILIKE $1) OR 
+                        (u.email ILIKE $1 || '@teacher.school.com') OR
                         (LOWER(u.email) = LOWER($1))
                     )
                     LIMIT 1
@@ -74,11 +78,13 @@ const sendPushNotification = async (recipientId, title, body, roleHint = null, a
             } else if (finalRole === 'Staff') {
                 res = await client.query(`
                     SELECT u.id FROM users u 
-                    LEFT JOIN staff st ON st.id = u.linked_id
+                    LEFT JOIN staff st ON (st.id = u.linked_id OR LOWER(st.email) = LOWER(u.email))
                     WHERE u.role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN') 
                     AND (
                         (u.linked_id::text = $1) OR 
+                        (st.id::text = $1) OR
                         (st.employee_id ILIKE $1) OR 
+                        (u.email ILIKE $1 || '@staff.school.com') OR
                         (LOWER(u.email) = LOWER($1))
                     )
                     LIMIT 1
