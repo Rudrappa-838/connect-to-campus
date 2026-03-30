@@ -39,49 +39,62 @@ const sendPushNotification = async (recipientId, title, body, roleHint = null, a
         // Default to Student if we assume numeric ID is a student (common case in this system)
         if (!finalRole) finalRole = 'Student';
 
-        // 0. Try direct User ID lookup first (Highest Priority)
-        if (recipientId && !isNaN(recipientId)) {
-            const directRes = await client.query('SELECT id, role FROM users WHERE id = $1', [recipientId]);
-            if (directRes.rows.length > 0) {
-                const u = directRes.rows[0];
-                const upperRole = u.role.toUpperCase();
-                const STAFF_ROLES = ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN'];
-                
-                if (!finalRole ||
-                    finalRole === 'DIRECT' ||
-                    finalRole === 'All' ||
-                    finalRole === 'Class' ||
-                    upperRole === finalRole.toUpperCase() ||
-                    (finalRole === 'Staff' && STAFF_ROLES.includes(upperRole))
-                ) {
-                    dbUserId = u.id;
-                    console.log(`[PUSH RESOLVE] Direct User ID match found: ${dbUserId}`);
-                }
-            }
-        }
-
-        // 1. Resolve via Role Tables if not already resolved
-        if (!dbUserId) {
+        // 1. RESOLVE USER ID (for DB persistence and FCM Token lookup)
+        // This must be robust to handle Numeric IDs, Email logins, and Employee/Admission IDs
+        if (recipientId) {
             const STAFF_ROLES = ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN'];
-            
+            const searchVal = recipientId.toString().trim();
+            const isNumeric = !isNaN(searchVal);
+
+            let res;
             if (finalRole === 'Student') {
-                const res = await client.query(`
-                    SELECT u.id FROM users u WHERE u.role = 'STUDENT' AND (u.linked_id::text = $1 OR EXISTS(SELECT 1 FROM students s WHERE s.id = u.linked_id AND s.admission_no ILIKE $1))
-                `, [recipientId.toString()]);
-                if (res.rows.length > 0) dbUserId = res.rows[0].id;
-
+                res = await client.query(`
+                    SELECT u.id FROM users u 
+                    LEFT JOIN students s ON s.id = u.linked_id
+                    WHERE u.role = 'STUDENT' 
+                    AND (
+                        (u.linked_id::text = $1) OR 
+                        (s.admission_no ILIKE $1) OR 
+                        (LOWER(u.email) = LOWER($1))
+                    )
+                    LIMIT 1
+                `, [searchVal]);
             } else if (finalRole === 'Teacher') {
-                const res = await client.query(`
-                    SELECT u.id FROM users u WHERE u.role = 'TEACHER' AND (u.linked_id::text = $1 OR EXISTS(SELECT 1 FROM teachers t WHERE t.id = u.linked_id AND t.employee_id = $1))
-                `, [recipientId.toString()]);
-                if (res.rows.length > 0) dbUserId = res.rows[0].id;
-
+                res = await client.query(`
+                    SELECT u.id FROM users u 
+                    LEFT JOIN teachers t ON t.id = u.linked_id
+                    WHERE u.role = 'TEACHER' 
+                    AND (
+                        (u.linked_id::text = $1) OR 
+                        (t.employee_id ILIKE $1) OR 
+                        (LOWER(u.email) = LOWER($1))
+                    )
+                    LIMIT 1
+                `, [searchVal]);
             } else if (finalRole === 'Staff') {
-                const res = await client.query(`
-                    SELECT u.id FROM users u WHERE u.role IN ($2, 'STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN') 
-                    AND (u.linked_id::text = $1 OR EXISTS(SELECT 1 FROM staff s WHERE s.id = u.linked_id AND s.employee_id = $1))
-                `, [recipientId.toString(), 'STAFF']);
-                if (res.rows.length > 0) dbUserId = res.rows[0].id;
+                res = await client.query(`
+                    SELECT u.id FROM users u 
+                    LEFT JOIN staff st ON st.id = u.linked_id
+                    WHERE u.role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN') 
+                    AND (
+                        (u.linked_id::text = $1) OR 
+                        (st.employee_id ILIKE $1) OR 
+                        (LOWER(u.email) = LOWER($1))
+                    )
+                    LIMIT 1
+                `, [searchVal]);
+            } else {
+                // Fallback for direct User ID or generic Email
+                res = await client.query(`
+                    SELECT id FROM users 
+                    WHERE (id::text = $1) OR (LOWER(email) = LOWER($1))
+                    LIMIT 1
+                `, [searchVal]);
+            }
+
+            if (res && res.rows.length > 0) {
+                dbUserId = res.rows[0].id;
+                console.log(`[PUSH RESOLVED] Found User ID: ${dbUserId} for ${finalRole} ${searchVal}`);
             }
         }
 
