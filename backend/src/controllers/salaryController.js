@@ -171,13 +171,8 @@ exports.markSalaryPaid = async (req, res) => {
         if (empNameRes.rows.length > 0) {
             const title = 'Salary Credited';
             const body = `Dear ${empNameRes.rows[0].name}, your salary of ₹${amount} for ${month}/${year} has been credited.`;
-            // Mapping employee_id to user_id might be needed if they are different, 
-            // but usually we can search by role/link. For now assuming employee_id is sufficient or service handles it.
-            // Actually sendPushNotification takes a generic userId. 
-            // We'll pass the employee_id and let the service logic (which is mock) handle it, 
-            // or ideally we should resolve the 'users' table ID. 
-            // For this mock, passing the raw ID with a prefix is sufficient for the log.
-            await sendPushNotification(`${employee_type}_${employee_id}`, title, body);
+            // Fixed: Pass employee_id and the correct roleHint so notificationService can resolve the user
+            await sendPushNotification(employee_id, title, body, employee_type);
         }
 
         res.json({ message: 'Salary marked as paid', payment: result.rows[0] });

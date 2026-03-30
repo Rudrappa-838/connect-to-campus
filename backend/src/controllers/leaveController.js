@@ -66,7 +66,24 @@ const createLeave = async (req, res) => {
              RETURNING *`,
             [schoolId, user_id, role, leave_type, start_date, end_date, reason]
         );
-        res.json(result.rows[0]);
+        const leave = result.rows[0];
+
+        // Added: Notify School Admin(s)
+        try {
+            const { sendPushNotification } = require('../services/notificationService');
+            // Find admins for this school
+            const adminRes = await pool.query('SELECT id FROM users WHERE school_id = $1 AND role = \'SCHOOL_ADMIN\'', [schoolId]);
+            if (adminRes.rows.length > 0) {
+                const adminBody = `New Leave application from ${role}: ${reason.substring(0, 30)}${reason.length > 30 ? '...' : ''}`;
+                for (const admin of adminRes.rows) {
+                    await sendPushNotification(admin.id, 'New Leave Application', adminBody, 'Admin');
+                }
+            }
+        } catch (notifErr) {
+            console.error('Failed to notify admin of leave application:', notifErr.message);
+        }
+
+        res.json(leave);
     } catch (error) {
         console.error('Error creating leave:', error);
         res.status(500).json({ message: 'Server error' });
@@ -222,7 +239,24 @@ const applyLeave = async (req, res) => {
              RETURNING *`,
             [schoolId, user_id, roleString, leave_type, start_date, end_date, reason]
         );
-        res.json(result.rows[0]);
+        const leave = result.rows[0];
+
+        // Added: Notify School Admin(s)
+        try {
+            const { sendPushNotification } = require('../services/notificationService');
+            // Find admins for this school
+            const adminRes = await pool.query('SELECT id FROM users WHERE school_id = $1 AND role = \'SCHOOL_ADMIN\'', [schoolId]);
+            if (adminRes.rows.length > 0) {
+                const adminBody = `New Leave application from ${roleString}: ${reason.substring(0, 30)}${reason.length > 30 ? '...' : ''}`;
+                for (const admin of adminRes.rows) {
+                    await sendPushNotification(admin.id, 'New Leave Application', adminBody, 'Admin');
+                }
+            }
+        } catch (notifErr) {
+            console.error('Failed to notify admin of leave application:', notifErr.message);
+        }
+
+        res.json(leave);
 
     } catch (error) {
         console.error('Error applying leave:', error);

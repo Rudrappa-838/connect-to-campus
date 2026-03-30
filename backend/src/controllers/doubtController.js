@@ -131,6 +131,7 @@ exports.createDoubt = async (req, res) => {
                     const studentNameRes = await pool.query('SELECT name FROM students WHERE id = $1', [student_id]);
                     const studentName = studentNameRes.rows[0]?.name || 'A student';
 
+                    const { sendPushNotification } = require('../services/notificationService');
                     const message = `New Doubt from ${studentName}: "${question.substring(0, 30)}${question.length > 30 ? '...' : ''}"`;
 
                     await pool.query(
@@ -138,6 +139,9 @@ exports.createDoubt = async (req, res) => {
                          VALUES ($1, $2, $3, 'DOUBT', '/teacher-dashboard?tab=doubts')`,
                         [userId, 'New Student Doubt', message]
                     );
+
+                    // Added: Real Push Notification for Teacher
+                    await sendPushNotification(userId, 'New Student Doubt', message, 'Teacher');
                     console.log('Notification sent to teacher:', userId);
                 }
             } catch (notifError) {
@@ -221,7 +225,18 @@ exports.replyToDoubt = async (req, res) => {
         );
 
         if (result.rows.length === 0) return res.status(404).json({ message: 'Doubt not found' });
-        res.json(result.rows[0]);
+        
+        // Added: Push Notification for Student
+        const doubt = result.rows[0];
+        try {
+            const { sendPushNotification } = require('../services/notificationService');
+            // Notify the student who asked the doubt
+            await sendPushNotification(doubt.student_id, 'Doubt Answered', `A teacher has replied to your doubt.`, 'Student');
+        } catch (notifErr) {
+            console.error('Failed to notify student of doubt reply:', notifErr.message);
+        }
+
+        res.json(doubt);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error replying to doubt' });
