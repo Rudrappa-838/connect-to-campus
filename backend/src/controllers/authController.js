@@ -446,6 +446,9 @@ const forgotPassword = async (req, res) => {
 
         await pool.query('UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE id = $3', [otp, otpExpires, user.id]);
 
+        // 2. Resolve 'users' table ID for DB persistence
+        const { sendOTP } = require('../services/emailService');
+
         // Log for development (always visible)
         if (process.env.NODE_ENV !== 'production') {
             console.log('----- PASSWORD RESET OTP (Dev Mode) -----');
@@ -455,60 +458,12 @@ const forgotPassword = async (req, res) => {
         }
 
         // Attempt to send Real Email if configured
-        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-            try {
-                const transporter = nodemailer.createTransport({
-                    host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-                    port: parseInt(process.env.SMTP_PORT) || 587,
-                    secure: false, // Use STARTTLS
-                    auth: {
-                        user: process.env.EMAIL_USER,
-                        pass: process.env.EMAIL_PASS
-                    },
-                    connectionTimeout: 30000,
-                    greetingTimeout: 30000,
-                    socketTimeout: 30000
-                });
-
-                const mailOptions = {
-                    from: process.env.EMAIL_USER,
-                    to: recipientEmail,
-                    subject: 'Password Reset OTP - School Portal',
-                    html: `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-                            <h2 style="color: #2563eb; text-align: center;">Password Reset Request</h2>
-                            <hr style="border: 1px solid #e0e0e0;">
-                            
-                            <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                                <p style="margin: 10px 0;"><strong>School:</strong> ${userDetails.schoolName || 'N/A'}</p>
-                                <p style="margin: 10px 0;"><strong>Role:</strong> ${role}</p>
-                                <p style="margin: 10px 0;"><strong>ID:</strong> ${userDetails.id}</p>
-                                ${userDetails.name ? `<p style="margin: 10px 0;"><strong>Name:</strong> ${userDetails.name}</p>` : ''}
-                            </div>
-                            
-                            <p style="font-size: 16px; color: #374151;">Your One-Time Password (OTP) for password reset is:</p>
-                            
-                            <div style="background-color: #2563eb; color: white; font-size: 32px; font-weight: bold; text-align: center; padding: 20px; border-radius: 8px; letter-spacing: 8px; margin: 20px 0;">
-                                ${otp}
-                            </div>
-                            
-                            <p style="color: #dc2626; font-weight: bold;">⏰ This OTP expires in 10 minutes.</p>
-                            <p style="color: #6b7280; font-size: 14px;">If you did not request this password reset, please ignore this email and your password will remain unchanged.</p>
-                            
-                            <hr style="border: 1px solid #e0e0e0; margin-top: 30px;">
-                            <p style="text-align: center; color: #9ca3af; font-size: 12px;">School Management System - Secure Password Reset</p>
-                        </div>
-                    `
-                };
-
-                await transporter.sendMail(mailOptions);
-                console.log('OTP Email sent successfully to ' + recipientEmail);
-            } catch (emailErr) {
-                console.error('Failed to send OTP email:', emailErr.message);
-                // Don't fail the request
-            }
-        } else {
-            console.log('NOTE: Real email sending skipped. Add EMAIL_USER and EMAIL_PASS to .env to enable.');
+        try {
+            await sendOTP(recipientEmail, otp, userDetails);
+            console.log('OTP Email sent successfully to ' + recipientEmail);
+        } catch (emailErr) {
+            console.error('Failed to send OTP email:', emailErr.message);
+            // Don't fail the request (user can still see OTP in dev logs if needed)
         }
 
         res.json({

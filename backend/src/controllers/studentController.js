@@ -14,12 +14,14 @@ exports.addStudent = async (req, res) => {
         await client.query('BEGIN'); // Start Transaction
 
         const {
-            name, gender, dob, age,
+            name, gender: raw_gender, dob, age,
             class_id, section_id,
             father_name, mother_name, contact_number, email, address,
             attendance_id, admission_date
         } = req.body;
         const school_id = req.user.schoolId;
+
+        const gender = raw_gender ? (raw_gender.trim().charAt(0).toUpperCase() + raw_gender.trim().slice(1).toLowerCase()) : '';
 
         // Split name into first and last name for DB compatibility
         const nameParts = (name || '').trim().split(' ');
@@ -306,7 +308,8 @@ exports.bulkUploadStudents = async (req, res) => {
 
                 // 5. Database Checks & Preparation
                 const dob = dobRaw ? (dobRaw instanceof Date ? dobRaw : new Date(dobRaw)) : null;
-                const gender = getValue(row, 'Gender') || 'Not Specified';
+                const gender_raw = (getValue(row, 'Gender') || '').toString().trim();
+                const gender = gender_raw ? (gender_raw.charAt(0).toUpperCase() + gender_raw.slice(1).toLowerCase()) : '';
                 const admissionDate = new Date();
 
                 // Check for existing student in DB with same Admission No
@@ -510,11 +513,13 @@ exports.updateStudent = async (req, res) => {
     try {
         const { id } = req.params;
         const {
-            name, gender, dob, age,
+            name, gender: raw_gender, dob, age,
             class_id, section_id,
             father_name, mother_name, contact_number, email, address,
             attendance_id, admission_date, status, admission_no, roll_number
         } = req.body;
+
+        const gender = raw_gender ? (raw_gender.trim().charAt(0).toUpperCase() + raw_gender.trim().slice(1).toLowerCase()) : '';
 
         const safe_section_id = (section_id === '' || section_id === 'null' || section_id === undefined) ? null : section_id;
 

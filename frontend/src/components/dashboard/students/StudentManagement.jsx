@@ -299,7 +299,11 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             first_name: firstName,
             middle_name: middleName,
             last_name: lastName,
-            gender: student.gender || '',
+            gender: (() => {
+                const g = (student.gender || '').trim();
+                if (!g || g === 'Not Specified') return '';
+                return g.charAt(0).toUpperCase() + g.slice(1).toLowerCase();
+            })(),
             dob: student.dob ? student.dob.split('T')[0] : '',
             age: student.age || '',
             class_id: student.class_id,
