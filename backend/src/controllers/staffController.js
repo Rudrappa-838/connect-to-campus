@@ -7,7 +7,7 @@ exports.addStaff = async (req, res) => {
     const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
-        const { name, email, phone, role, gender, address, join_date, salary_per_day, library_access, hostel_access } = req.body;
+        const { name, email, phone, role, gender, address, join_date, salary_per_day, library_access, hostel_access, can_enroll_face, can_take_face_attendance } = req.body;
 
         await client.query('BEGIN');
 
@@ -64,9 +64,9 @@ exports.addStaff = async (req, res) => {
         }
 
         const result = await client.query(
-            `INSERT INTO staff (school_id, name, email, phone, role, gender, address, join_date, employee_id, salary_per_day, library_access, hostel_access)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-            [school_id, name, email, phone, role, gender, address, join_date || new Date(), employee_id, salary_per_day || 0, library_access || false, hostel_access || false]
+            `INSERT INTO staff (school_id, name, email, phone, role, gender, address, join_date, employee_id, salary_per_day, library_access, hostel_access, can_enroll_face, can_take_face_attendance)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+            [school_id, name, email, phone, role, gender, address, join_date || new Date(), employee_id, salary_per_day || 0, library_access || false, hostel_access || false, can_enroll_face || false, can_take_face_attendance || false]
         );
 
         // Create User Login - Always Use Employee ID for Login
@@ -109,7 +109,10 @@ exports.getStaff = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { search } = req.query;
-        let query = `SELECT * FROM staff WHERE school_id = $1`;
+        let query = `SELECT *, 
+                           COALESCE(can_enroll_face, TRUE) as can_enroll_face,
+                           COALESCE(can_take_face_attendance, TRUE) as can_take_face_attendance 
+                    FROM staff WHERE school_id = $1`;
         const params = [school_id];
 
         if (search) {
@@ -133,7 +136,7 @@ exports.updateStaff = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { name, email, phone, role, gender, address, join_date, salary_per_day, employee_id, library_access, hostel_access } = req.body;
+        const { name, email, phone, role, gender, address, join_date, salary_per_day, employee_id, library_access, hostel_access, can_enroll_face, can_take_face_attendance } = req.body;
 
         await client.query('BEGIN');
 
@@ -196,11 +199,13 @@ exports.updateStaff = async (req, res) => {
 
         const result = await client.query(
             `UPDATE public.staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
-             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id), library_access = $14, hostel_access = $15
+             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id), library_access = $14, hostel_access = $15,
+             can_enroll_face = COALESCE($16, can_enroll_face),
+             can_take_face_attendance = COALESCE($17, can_take_face_attendance)
              WHERE id = $11 AND school_id = $12 RETURNING *`,
             [name, email, phone, role, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
-                id, school_id, employee_id, library_access || false, hostel_access || false]
+                id, school_id, employee_id, library_access || false, hostel_access || false, can_enroll_face, can_take_face_attendance]
         );
 
         if (result.rows.length === 0) {
@@ -463,7 +468,9 @@ exports.getProfile = async (req, res) => {
         const query = `
             SELECT t.*, 
                    tr.route_name, tr.vehicle_id, 
-                   tv.vehicle_number, tv.driver_name, tv.driver_phone
+                   tv.vehicle_number, tv.driver_name, tv.driver_phone,
+                   COALESCE(t.can_enroll_face, TRUE) as can_enroll_face,
+                   COALESCE(t.can_take_face_attendance, TRUE) as can_take_face_attendance
             FROM staff t
             LEFT JOIN transport_routes tr ON t.transport_route_id = tr.id
             LEFT JOIN transport_vehicles tv ON tr.vehicle_id = tv.id

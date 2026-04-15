@@ -7,7 +7,7 @@ const StaffManagement = () => {
     const [staff, setStaff] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '' });
+    const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '', can_enroll_face: false, can_take_face_attendance: false });
     const [selectedId, setSelectedId] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [loading, setLoading] = useState(true);
@@ -25,7 +25,7 @@ const StaffManagement = () => {
     const openAddModal = () => {
         setIsEditing(false);
         setFieldErrors({});
-        setFormData({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '' });
+        setFormData({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '', can_enroll_face: false, can_take_face_attendance: false });
         setShowModal(true);
     };
 
@@ -173,7 +173,9 @@ const StaffManagement = () => {
                                                             join_date: t.join_date ? t.join_date.split('T')[0] : '',
                                                             salary_per_month: monthlySalary,
                                                             library_access: t.library_access || false,
-                                                            hostel_access: t.hostel_access || false
+                                                            hostel_access: t.hostel_access || false,
+                                                            can_enroll_face: t.can_enroll_face || false,
+                                                            can_take_face_attendance: t.can_take_face_attendance || false
                                                         }); 
                                                         setShowModal(true); 
                                                     }} className="text-indigo-500 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={18} /></button>
@@ -358,6 +360,32 @@ const StaffManagement = () => {
                                 onPaste={e => e.preventDefault()}
                                 onChange={e => setFormData({ ...formData, address: e.target.value })}>
                             </textarea>
+
+                            {/* Biometric Permissions */}
+                            <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 space-y-3">
+                                <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">Mobile App Biometric Access</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-4 h-4 text-indigo-600 rounded" 
+                                            checked={formData.can_enroll_face} 
+                                            onChange={e => setFormData({ ...formData, can_enroll_face: e.target.checked })} 
+                                        />
+                                        <span className="font-bold text-slate-700 text-sm group-hover:text-indigo-600 transition-colors">Can Enroll Student Face</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-4 h-4 text-indigo-600 rounded" 
+                                            checked={formData.can_take_face_attendance} 
+                                            onChange={e => setFormData({ ...formData, can_take_face_attendance: e.target.checked })} 
+                                        />
+                                        <span className="font-bold text-slate-700 text-sm group-hover:text-indigo-600 transition-colors">Can Take Attendance</span>
+                                    </label>
+                                </div>
+                                <p className="text-[10px] text-indigo-400 font-medium leading-tight">Giving these permissions allows this staff member to use biometric features on mobile.</p>
+                            </div>
 
                             <div className="flex justify-end gap-2 mt-4">
                                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" disabled={isSubmitting}>Cancel</button>

@@ -76,13 +76,21 @@ export const NotificationProvider = ({ children }) => {
     };
 
     const markAllAsRead = async () => {
+        // Optimistic UI: Update local state immediately
+        const previousNotifications = notifications;
+        const previousCount = unreadCount;
+        
+        setNotifications([]);
+        setUnreadCount(0);
+
         try {
             await api.put(`/notifications/mark-all-read`);
-            // Clean Inbox Mode: Empty the list immediately
-            setNotifications([]);
-            setUnreadCount(0);
         } catch (error) {
             console.error('Failed to mark all read:', error);
+            // Rollback if API fails
+            setNotifications(previousNotifications);
+            setUnreadCount(previousCount);
+            toast.error('Failed to sync notification status with server');
         }
     };
 

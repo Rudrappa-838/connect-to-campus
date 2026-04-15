@@ -7,7 +7,7 @@ exports.addTeacher = async (req, res) => {
     const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
-        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day } = req.body;
+        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day, can_enroll_face, can_take_face_attendance } = req.body;
 
         await client.query('BEGIN');
 
@@ -63,9 +63,9 @@ exports.addTeacher = async (req, res) => {
 
         // 2. Insert Teacher
         const result = await client.query(
-            `INSERT INTO teachers (school_id, name, email, phone, subject_specialization, gender, address, join_date, employee_id, salary_per_day)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-            [school_id, name, email, phone, subject_specialization, gender, address, join_date || new Date(), employee_id, salary_per_day || 0]
+            `INSERT INTO teachers (school_id, name, email, phone, subject_specialization, gender, address, join_date, employee_id, salary_per_day, can_enroll_face, can_take_face_attendance)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+            [school_id, name, email, phone, subject_specialization, gender, address, join_date || new Date(), employee_id, salary_per_day || 0, can_enroll_face || false, can_take_face_attendance || false]
         );
         const newTeacher = result.rows[0];
 
@@ -166,7 +166,9 @@ exports.getTeachers = async (req, res) => {
                    COALESCE(c_sec.name, c_main.name) as class_name, 
                    s.name as section_name,
                    s.id as assigned_section_id,
-                   COALESCE(c_sec.id, c_main.id) as assigned_class_id
+                   COALESCE(c_sec.id, c_main.id) as assigned_class_id,
+                   COALESCE(t.can_enroll_face, TRUE) as can_enroll_face,
+                   COALESCE(t.can_take_face_attendance, TRUE) as can_take_face_attendance
             FROM teachers t
             LEFT JOIN sections s ON s.class_teacher_id = t.id
             LEFT JOIN classes c_sec ON s.class_id = c_sec.id
@@ -188,7 +190,7 @@ exports.updateTeacher = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day, employee_id } = req.body;
+        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day, employee_id, can_enroll_face, can_take_face_attendance } = req.body;
 
         await client.query('BEGIN');
 
@@ -251,11 +253,13 @@ exports.updateTeacher = async (req, res) => {
 
         const result = await client.query(
             `UPDATE teachers SET name = $1, email = $2, phone = $3, subject_specialization = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
-             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id)
+             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id),
+             can_enroll_face = COALESCE($14, can_enroll_face),
+             can_take_face_attendance = COALESCE($15, can_take_face_attendance)
              WHERE id = $11 AND school_id = $12 RETURNING *`,
             [name, email, phone, subject_specialization, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
-                id, school_id, employee_id]
+                id, school_id, employee_id, can_enroll_face, can_take_face_attendance]
         );
 
         if (result.rows.length === 0) {
@@ -554,7 +558,9 @@ exports.getTeacherProfile = async (req, res) => {
                    tr.route_name as transport_route,
                    tv.vehicle_number,
                    tv.driver_name,
-                   tv.driver_phone
+                   tv.driver_phone,
+                   COALESCE(t.can_enroll_face, TRUE) as can_enroll_face,
+                   COALESCE(t.can_take_face_attendance, TRUE) as can_take_face_attendance
             FROM teachers t
             LEFT JOIN sections s ON s.class_teacher_id = t.id
             LEFT JOIN classes c_sec ON s.class_id = c_sec.id

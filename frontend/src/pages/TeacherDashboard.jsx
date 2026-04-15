@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Users, Calendar,
     LogOut, Bell, GraduationCap,
-    CheckSquare, Clock, Bus, MessageSquare, MapPin, BookOpen, Menu, X, Navigation, DollarSign, ClipboardList
+    CheckSquare, Clock, Bus, MessageSquare, MapPin, BookOpen, Menu, X, Navigation, DollarSign, ClipboardList, Database, Book
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import api from '../api/axios';
@@ -24,6 +24,10 @@ import AdminLiveMap from '../components/dashboard/admin/AdminLiveMap';
 import TeacherProfile from '../components/dashboard/teachers/TeacherProfile';
 import StudentManagement from '../components/dashboard/students/StudentManagement';
 import StudentReviewManagement from '../components/dashboard/students/StudentReviewManagement';
+import QuestionPaperGenerator from '../components/dashboard/academics/question-paper/QuestionPaperGenerator';
+import DedicatedQuestionBank from '../components/dashboard/academics/question-paper/DedicatedQuestionBank';
+import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
+import FaceAttendanceScanner from '../components/dashboard/biometric/FaceAttendanceScanner';
 import { MobileHeader, MobileFooter } from '../components/layout/MobileAppFiles';
 import { Capacitor } from '@capacitor/core';
 
@@ -33,10 +37,10 @@ const TeacherDashboard = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
     const [teacherProfile, setTeacherProfile] = useState(null);
-    const [schoolName, setSchoolName] = useState('');
-    const [schoolLogo, setSchoolLogo] = useState(null);
+    const [schoolConfig, setSchoolConfig] = useState({});
     const [loading, setLoading] = useState(true);
     const [isMobileApp, setIsMobileApp] = useState(false);
+    const schoolName = schoolConfig?.name || 'School Software';
 
     // Detect Mobile App context
     useEffect(() => {
@@ -68,8 +72,7 @@ const TeacherDashboard = () => {
     const fetchSchoolInfo = async () => {
         try {
             const res = await api.get('/schools/my-school');
-            setSchoolName(res.data.name);
-            setSchoolLogo(res.data.logo);
+            setSchoolConfig(res.data);
         } catch (error) {
             console.error("Failed to load school info", error);
         }
@@ -98,16 +101,13 @@ const TeacherDashboard = () => {
     };
 
     // Construct Config for StudentAttendanceMarking based on assigned class
-    const attendanceConfig = teacherProfile?.assigned_class_id ? {
-        classes: [{
+    const attendanceConfig = {
+        classes: teacherProfile?.assigned_class_id ? [{
             class_id: teacherProfile.assigned_class_id,
             class_name: teacherProfile.class_name,
-            sections: [{
-                id: teacherProfile.assigned_section_id,
-                name: teacherProfile.section_name
-            }]
-        }]
-    } : { classes: [] };
+            sections: [{ id: teacherProfile.assigned_section_id, name: teacherProfile.section_name }]
+        }] : (schoolConfig?.classes || []) // Default to all school classes if not assigned
+    };
 
     return (
         <div className="relative min-h-screen w-full flex font-sans text-slate-900 overflow-hidden">
@@ -133,9 +133,9 @@ const TeacherDashboard = () => {
                 {/* Brand Area */}
                 <div className="p-6 flex items-center justify-between border-b border-white/20 pt-10">
                     <div className="flex items-center gap-3">
-                        {schoolLogo ? (
+                        {schoolConfig.logo ? (
                             <div className="h-10 w-10 rounded-xl overflow-hidden bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-sm">
-                                <img src={schoolLogo} alt="Logo" className="w-full h-full object-cover" />
+                                <img src={schoolConfig.logo} alt="Logo" className="w-full h-full object-cover" />
                             </div>
                         ) : (
                             <div className="bg-white/20 p-2.5 rounded-xl shadow-[0_0_15px_rgba(255,255,255,0.2)] border border-white/30 backdrop-blur-sm">
@@ -144,7 +144,7 @@ const TeacherDashboard = () => {
                         )}
                         <div className="w-full">
                             <h1 className="text-sm font-black text-white tracking-widest leading-none drop-shadow-md uppercase">Connect to Campus</h1>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-100 mt-1 opacity-80">{schoolName || 'Software'}</p>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-100 mt-1 opacity-80">{schoolConfig.name || 'Software'}</p>
                         </div>
                     </div>
                     {/* Mobile Close Button */}
@@ -163,9 +163,23 @@ const TeacherDashboard = () => {
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Academic</p>
                     <NavButton active={activeTab === 'attendance'} onClick={() => handleTabChange('attendance')} icon={CheckSquare} label="Mark Attendance" />
+                    
+                    {(loading || teacherProfile?.can_enroll_face) && (
+                         <NavButton active={activeTab === 'face-enroll'} onClick={() => handleTabChange('face-enroll')} icon={Users} label="Face Enrollment" />
+                    )}
+                    {(loading || teacherProfile?.can_take_face_attendance) && (
+                         <NavButton active={activeTab === 'face-scanner'} onClick={() => handleTabChange('face-scanner')} icon={Database} label="Face Scanner" />
+                    )}
+
                     <NavButton active={activeTab === 'timetable'} onClick={() => handleTabChange('timetable')} icon={Calendar} label="My Timetable" />
                     <NavButton active={activeTab === 'doubts'} onClick={() => handleTabChange('doubts')} icon={MessageSquare} label="Student Doubts" />
                     <NavButton active={activeTab === 'student-reviews'} onClick={() => handleTabChange('student-reviews')} icon={ClipboardList} label="Student Reviews" />
+                    {schoolConfig.has_neet_exams && (
+                        <>
+                            <NavButton active={activeTab === 'question-bank'} onClick={() => handleTabChange('question-bank')} icon={Database} label="NEET Question Bank" />
+                            <NavButton active={activeTab === 'question-generator'} onClick={() => handleTabChange('question-generator')} icon={Book} label="AI Question Paper" />
+                        </>
+                    )}
                     <NavButton active={activeTab === 'library'} onClick={() => handleTabChange('library')} icon={BookOpen} label="Library Books" />
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Personal</p>
@@ -216,7 +230,7 @@ const TeacherDashboard = () => {
                     <MobileHeader
                         title={getTabTitle(activeTab)}
                         schoolName={schoolName}
-                        logo={schoolLogo}
+                        logo={schoolConfig.logo}
                         onMenuClick={() => setIsMobileMenuOpen(true)}
                         onBack={activeTab !== 'overview' ? () => setActiveTab('overview') : null}
                     />
@@ -283,7 +297,11 @@ const TeacherDashboard = () => {
                                 {activeTab === 'doubts' && <TeacherDoubts />}
 
                                 {activeTab === 'student-reviews' && <StudentReviewManagement />}
-
+                                {activeTab === 'question-bank' && <DedicatedQuestionBank config={attendanceConfig} />}
+                                {activeTab === 'question-generator' && <QuestionPaperGenerator config={attendanceConfig} />}
+                                
+                                {activeTab === 'face-enroll' && <FaceEnrollment config={attendanceConfig} preferredFacingMode="environment" />}
+                                {activeTab === 'face-scanner' && <FaceAttendanceScanner config={attendanceConfig} preferredFacingMode="user" />}
                                 {activeTab === 'library' && <TeacherLibraryStatus />}
                                 {activeTab === 'leaves' && <TeacherLeaveApplication />}
                                 {activeTab === 'announcements' && <ViewAnnouncements />}
@@ -460,6 +478,10 @@ const getTabTitle = (tab) => {
         case 'student-reviews': return 'Student Performance & Feedback';
         case 'calendar': return 'Academic Calendar';
         case 'announcements': return 'Announcements';
+        case 'question-bank': return 'NEET & JEE Master Bank';
+        case 'question-generator': return 'AI Question Paper Generator';
+        case 'face-enroll': return 'Student Face Enrollment';
+        case 'face-scanner': return 'Biometric Face Scanner';
         case 'profile': return 'My Profile Settings';
         default: return 'Dashboard';
     }

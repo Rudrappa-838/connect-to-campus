@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
-import { Plus, School, LogOut, ChevronDown, Check, Trash2, X, Eye, Edit2, Search, Filter, Shield, Info, MapPin, Phone, Mail, Users, Power, RotateCcw, Home, Layers } from 'lucide-react';
+import { Plus, School, LogOut, ChevronDown, Check, Trash2, X, Eye, Edit2, Search, Filter, Shield, Info, MapPin, Phone, Mail, Users, Power, RotateCcw, Home, Layers, Database, UserCheck, ScanLine } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -79,15 +79,16 @@ const SuperAdminDashboard = () => {
         }
     };
 
-    const handleToggleHostel = async (school) => {
-        const newStatus = !(school.has_hostel !== false); // Toggle. Default True if undefined.
+    const handleToggleFeature = async (school, field, label) => {
+        const currentStatus = school[field] !== false; // Default true if undefined, but our migration set FALSE.
+        const newStatus = !currentStatus;
         try {
-            await api.put(`/schools/${school.id}/features`, { has_hostel: newStatus });
-            toast.success(`Hostel Feature ${newStatus ? 'Enabled' : 'Disabled'}`);
+            await api.put(`/schools/${school.id}/features`, { [field]: newStatus });
+            toast.success(`${label} ${newStatus ? 'Enabled' : 'Disabled'}`);
             fetchSchools();
         } catch (error) {
             console.error(error);
-            toast.error('Failed to update feature');
+            toast.error(`Failed to update ${label}`);
         }
     };
 
@@ -559,7 +560,7 @@ const SuperAdminDashboard = () => {
                                         </div>
                                         <div>
                                             <h3 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">{school.name}</h3>
-                                            <div className="flex items-center gap-2 mt-1">
+                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation(); // Prevent card hover effect interference if any
@@ -574,10 +575,10 @@ const SuperAdminDashboard = () => {
                                                     <Power size={10} className={school.is_active ? "text-emerald-500" : "text-red-500"} />
                                                     {school.is_active ? 'Service Online' : 'Service Offline'}
                                                 </button>
-                                                <button
+                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        handleToggleHostel(school);
+                                                        handleToggleFeature(school, 'has_hostel', 'Hostel');
                                                     }}
                                                     className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_hostel !== false
                                                         ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'
@@ -587,6 +588,62 @@ const SuperAdminDashboard = () => {
                                                 >
                                                     <Home size={10} />
                                                     {school.has_hostel !== false ? 'Hostel ON' : 'Hostel OFF'}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_neet_exams', 'NEET Bank');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_neet_exams
+                                                        ? 'bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_neet_exams ? "Disable NEET Bank" : "Enable NEET Bank"}
+                                                >
+                                                    <Database size={10} />
+                                                    {school.has_neet_exams ? 'NEET ON' : 'NEET OFF'}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_face_enrollment', 'Face Enroll');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_face_enrollment
+                                                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_face_enrollment ? "Disable Face Enrollment" : "Enable Face Enrollment"}
+                                                >
+                                                    <UserCheck size={10} />
+                                                    {school.has_face_enrollment ? 'ENROLL ON' : 'ENROLL OFF'}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_face_scanner', 'Face Scanner');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_face_scanner
+                                                        ? 'bg-pink-500/10 text-pink-400 border-pink-500/20 hover:bg-pink-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_face_scanner ? "Disable Face Scanner" : "Enable Face Scanner"}
+                                                >
+                                                    <ScanLine size={10} />
+                                                    {school.has_face_scanner ? 'SCANNER ON' : 'SCANNER OFF'}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_biometric', 'Biometric');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_biometric
+                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_biometric ? "Disable Biometric Access" : "Enable Biometric Access"}
+                                                >
+                                                    <Shield size={10} />
+                                                    {school.has_biometric ? 'BIOMETRIC ON' : 'BIOMETRIC OFF'}
                                                 </button>
                                             </div>
                                         </div>

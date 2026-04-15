@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../../api/axios';
 import { toast } from 'react-hot-toast';
 import { Calendar, Clock, Save, Hash, Plus, Printer, Trash2, RefreshCw, Edit2, Settings, X } from 'lucide-react';
+import ExcelMarksManager from './ExcelMarksManager';
 
 const ExamSchedule = () => {
     // State
@@ -668,7 +669,10 @@ const ExamSchedule = () => {
                 </div>
             </div>
 
-            {/* Schedule View */}
+            {/* Excel Bulk Marks Manager — show when exam is selected and has schedule */}
+            {selectedExam && schedule.length > 0 && !schedule.some(s => s.data_new) && (
+                <ExcelMarksManager examTypeId={selectedExam} />
+            )}
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col print:shadow-none print:border-none">
 
                 <div className="p-4 border-b border-slate-200 flex flex-col gap-2 bg-slate-50 print:hidden">
@@ -718,7 +722,6 @@ const ExamSchedule = () => {
                                         <input
                                             type="date"
                                             value={group.exam_date}
-                                            min={today}
                                             onChange={(e) => {
                                                 setSchedule(prev => prev.map(s =>
                                                     group.ids.includes(s.id) ? { ...s, exam_date: e.target.value } : s
@@ -949,7 +952,7 @@ const ExamSchedule = () => {
                                                         <input
                                                             type="date"
                                                             disabled={!cfg.selected}
-                                                            min={minDate && minDate > today ? minDate : today}
+                                                            min={minDate}
                                                             max={maxDate}
                                                             value={cfg.date}
                                                             onChange={(e) => setSubjectConfigs({
@@ -1324,7 +1327,6 @@ const ExamSchedule = () => {
                                     <input
                                         type="date"
                                         value={editItem.date}
-                                        min={today}
                                         onChange={(e) => setEditItem({ ...editItem, date: e.target.value })}
                                         className="w-full border rounded px-3 py-2"
                                     />

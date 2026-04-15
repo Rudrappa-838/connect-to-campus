@@ -27,6 +27,9 @@ import HostelOverview from '../components/dashboard/hostel/HostelOverview';
 import RoomManagement from '../components/dashboard/hostel/RoomManagement';
 import RoomAllocation from '../components/dashboard/hostel/RoomAllocation';
 import HostelFinance from '../components/dashboard/hostel/HostelFinance';
+import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
+import FaceAttendanceScanner from '../components/dashboard/biometric/FaceAttendanceScanner';
+import { Users } from 'lucide-react';
 
 const StaffDashboard = () => {
     const { user, logout } = useAuth();
@@ -267,6 +270,18 @@ const StaffDashboard = () => {
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Work</p>
                     <NavButton active={activeTab === 'attendance'} onClick={() => handleTabChange('attendance')} icon={Calendar} label="My Attendance" />
 
+                    {(profileLoading || staffProfile?.can_enroll_face || staffProfile?.can_take_face_attendance) && (
+                        <div className="mt-6">
+                            <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2">Biometrics</p>
+                            {(profileLoading || staffProfile?.can_enroll_face) && (
+                                <NavButton active={activeTab === 'face-enroll'} onClick={() => handleTabChange('face-enroll')} icon={Users} label="Face Enrollment" />
+                            )}
+                            {(profileLoading || staffProfile?.can_take_face_attendance) && (
+                                <NavButton active={activeTab === 'face-scanner'} onClick={() => handleTabChange('face-scanner')} icon={CheckSquare} label="Face Scanner" />
+                            )}
+                        </div>
+                    )}
+
                     {user?.libraryAccess && (
                         <div className="mt-6">
                             <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2">Library Admin</p>
@@ -367,6 +382,9 @@ const StaffDashboard = () => {
                     <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
                         {activeTab === 'overview' && <StaffOverview isDriver={isDriver} schoolName={schoolName} profile={staffProfile} user={user} />}
                         {activeTab === 'attendance' && <StaffMyAttendance />}
+
+                        {activeTab === 'face-enroll' && <FaceEnrollment config={{ classes: [] }} preferredFacingMode="environment" />}
+                        {activeTab === 'face-scanner' && <FaceAttendanceScanner config={{ classes: [] }} preferredFacingMode="user" />}
 
                         {/* Unified Transport View */}
                         {activeTab === 'transport' && isDriver && (
@@ -679,6 +697,8 @@ const getTabTitle = (tab, isDriver) => {
         case 'hostel-rooms': return 'Room Configurations';
         case 'hostel-allocation': return 'Room Allocations';
         case 'hostel-finance': return 'Hostel Finances';
+        case 'face-enroll': return 'Student Face Enrollment';
+        case 'face-scanner': return 'Biometric Face Scanner';
         default: return 'Dashboard';
     }
 };

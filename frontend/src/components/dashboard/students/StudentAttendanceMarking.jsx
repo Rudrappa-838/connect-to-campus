@@ -21,7 +21,7 @@ const StudentAttendanceMarking = ({ config }) => {
 
     // Sort classes numerically
     const sortedClasses = React.useMemo(() => {
-        return [...(config.classes || [])].sort((a, b) => {
+        return [...(config?.classes || [])].sort((a, b) => {
             const numA = parseInt(a.class_name.replace(/\D/g, '') || '0', 10);
             const numB = parseInt(b.class_name.replace(/\D/g, '') || '0', 10);
             return numA === numB ? a.class_name.localeCompare(b.class_name) : numA - numB;
@@ -142,7 +142,7 @@ const StudentAttendanceMarking = ({ config }) => {
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Class</span>
                             <select className="input min-w-[140px] bg-slate-50 border-slate-200" value={filterClass} onChange={e => setFilterClass(e.target.value)}>
                                 <option value="">Select Class</option>
-                                {sortedClasses.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
+                                {sortedClasses?.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
                             </select>
                         </div>
                     )

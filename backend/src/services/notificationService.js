@@ -183,8 +183,16 @@ const sendAttendanceNotification = async (user, status) => {
             }
         }
 
+        // Detect Role for Push Logic
+        let roleHint = 'Student';
+        if (user.employee_id) {
+            // Check if user is a teacher or staff (role check or department)
+            if (user.role && user.role.toLowerCase().includes('teacher')) roleHint = 'Teacher';
+            else roleHint = 'Staff';
+        }
+
         // Always send Mobile App Push Notification (FREE & Real-time)
-        await sendPushNotification(user.id, title, `${user.name} has ${message.toLowerCase()}.`);
+        await sendPushNotification(user.id, title, `${user.name} has ${message.toLowerCase()}.`, roleHint);
 
     } catch (error) {
         console.error('Error sending attendance notification:', error);

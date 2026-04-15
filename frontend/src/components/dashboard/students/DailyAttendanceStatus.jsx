@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Printer } from 'lucide-react';
+import { Check, X, Printer, Camera, Edit2 } from 'lucide-react';
 import api from '../../../api/axios';
 
 const DailyAttendanceStatus = ({ config }) => {
@@ -9,7 +9,7 @@ const DailyAttendanceStatus = ({ config }) => {
     const [attendanceData, setAttendanceData] = useState([]);
     const [loading, setLoading] = useState(false);
 
-    const availableSections = config.classes?.find(c => c.class_id === parseInt(filterClass))?.sections || [];
+    const availableSections = config?.classes?.find(c => c.class_id === parseInt(filterClass))?.sections || [];
 
     // Auto-select first section when class changes
     useEffect(() => {
@@ -58,8 +58,8 @@ const DailyAttendanceStatus = ({ config }) => {
     const otherStudents = attendanceData.filter(s => s.status === 'Late' || s.status === 'Unmarked');
 
     const handlePrint = () => {
-        const className = config.classes?.find(c => c.class_id === parseInt(filterClass))?.class_name || 'All Classes';
-        const sectionName = availableSections.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
+        const className = config?.classes?.find(c => c.class_id === parseInt(filterClass))?.class_name || 'All Classes';
+        const sectionName = availableSections?.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
 
         const printContent = `
             <!DOCTYPE html>
@@ -152,7 +152,7 @@ const DailyAttendanceStatus = ({ config }) => {
                     <input type="date" className="input max-w-[150px] bg-slate-50 border-slate-200" value={date} onChange={e => setDate(e.target.value)} />
                     <select className="input max-w-[200px] bg-slate-50 border-slate-200" value={filterClass} onChange={e => setFilterClass(e.target.value)}>
                         <option value="">Select Class</option>
-                        {config.classes
+                        {config?.classes
                             ?.slice()
                             .sort((a, b) => a.class_name.localeCompare(b.class_name, undefined, { numeric: true }))
                             .map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
@@ -233,7 +233,19 @@ const DailyAttendanceStatus = ({ config }) => {
                                                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                                                     <td className="px-5 py-3 font-mono text-slate-400 font-medium text-xs">#{s.roll_number || 'N/A'}</td>
                                                     <td className="px-5 py-3 font-medium text-slate-700">{s.name}</td>
-                                                    <td className="px-5 py-3 text-right text-slate-400 text-xs font-mono">{s.contact_number || '-'}</td>
+                                                    <td className="px-5 py-3 text-right flex items-center justify-end gap-3">
+                                                        <span className="text-slate-400 text-xs font-mono">{s.contact_number || '-'}</span>
+                                                        {s.marking_mode === 'face' && (
+                                                            <div className="p-1 bg-indigo-50 text-indigo-600 rounded-md" title="Marked via Face Scanner">
+                                                                <Camera size={10} />
+                                                            </div>
+                                                        )}
+                                                        {s.marking_mode === 'manual' && (
+                                                            <div className="p-1 bg-amber-50 text-amber-600 rounded-md" title="Marked Manually">
+                                                                <Edit2 size={10} />
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -270,7 +282,14 @@ const DailyAttendanceStatus = ({ config }) => {
                                                 <tr key={s.id} className="hover:bg-rose-50/30 transition-colors">
                                                     <td className="px-5 py-3 font-mono text-slate-400 font-medium text-xs">#{s.roll_number || 'N/A'}</td>
                                                     <td className="px-5 py-3 font-medium text-slate-700">{s.name}</td>
-                                                    <td className="px-5 py-3 text-right text-slate-400 text-xs font-mono">{s.contact_number || '-'}</td>
+                                                    <td className="px-5 py-3 text-right flex items-center justify-end gap-3">
+                                                        <span className="text-slate-400 text-xs font-mono">{s.contact_number || '-'}</span>
+                                                        {s.marking_mode === 'manual' && (
+                                                            <div className="p-1 bg-rose-50 text-rose-600 rounded-md" title="Marked Manually">
+                                                                <Edit2 size={10} />
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>

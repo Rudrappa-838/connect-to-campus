@@ -7,7 +7,6 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/authRoutes');
-const schoolRoutes = require('./routes/schoolRoutes');
 
 const app = express();
 
@@ -113,7 +112,7 @@ app.use(limiter);
 const route = (path, file) => app.use([`/api/${path}`, `/${path}`], require(`./routes/${file}`));
 
 app.use(['/api/auth', '/auth'], authRoutes);
-app.use(['/api/schools', '/schools'], schoolRoutes);
+route('schools', 'schoolRoutes');
 route('classes', 'classRoutes');
 route('students', 'studentRoutes');
 route('teachers', 'teacherRoutes');
@@ -142,6 +141,7 @@ route('leaves', 'leaveRoutes');
 route('grades', 'gradeRoutes');
 route('student-reviews', 'studentReviewRoutes');
 route('debug', 'debugRoutes');
+route('question-bank', 'questionBankRoutes');
 
 // --- ADMS / Biometric Device Default Routes ---
 const { handleExternalDeviceLog } = require('./controllers/biometricController');

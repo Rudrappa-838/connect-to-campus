@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import {
     Wand2, Image as ImageIcon, FileText, Download, RefreshCw,
     Plus, Trash2, CheckCircle, BrainCircuit, Type, Layers,
-    Edit2, Eye, EyeOff, X
+    Edit2, Eye, EyeOff, X, Database
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../../api/axios';
+import QuestionBankSelector from './QuestionBankSelector';
 
 const QuestionPaperGenerator = ({ config: academicConfig }) => {
     const [mode, setMode] = useState('text'); // 'text' or 'image'
@@ -297,6 +298,40 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
         printWindow.print();
     };
 
+    const handleSaveAndGeneratePDFs = async () => {
+        if (questions.length === 0) return toast.error("Please add questions first!");
+
+        const loader = toast.loading("Connecting to PDF Generator Server...");
+        try {
+            const payload = {
+                title: paperConfig.examName || 'Final Examination',
+                school_name: academicConfig?.name || 'School Name',
+                exam_date: paperConfig.examDate || new Date().toISOString().split('T')[0],
+                subject: paperConfig.subject || 'General',
+                class_level: academicConfig?.classes?.find(c => c.class_id.toString() === paperConfig.classId)?.class_name || 'Grade 10',
+                question_ids: questions.filter(q => q.originalRecordId).map(q => q.originalRecordId)
+            };
+
+            // Warning if not all questions were from DB
+            if (payload.question_ids.length !== questions.length) {
+                toast.error("Note: Only questions selected from the Question Bank will be exported via API.");
+            }
+
+            const res = await api.post('/question-bank/generate-paper', payload);
+            if (res.data.status === 'SUCCESS') {
+                toast.success("PDFs Generated Successfully!", { id: loader });
+                // Open PDFs in new tabs
+                if (res.data.data.mainUrl) window.open(api.defaults.baseURL.replace('/api', '') + res.data.data.mainUrl, '_blank');
+                if (res.data.data.solutionsUrl) window.open(api.defaults.baseURL.replace('/api', '') + res.data.data.solutionsUrl, '_blank');
+                if (res.data.data.keyUrl) window.open(api.defaults.baseURL.replace('/api', '') + res.data.data.keyUrl, '_blank');
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to generate PDFs on server.", { id: loader });
+        }
+    };
+
+
     return (
         <div className="max-w-7xl mx-auto space-y-6">
             {/* Header */}
@@ -308,19 +343,12 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
                     <p className="text-slate-500 text-sm">Generate exam papers instantly from Topics or Images using AI</p>
                 </div>
                 <div className="flex gap-3">
-                    <div className="flex bg-indigo-600 rounded-lg shadow-lg shadow-indigo-500/20 overflow-hidden">
+                    <div className="flex bg-slate-200 rounded-lg overflow-hidden border border-slate-300">
                         <button
                             onClick={() => handlePrint('paper')}
-                            className="flex items-center gap-2 px-4 py-2 text-white font-bold hover:bg-indigo-700 transition-colors border-r border-indigo-700"
+                            className="flex items-center gap-2 px-4 py-2 text-slate-700 font-bold hover:bg-slate-300 transition-colors border-r border-slate-300"
                         >
-                            <Download size={18} /> Paper
-                        </button>
-                        <button
-                            onClick={() => handlePrint('key')}
-                            className="flex items-center gap-2 px-3 py-2 text-white font-bold hover:bg-indigo-700 transition-colors"
-                            title="Export Answer Key"
-                        >
-                            <CheckCircle size={18} /> Key
+                            Html Print
                         </button>
                     </div>
                 </div>
@@ -331,18 +359,18 @@ const QuestionPaperGenerator = ({ config: academicConfig }) => {
                 <div className="lg:col-span-4 space-y-6">
 
                     {/* Mode Selection */}
-                    <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 flex">
+                    <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-2">
                         <button
                             onClick={() => setMode('text')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-bold transition-all ${mode === 'text' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                            className={`flex-1 min-w-[100px] flex items-center justify-center gap-2 py-3 rounded-lg font-bold transition-all ${mode === 'text' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
                         >
-                            <Type size={18} /> Topic Based
+                            <Type size={18} /> Topic AI
                         </button>
                         <button
                             onClick={() => setMode('image')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-bold transition-all ${mode === 'image' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                            className={`flex-1 min-w-[100px] flex items-center justify-center gap-2 py-3 rounded-lg font-bold transition-all ${mode === 'image' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
                         >
-                            <ImageIcon size={18} /> Image Based
+                            <ImageIcon size={18} /> Image AI
                         </button>
                     </div>
 
@@ -842,113 +870,115 @@ Example:
             </div>
 
             {/* Add Question Modal */}
-            {showAddQuestion && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white">
-                            <h3 className="text-xl font-bold text-slate-800">Add Custom Question</h3>
-                            <button
-                                onClick={() => setShowAddQuestion(false)}
-                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="p-6 space-y-4">
-                            {/* Question Type */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-600 mb-2">Question Type</label>
-                                <select
-                                    className="w-full p-3 border border-slate-200 rounded-lg font-medium"
-                                    value={newQuestion.type}
-                                    onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+            {
+                showAddQuestion && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                            <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white">
+                                <h3 className="text-xl font-bold text-slate-800">Add Custom Question</h3>
+                                <button
+                                    onClick={() => setShowAddQuestion(false)}
+                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                                 >
-                                    <option value="Descriptive">Descriptive</option>
-                                    <option value="MCQ">Multiple Choice (MCQ)</option>
-                                    <option value="FillInBlanks">Fill in the Blanks</option>
-                                    <option value="TrueFalse">True/False</option>
-                                </select>
+                                    <X size={20} />
+                                </button>
                             </div>
 
-                            {/* Question Text */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-600 mb-2">Question</label>
-                                <textarea
-                                    className="w-full p-3 border border-slate-200 rounded-lg font-medium"
-                                    rows="3"
-                                    value={newQuestion.question}
-                                    onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })}
-                                    placeholder="Enter your question here..."
-                                />
-                            </div>
-
-                            {/* MCQ Options */}
-                            {newQuestion.type === 'MCQ' && (
+                            <div className="p-6 space-y-4">
+                                {/* Question Type */}
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">Options</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {newQuestion.options.map((opt, i) => (
-                                            <input
-                                                key={i}
-                                                type="text"
-                                                className="p-2 border border-slate-200 rounded-lg text-sm"
-                                                value={opt}
-                                                onChange={(e) => {
-                                                    const newOpts = [...newQuestion.options];
-                                                    newOpts[i] = e.target.value;
-                                                    setNewQuestion({ ...newQuestion, options: newOpts });
-                                                }}
-                                                placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                                            />
-                                        ))}
+                                    <label className="block text-xs font-bold text-slate-600 mb-2">Question Type</label>
+                                    <select
+                                        className="w-full p-3 border border-slate-200 rounded-lg font-medium"
+                                        value={newQuestion.type}
+                                        onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+                                    >
+                                        <option value="Descriptive">Descriptive</option>
+                                        <option value="MCQ">Multiple Choice (MCQ)</option>
+                                        <option value="FillInBlanks">Fill in the Blanks</option>
+                                        <option value="TrueFalse">True/False</option>
+                                    </select>
+                                </div>
+
+                                {/* Question Text */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-2">Question</label>
+                                    <textarea
+                                        className="w-full p-3 border border-slate-200 rounded-lg font-medium"
+                                        rows="3"
+                                        value={newQuestion.question}
+                                        onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })}
+                                        placeholder="Enter your question here..."
+                                    />
+                                </div>
+
+                                {/* MCQ Options */}
+                                {newQuestion.type === 'MCQ' && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-600 mb-2">Options</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {newQuestion.options.map((opt, i) => (
+                                                <input
+                                                    key={i}
+                                                    type="text"
+                                                    className="p-2 border border-slate-200 rounded-lg text-sm"
+                                                    value={opt}
+                                                    onChange={(e) => {
+                                                        const newOpts = [...newQuestion.options];
+                                                        newOpts[i] = e.target.value;
+                                                        setNewQuestion({ ...newQuestion, options: newOpts });
+                                                    }}
+                                                    placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Marks and Answer */}
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-600 mb-2">Marks</label>
+                                        <input
+                                            type="number"
+                                            className="w-full p-3 border border-slate-200 rounded-lg font-medium"
+                                            value={newQuestion.marks}
+                                            onChange={(e) => setNewQuestion({ ...newQuestion, marks: e.target.value })}
+                                            min="1"
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="block text-xs font-bold text-slate-600 mb-2">Answer Key</label>
+                                        <input
+                                            type="text"
+                                            className="w-full p-3 border border-slate-200 rounded-lg font-medium"
+                                            value={newQuestion.answer}
+                                            onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value })}
+                                            placeholder={newQuestion.type === 'MCQ' ? 'e.g., A or Option A' : 'Correct answer'}
+                                        />
                                     </div>
                                 </div>
-                            )}
+                            </div>
 
-                            {/* Marks and Answer */}
-                            <div className="grid grid-cols-3 gap-3">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">Marks</label>
-                                    <input
-                                        type="number"
-                                        className="w-full p-3 border border-slate-200 rounded-lg font-medium"
-                                        value={newQuestion.marks}
-                                        onChange={(e) => setNewQuestion({ ...newQuestion, marks: e.target.value })}
-                                        min="1"
-                                    />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">Answer Key</label>
-                                    <input
-                                        type="text"
-                                        className="w-full p-3 border border-slate-200 rounded-lg font-medium"
-                                        value={newQuestion.answer}
-                                        onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value })}
-                                        placeholder={newQuestion.type === 'MCQ' ? 'e.g., A or Option A' : 'Correct answer'}
-                                    />
-                                </div>
+                            <div className="p-6 border-t border-slate-200 flex justify-end gap-3 sticky bottom-0 bg-white">
+                                <button
+                                    onClick={() => setShowAddQuestion(false)}
+                                    className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAddQuestion}
+                                    className="px-6 py-2.5 text-sm font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                                >
+                                    Add Question
+                                </button>
                             </div>
                         </div>
-
-                        <div className="p-6 border-t border-slate-200 flex justify-end gap-3 sticky bottom-0 bg-white">
-                            <button
-                                onClick={() => setShowAddQuestion(false)}
-                                className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleAddQuestion}
-                                className="px-6 py-2.5 text-sm font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                            >
-                                Add Question
-                            </button>
-                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

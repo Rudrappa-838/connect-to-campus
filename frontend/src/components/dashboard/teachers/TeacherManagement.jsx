@@ -20,7 +20,7 @@ const TeacherManagement = ({ config }) => {
         name: '', email: '', phone: '', subject_specialization: '',
         gender: '', address: '', join_date: new Date().toISOString().split('T')[0],
         assign_class_id: '', assign_section_id: '', salary_per_day: '', salary_per_month: '',
-        employee_id: ''
+        employee_id: '', can_enroll_face: false, can_take_face_attendance: false
     });
     const [selectedId, setSelectedId] = useState(null);
 
@@ -126,7 +126,7 @@ const TeacherManagement = ({ config }) => {
             assign_class_id: prev.assign_class_id,
             assign_section_id: prev.assign_section_id,
             salary_per_day: '', salary_per_month: '',
-            employee_id: ''
+            employee_id: '', can_enroll_face: false, can_take_face_attendance: false
         }));
         setShowModal(true);
     };
@@ -428,6 +428,32 @@ const TeacherManagement = ({ config }) => {
                                         )}
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Biometric Permissions */}
+                            <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 space-y-3">
+                                <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">Mobile App Biometric Access</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-4 h-4 text-indigo-600 rounded" 
+                                            checked={formData.can_enroll_face} 
+                                            onChange={e => setFormData({ ...formData, can_enroll_face: e.target.checked })} 
+                                        />
+                                        <span className="font-bold text-slate-700 text-sm group-hover:text-indigo-600 transition-colors">Can Enroll Student Face</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-4 h-4 text-indigo-600 rounded" 
+                                            checked={formData.can_take_face_attendance} 
+                                            onChange={e => setFormData({ ...formData, can_take_face_attendance: e.target.checked })} 
+                                        />
+                                        <span className="font-bold text-slate-700 text-sm group-hover:text-indigo-600 transition-colors">Can Take Attendance</span>
+                                    </label>
+                                </div>
+                                <p className="text-[10px] text-indigo-400 font-medium leading-tight">Giving these permissions allows the teacher to use their mobile camera for student biometrics.</p>
                             </div>
 
                             <div className="flex justify-end gap-2 mt-4">

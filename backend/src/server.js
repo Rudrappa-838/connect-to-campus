@@ -147,6 +147,26 @@ const startServer = async () => {
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     END IF;
+
+                    -- Ensure teachers and staff have biometric permission columns
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'teachers') THEN
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'teachers' AND column_name = 'can_enroll_face') THEN
+                            ALTER TABLE teachers ADD COLUMN can_enroll_face BOOLEAN DEFAULT TRUE;
+                        END IF;
+                        -- Force update to ensure EVERYONE has permission now
+                        UPDATE teachers SET can_enroll_face = TRUE, can_take_face_attendance = TRUE;
+                    END IF;
+                    
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'staff') THEN
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'staff' AND column_name = 'can_enroll_face') THEN
+                            ALTER TABLE staff ADD COLUMN can_enroll_face BOOLEAN DEFAULT TRUE;
+                        END IF;
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'staff' AND column_name = 'can_take_face_attendance') THEN
+                            ALTER TABLE staff ADD COLUMN can_take_face_attendance BOOLEAN DEFAULT TRUE;
+                        END IF;
+                        -- Force update for existing staff
+                        UPDATE staff SET can_enroll_face = TRUE, can_take_face_attendance = TRUE;
+                    END IF;
                 END $$;
             `);
             console.log('✅ Database schema verified.');

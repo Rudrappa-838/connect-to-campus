@@ -935,10 +935,10 @@ exports.markAttendance = async (req, res) => {
         const statuses = attendanceData.map(r => r.status);
 
         const bulkQuery = `
-        INSERT INTO attendance (school_id, student_id, date, status)
-        SELECT $1, unnest($2::int[]), $3, unnest($4::text[])
+        INSERT INTO attendance (school_id, student_id, date, status, marking_mode)
+        SELECT $1, unnest($2::int[]), $3, unnest($4::text[]), 'manual'
         ON CONFLICT (student_id, date) 
-        DO UPDATE SET status = EXCLUDED.status
+        DO UPDATE SET status = EXCLUDED.status, marking_mode = 'manual'
     `;
 
         await client.query(bulkQuery, [school_id, studentIds, date, statuses]);
@@ -1165,7 +1165,7 @@ exports.getDailyAttendance = async (req, res) => {
         }
 
         let query = `
-        SELECT s.id, s.name, s.roll_number, s.contact_number, COALESCE(a.status, 'Unmarked') as status
+        SELECT s.id, s.name, s.roll_number, s.contact_number, COALESCE(a.status, 'Unmarked') as status, a.marking_mode
         FROM students s
         LEFT JOIN attendance a ON s.id = a.student_id AND a.date = $2
         WHERE s.school_id = $1 AND s.class_id = $3 AND (s.status IS NULL OR s.status != 'Deleted')
