@@ -148,41 +148,56 @@ const startServer = async () => {
                         );
                     END IF;
 
-                    -- Ensure teachers and staff have biometric permission columns
-                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'teachers') THEN
-                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'teachers' AND column_name = 'can_enroll_face') THEN
-                            ALTER TABLE teachers ADD COLUMN can_enroll_face BOOLEAN DEFAULT TRUE;
-                        END IF;
-                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'teachers' AND column_name = 'can_take_face_attendance') THEN
-                            ALTER TABLE teachers ADD COLUMN can_take_face_attendance BOOLEAN DEFAULT TRUE;
-                        END IF;
-                        UPDATE teachers SET can_enroll_face = TRUE, can_take_face_attendance = TRUE;
-                    END IF;
-                    
-                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'staff') THEN
-                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'staff' AND column_name = 'can_enroll_face') THEN
-                            ALTER TABLE staff ADD COLUMN can_enroll_face BOOLEAN DEFAULT TRUE;
-                        END IF;
-                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'staff' AND column_name = 'can_take_face_attendance') THEN
-                            ALTER TABLE staff ADD COLUMN can_take_face_attendance BOOLEAN DEFAULT TRUE;
-                        END IF;
-                        UPDATE staff SET can_enroll_face = TRUE, can_take_face_attendance = TRUE;
-                    END IF;
-
-                    -- Ensure schools table has the new feature flags
+                    -- A. SCHOOLS TABLE HARDENING (Master Switches)
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'schools') THEN
-                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'schools' AND column_name = 'has_face_enrollment') THEN
-                            ALTER TABLE schools ADD COLUMN has_face_enrollment BOOLEAN DEFAULT TRUE;
-                        END IF;
-                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'schools' AND column_name = 'has_face_scanner') THEN
-                            ALTER TABLE schools ADD COLUMN has_face_scanner BOOLEAN DEFAULT TRUE;
-                        END IF;
-                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'schools' AND column_name = 'has_biometric') THEN
-                            ALTER TABLE schools ADD COLUMN has_biometric BOOLEAN DEFAULT TRUE;
-                        END IF;
-                        -- Default existing schools to TRUE for these features
+                        ALTER TABLE schools ADD COLUMN IF NOT EXISTS has_face_enrollment BOOLEAN DEFAULT TRUE;
+                        ALTER TABLE schools ADD COLUMN IF NOT EXISTS has_face_scanner BOOLEAN DEFAULT TRUE;
+                        ALTER TABLE schools ADD COLUMN IF NOT EXISTS has_biometric BOOLEAN DEFAULT TRUE;
                         UPDATE schools SET has_face_enrollment = TRUE, has_face_scanner = TRUE, has_biometric = TRUE 
                         WHERE has_face_enrollment IS NULL OR has_face_scanner IS NULL OR has_biometric IS NULL;
+                    END IF;
+
+                    -- B. USER TABLES HARDENING (Biometric Template Storage)
+                    -- Students
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'students') THEN
+                         ALTER TABLE students ADD COLUMN IF NOT EXISTS biometric_template TEXT;
+                         ALTER TABLE students ADD COLUMN IF NOT EXISTS rfid_card_id VARCHAR(100);
+                         ALTER TABLE students ADD COLUMN IF NOT EXISTS biometric_template_format VARCHAR(50) DEFAULT 'face-api-js';
+                    END IF;
+
+                    -- Teachers
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'teachers') THEN
+                         ALTER TABLE teachers ADD COLUMN IF NOT EXISTS biometric_template TEXT;
+                         ALTER TABLE teachers ADD COLUMN IF NOT EXISTS rfid_card_id VARCHAR(100);
+                         ALTER TABLE teachers ADD COLUMN IF NOT EXISTS biometric_template_format VARCHAR(50) DEFAULT 'face-api-js';
+                         ALTER TABLE teachers ADD COLUMN IF NOT EXISTS can_enroll_face BOOLEAN DEFAULT TRUE;
+                         ALTER TABLE teachers ADD COLUMN IF NOT EXISTS can_take_face_attendance BOOLEAN DEFAULT TRUE;
+                         ALTER TABLE teachers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                         UPDATE teachers SET can_enroll_face = TRUE, can_take_face_attendance = TRUE 
+                         WHERE can_enroll_face IS NULL OR can_take_face_attendance IS NULL;
+                    END IF;
+
+                    -- Staff
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'staff') THEN
+                         ALTER TABLE staff ADD COLUMN IF NOT EXISTS biometric_template TEXT;
+                         ALTER TABLE staff ADD COLUMN IF NOT EXISTS rfid_card_id VARCHAR(100);
+                         ALTER TABLE staff ADD COLUMN IF NOT EXISTS biometric_template_format VARCHAR(50) DEFAULT 'face-api-js';
+                         ALTER TABLE staff ADD COLUMN IF NOT EXISTS can_enroll_face BOOLEAN DEFAULT TRUE;
+                         ALTER TABLE staff ADD COLUMN IF NOT EXISTS can_take_face_attendance BOOLEAN DEFAULT TRUE;
+                         ALTER TABLE staff ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                         UPDATE staff SET can_enroll_face = TRUE, can_take_face_attendance = TRUE 
+                         WHERE can_enroll_face IS NULL OR can_take_face_attendance IS NULL;
+                    END IF;
+
+                    -- C. ATTENDANCE TABLES HARDENING (Marking Modes)
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'attendance') THEN
+                        ALTER TABLE attendance ADD COLUMN IF NOT EXISTS marking_mode VARCHAR(50) DEFAULT 'manual';
+                    END IF;
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'teacher_attendance') THEN
+                        ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS marking_mode VARCHAR(50) DEFAULT 'manual';
+                    END IF;
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'staff_attendance') THEN
+                        ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS marking_mode VARCHAR(50) DEFAULT 'manual';
                     END IF;
                 END $$;
             `);
