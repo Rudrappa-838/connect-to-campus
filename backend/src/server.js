@@ -153,7 +153,9 @@ const startServer = async () => {
                         IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'teachers' AND column_name = 'can_enroll_face') THEN
                             ALTER TABLE teachers ADD COLUMN can_enroll_face BOOLEAN DEFAULT TRUE;
                         END IF;
-                        -- Force update to ensure EVERYONE has permission now
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'teachers' AND column_name = 'can_take_face_attendance') THEN
+                            ALTER TABLE teachers ADD COLUMN can_take_face_attendance BOOLEAN DEFAULT TRUE;
+                        END IF;
                         UPDATE teachers SET can_enroll_face = TRUE, can_take_face_attendance = TRUE;
                     END IF;
                     
@@ -164,8 +166,23 @@ const startServer = async () => {
                         IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'staff' AND column_name = 'can_take_face_attendance') THEN
                             ALTER TABLE staff ADD COLUMN can_take_face_attendance BOOLEAN DEFAULT TRUE;
                         END IF;
-                        -- Force update for existing staff
                         UPDATE staff SET can_enroll_face = TRUE, can_take_face_attendance = TRUE;
+                    END IF;
+
+                    -- Ensure schools table has the new feature flags
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'schools') THEN
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'schools' AND column_name = 'has_face_enrollment') THEN
+                            ALTER TABLE schools ADD COLUMN has_face_enrollment BOOLEAN DEFAULT TRUE;
+                        END IF;
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'schools' AND column_name = 'has_face_scanner') THEN
+                            ALTER TABLE schools ADD COLUMN has_face_scanner BOOLEAN DEFAULT TRUE;
+                        END IF;
+                        IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'schools' AND column_name = 'has_biometric') THEN
+                            ALTER TABLE schools ADD COLUMN has_biometric BOOLEAN DEFAULT TRUE;
+                        END IF;
+                        -- Default existing schools to TRUE for these features
+                        UPDATE schools SET has_face_enrollment = TRUE, has_face_scanner = TRUE, has_biometric = TRUE 
+                        WHERE has_face_enrollment IS NULL OR has_face_scanner IS NULL OR has_biometric IS NULL;
                     END IF;
                 END $$;
             `);
