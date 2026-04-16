@@ -49,8 +49,15 @@ const login = async (req, res) => {
             }
         }
 
-        // Find user by Email(s) AND Role (if provided)
-        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[])', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase())]);
+        // Find user by Email(s) AND Role (if provided) - Ignore users from deleted schools
+        const result = await pool.query(`
+            SELECT u.* 
+            FROM users u 
+            LEFT JOIN schools s ON u.school_id = s.id 
+            WHERE LOWER(u.email) = ANY($1::text[])
+            AND (u.school_id IS NULL OR s.status IS NULL OR s.status != 'Deleted')
+            ORDER BY u.id DESC
+        `, [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase())]);
 
         let user = null;
         if (result.rows.length > 0) {

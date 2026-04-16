@@ -52,12 +52,19 @@ const createSchool = async (req, res) => {
             }
         }
 
-        // Check if admin email already exists in users table
-        const adminEmailCheck = await client.query("SELECT id FROM users WHERE email = $1", [adminEmail]);
+        // Check if admin email already exists in users table (Allow reuse if linked school is deleted)
+        const adminEmailCheck = await client.query(`
+            SELECT u.id 
+            FROM users u 
+            LEFT JOIN schools s ON u.school_id = s.id 
+            WHERE u.email = $1 
+            AND (u.school_id IS NULL OR s.status IS NULL OR s.status != 'Deleted')
+        `, [adminEmail]);
+
         if (adminEmailCheck.rows.length > 0) {
             await client.query('ROLLBACK');
             client.release();
-            return res.status(400).json({ message: 'Admin email already exists' });
+            return res.status(400).json({ message: 'Admin email already exists for an active school' });
         }
 
         // 1. Create School
