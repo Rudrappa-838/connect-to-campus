@@ -69,9 +69,9 @@ const StudentAttendanceMarking = ({ config }) => {
 
             const statusMap = {};
             data.forEach(s => {
-                // If status is 'Unmarked' (from COALESCE in backend), default to 'Present' for the UI
-                // so the user can easily mark them or save as present.
-                statusMap[s.id] = s.status === 'Unmarked' ? 'Present' : s.status;
+                // If status is 'Unmarked' (no attendance record yet), leave as null so
+                // all buttons (Present/Absent/Late) start white/unselected.
+                statusMap[s.id] = s.status === 'Unmarked' ? null : s.status;
             });
 
             setStudents(data);
@@ -92,10 +92,13 @@ const StudentAttendanceMarking = ({ config }) => {
         if (saving) return;
         setSaving(true);
         try {
-            const attendanceData = Object.entries(attendance).map(([student_id, status]) => ({
-                student_id: parseInt(student_id),
-                status
-            }));
+            // Only include students who have been explicitly marked (not null/unselected)
+            const attendanceData = Object.entries(attendance)
+                .filter(([, status]) => status !== null)
+                .map(([student_id, status]) => ({
+                    student_id: parseInt(student_id),
+                    status
+                }));
 
             await api.post('/students/attendance', { date, attendanceData });
             toast.success('Attendance saved successfully');
