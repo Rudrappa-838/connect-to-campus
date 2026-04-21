@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 
@@ -12,6 +12,8 @@ const StaffManagement = () => {
     const [fieldErrors, setFieldErrors] = useState({});
     const [loading, setLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const formBottomRef = React.useRef(null);
+
 
     useEffect(() => { fetchStaff(); }, []);
 
@@ -202,13 +204,25 @@ const StaffManagement = () => {
             {showModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
                             <h3 className="text-lg font-bold text-gray-800">{isEditing ? 'Edit Staff' : 'Add New Staff'}</h3>
-                            <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200 transition-colors">
-                                <X size={20} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    type="button"
+                                    onClick={() => formBottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="text-indigo-600 hover:bg-indigo-100 p-2 rounded-full transition-colors flex items-center gap-1 text-xs font-bold"
+                                    title="Scroll to bottom"
+                                >
+                                    <ChevronDown size={18} />
+                                    <span>Scroll Down</span>
+                                </button>
+                                <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200 transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
                         </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                        <div className="overflow-y-auto max-h-[calc(90vh-120px)] scrollbar-hide">
+                            <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 {isEditing && (
                                     <div className="col-span-1">
@@ -393,7 +407,9 @@ const StaffManagement = () => {
                                     {isSubmitting ? 'Processing...' : (isEditing ? 'Update Staff' : 'Add Staff')}
                                 </button>
                             </div>
+                            <div ref={formBottomRef} />
                         </form>
+                    </div>
                     </div>
                 </div>
             )}
