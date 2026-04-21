@@ -31,6 +31,7 @@ echo ""
 
 # 3. Build Frontend
 echo "🏗️  Step 3/5: Building frontend for production..."
+export NODE_OPTIONS="--max-old-space-size=2048"
 npm run build
 echo "✅ Frontend built successfully!"
 echo ""
