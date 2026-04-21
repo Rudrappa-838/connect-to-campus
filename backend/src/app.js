@@ -7,7 +7,6 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/authRoutes');
-const schoolRoutes = require('./routes/schoolRoutes');
 
 const app = express();
 
@@ -38,16 +37,23 @@ app.use(helmet({
 // Configure CORS with environment-based whitelist
 const allowedOrigins = process.env.NODE_ENV === 'production'
     ? [
+        'https://connect2campus.co.in',          // Production domain
+        'https://www.connect2campus.co.in',       // Production domain (www)
         'https://connect-to-campus-b56ac.web.app', // Firebase (Testing)
-        process.env.FRONTEND_URL, // AWS S3/CloudFront (Production)
-        'capacitor://localhost', // Mobile App (iOS)
-        'http://localhost', // Mobile App (Android - Debug)
-        'https://localhost', // Mobile App (Android - Release/Debug)
+        process.env.FRONTEND_URL,                 // Fallback env override
+        'capacitor://localhost',                  // Mobile App (iOS)
+        'http://localhost',                       // Mobile App (Android - Debug)
+        'https://localhost',                      // Mobile App (Android - Release)
     ].filter(Boolean) // Remove undefined values
-    : ['http://localhost:5173', 'http://localhost:5174', 'capacitor://localhost', 'http://localhost'];
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'capacitor://localhost', 'http://localhost'];
 
 app.use(cors({
     origin: (origin, callback) => {
+        // Allow all in development
+        if (process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+
         // Allow requests with no origin (mobile apps, Postman)
         if (!origin) return callback(null, true);
 
@@ -65,15 +71,30 @@ app.use(cors({
 
 // Debug Middleware: Log Origin and Headers for troubleshooting
 app.use((req, res, next) => {
-    console.log(`📡 Request: ${req.method} ${req.url}`);
-    console.log(`   Origin: ${req.headers.origin || 'No Origin'}`);
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`📡 Request: ${req.method} ${req.url}`);
+        console.log(`   Origin: ${req.headers.origin || 'No Origin'}`);
+    }
     next();
 });
 
-app.use(morgan('dev')); // Logger
-app.use(express.json({ limit: '10mb' })); // Parse JSON bodies (Increased for Base64 Images)
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(process.env.NODE_ENV === 'production' ? morgan('combined') : morgan('dev')); // Logger
+app.use(express.json({ limit: '50mb' })); // Parse JSON bodies (Increased for Base64 Images)
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Force No-Cache for index.html to ensure updates are seen immediately
+app.use((req, res, next) => {
+    if (req.path === '/' || req.path === '/index.html') {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Surrogate-Control', 'no-store');
+    }
+    next();
+});
+
 app.use(express.static(path.join(__dirname, '../public'))); // Serve static files (APKs, etc.)
+app.use('/api', express.static(path.join(__dirname, '../public'))); // Serve under /api so Nginx routes to Node
 
 // Rate Limiter (Prevent Crashing from DoS/Spam)
 const limiter = rateLimit({
@@ -85,90 +106,95 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Routes (Handle both /api prefix and root for Firebase compatibility)
+// ==========================================
+// 🚀 CONSOLIDATED ROUTES
+// ==========================================
+const route = (path, file) => app.use([`/api/${path}`, `/${path}`], require(`./routes/${file}`));
+
 app.use(['/api/auth', '/auth'], authRoutes);
-app.use(['/api/schools', '/schools'], schoolRoutes);
-app.use(['/api/classes', '/classes'], require('./routes/classRoutes'));
-app.use(['/api/students', '/students'], require('./routes/studentRoutes'));
-app.use(['/api/teachers', '/teachers'], require('./routes/teacherRoutes'));
-app.use(['/api/staff', '/staff'], require('./routes/staffRoutes'));
-app.use(['/api/fees', '/fees'], require('./routes/feeRoutes'));
-app.use(['/api/library', '/library'], require('./routes/libraryRoutes'));
-app.use(['/api/salary', '/salary'], require('./routes/salaryRoutes'));
-app.use(['/api/holidays', '/holidays'], require('./routes/holidayRoutes'));
-app.use(['/api/timetable', '/timetable'], require('./routes/timetableRoutes'));
-app.use(['/api/marks', '/marks'], require('./routes/marksRoutes'));
-
-// ==========================================
-// 🚀 MOUNTING MISSING ROUTES (FIXED)
-// ==========================================
-app.use(['/api/hostel', '/hostel'], require('./routes/hostelRoutes'));
-app.use(['/api/transport', '/transport'], require('./routes/transportRoutes'));
-app.use(['/api/admissions', '/admissions'], require('./routes/admissionsRoutes'));
-app.use(['/api/finance', '/finance'], require('./routes/financeRoutes'));
-app.use(['/api/calendar', '/calendar'], require('./routes/calendarRoutes')); // Events & Announcements
-app.use(['/api/biometric', '/biometric'], require('./routes/biometricRoutes'));
-app.use(['/api/ai', '/ai'], require('./routes/aiRoutes'));
-app.use(['/api/notifications', '/notifications'], require('./routes/notificationRoutes'));
-app.use(['/api/certificates', '/certificates'], require('./routes/certificateRoutes'));
-app.use(['/api/exams', '/exams'], require('./routes/examScheduleRoutes'));
-app.use(['/api/years', '/years'], require('./routes/academicYearRoutes'));
-app.use(['/api/doubts', '/doubts'], require('./routes/doubtRoutes'));
-
-app.use(['/api/exam-schedule', '/exam-schedule'], require('./routes/examScheduleRoutes'));
-app.use(['/api/hostel', '/hostel'], require('./routes/hostelRoutes'));
-app.use(['/api/finance', '/finance'], require('./routes/financeRoutes'));
-app.use(['/api/calendar', '/calendar'], require('./routes/calendarRoutes'));
-app.use(['/api/leaves', '/leaves'], require('./routes/leaveRoutes'));
-app.use(['/api/transport', '/transport'], require('./routes/transportRoutes'));
-app.use(['/api/certificates', '/certificates'], require('./routes/certificateRoutes'));
-app.use(['/api/admissions', '/admissions'], require('./routes/admissionsRoutes'));
-app.use(['/api/biometric', '/biometric'], require('./routes/biometricRoutes'));
-app.use(['/api/doubts', '/doubts'], require('./routes/doubtRoutes'));
-app.use(['/api/notifications', '/notifications'], require('./routes/notificationRoutes'));
-app.use(['/api/ai', '/ai'], require('./routes/aiRoutes'));
-app.use(['/api/grades', '/grades'], require('./routes/gradeRoutes'));
-app.use(['/api/grades', '/grades'], require('./routes/gradeRoutes'));
-app.use(['/api/academic-years', '/academic-years'], require('./routes/academicYearRoutes'));
-app.use(['/api/debug', '/debug'], require('./routes/debugRoutes'));
+route('schools', 'schoolRoutes');
+route('classes', 'classRoutes');
+route('students', 'studentRoutes');
+route('teachers', 'teacherRoutes');
+route('staff', 'staffRoutes');
+route('fees', 'feeRoutes');
+route('library', 'libraryRoutes');
+route('salary', 'salaryRoutes');
+route('holidays', 'holidayRoutes');
+route('timetable', 'timetableRoutes');
+route('marks', 'marksRoutes');
+route('hostel', 'hostelRoutes');
+route('transport', 'transportRoutes');
+route('admissions', 'admissionsRoutes');
+route('finance', 'financeRoutes');
+route('calendar', 'calendarRoutes');
+route('biometric', 'biometricRoutes');
+route('ai', 'aiRoutes');
+route('notifications', 'notificationRoutes');
+route('certificates', 'certificateRoutes');
+route('exams', 'examScheduleRoutes');
+route('exam-schedule', 'examScheduleRoutes');
+route('academic-years', 'academicYearRoutes');
+route('years', 'academicYearRoutes');
+route('doubts', 'doubtRoutes');
+route('leaves', 'leaveRoutes');
+route('grades', 'gradeRoutes');
+route('student-reviews', 'studentReviewRoutes');
+route('debug', 'debugRoutes');
+route('question-bank', 'questionBankRoutes');
 
 // --- ADMS / Biometric Device Default Routes ---
-// Many devices (Secureye, ZKTeco) hardcode these paths if "Request URL" isn't configurable.
 const { handleExternalDeviceLog } = require('./controllers/biometricController');
-app.all('/iclock/cdata', handleExternalDeviceLog);      // Main Attendance Log URL
-app.all('/iclock/getrequest', (req, res) => res.send('OK')); // Command checks
-app.all('/iclock/devicecmd', (req, res) => res.send('OK'));  // Device commands
-app.all('/iclock/options', (req, res) => res.send('OK'));    // Configuration checks
+app.all('/iclock/cdata', handleExternalDeviceLog);
+app.all('/iclock/getrequest', (req, res) => res.send('OK'));
+app.all('/iclock/devicecmd', (req, res) => res.send('OK'));
+app.all('/iclock/options', (req, res) => res.send('OK'));
 
-// --- Mobile App "Switchboard" Route ---
-// The APK points here. We redirect it to wherever the frontend is currently hosted.
-// If we change hosting, we just update this URL. No APK rebuild needed!
+// ==========================================
+// 📱 APP VERSION CHECK (In-App Update)
+// ==========================================
+// Update MINIMUM_VERSION whenever you release a critical update
+// that ALL users MUST install. Users below this version will be
+// forced to update from the Play Store.
+const MINIMUM_APP_VERSION = 37; // Version Code (not name). Update this to force update.
+const LATEST_APP_VERSION = 38;  // Current latest version code.
+
+app.get(['/api/app-version', '/app-version'], (req, res) => {
+    res.json({
+        minimum_version: MINIMUM_APP_VERSION,
+        latest_version: LATEST_APP_VERSION,
+        play_store_url: 'https://play.google.com/store/apps/details?id=com.rudrappa.connect2campus',
+        update_message: 'A new version of Connect to Campus is available. Please update to continue using the app.'
+    });
+});
+
 app.get('/app-launch', (req, res) => {
-    // Redirect to the currently active frontend hosting URL
     res.redirect(`https://connect-to-campus-b56ac.web.app?t=${Date.now()}`);
 });
 
-// Download App Route
+
 app.get(['/api/download-app', '/download-app'], (req, res) => {
-    const file = path.join(__dirname, '../public/SchoolApp_NetworkFix.apk');
-    res.download(file, 'SchoolApp_NetworkFix.apk', (err) => {
-        if (err) {
-            console.error('Error downloading file:', err);
-            res.status(404).send('App file not found on server.');
-        }
-    });
+    res.redirect('https://play.google.com/store/apps/details?id=com.rudrappa.connect2campus');
 });
 
-// Health Check (Handles both prefixed and non-prefixed roots)
-app.get(['/api', '/'], (req, res) => {
-    res.json({
-        status: 'OK',
-        message: 'School Management API is running',
-        timestamp: new Date()
-    });
+app.get(['/api', '/'], async (req, res) => {
+    try {
+        await require('./config/db').pool.query('SELECT 1');
+        res.json({
+            status: 'OK',
+            message: 'School Management API is running',
+            db: 'Connected',
+            timestamp: new Date()
+        });
+    } catch (e) {
+        res.status(500).json({
+            status: 'ERROR',
+            message: 'API Running but DB Failed',
+            error: e.message
+        });
+    }
 });
 
-// Global Error Handler
 app.use((err, req, res, next) => {
     console.error('🔥 Global Error Handler:', err);
     res.status(500).json({

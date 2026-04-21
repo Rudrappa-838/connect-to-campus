@@ -101,7 +101,7 @@ const TeacherMySalary = () => {
                             <div>
                                 <div className="text-2xl font-bold">₹{salary_history[0].amount}</div>
                                 <div className="text-xs text-indigo-100 mt-1 flex items-center gap-1">
-                                    <CheckCircle size={10} /> Paid on {new Date(salary_history[0].payment_date).toLocaleDateString()}
+                                    <CheckCircle size={10} /> Paid on {new Date(salary_history[0].payment_date).toLocaleDateString('en-GB')}
                                 </div>
                             </div>
                         ) : (
@@ -132,7 +132,7 @@ const TeacherMySalary = () => {
                                             {new Date(payment.year, payment.month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
                                         </div>
                                         <div className="text-xs text-slate-500 font-medium mt-1">
-                                            Processed on {new Date(payment.payment_date).toLocaleDateString()}
+                                            Processed on {new Date(payment.payment_date).toLocaleDateString('en-GB')}
                                         </div>
                                     </div>
                                 </div>
@@ -205,7 +205,7 @@ const TeacherMySalary = () => {
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] uppercase text-slate-400 font-bold">Date</p>
-                                            <p className="font-bold text-slate-800">{new Date(selectedSlip.payment_date).toLocaleDateString()}</p>
+                                            <p className="font-bold text-slate-800">{new Date(selectedSlip.payment_date).toLocaleDateString('en-GB')}</p>
                                         </div>
                                         <div>
                                             <p className="text-[10px] uppercase text-slate-400 font-bold">Employee ID</p>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, ChevronRight, AlertCircle, Clock } from 'lucide-react';
+import { Bell, ChevronRight, AlertCircle, Clock, Paperclip } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../api/axios';
 import { useAuth } from '../../../context/AuthContext';
@@ -91,10 +91,15 @@ const RecentAnnouncements = ({ limit = 3, onMoreClick }) => {
                             </p>
                             <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
                                 <Clock size={10} />
-                                <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                                <span>{new Date(item.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
                                 {item.target_role !== 'All' && (
                                     <span className="bg-white px-1.5 py-0.5 rounded shadow-sm border border-slate-100 ml-auto text-slate-500">
                                         {item.target_role}
+                                    </span>
+                                )}
+                                {item.attachment_url && (
+                                    <span className="flex items-center gap-1 bg-white px-1.5 py-0.5 rounded shadow-sm border border-slate-100 text-indigo-500 ml-1">
+                                        <Paperclip size={10} />
                                     </span>
                                 )}
                             </div>

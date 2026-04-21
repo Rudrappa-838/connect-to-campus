@@ -43,7 +43,7 @@ jobs:
 
       - name: Build Web App
         env:
-           VITE_API_URL: http://52.66.13.31/api
+           VITE_API_URL: https://connect2campus.co.in/api
         run: npm run build
 
       - name: Sync Capacitor

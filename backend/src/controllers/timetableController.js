@@ -37,7 +37,7 @@ exports.generateTimetable = async (req, res) => {
 
         if (subjects.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ message: 'No subjects found/selected for this class' });
+            return res.status(400).json({ message: 'Cannot generate class time table. No subjects found for this class.' });
         }
 
         // 2. Delete existing timetable

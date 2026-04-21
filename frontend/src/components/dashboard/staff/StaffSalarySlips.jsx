@@ -181,7 +181,7 @@ const StaffSalarySlips = () => {
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] uppercase text-slate-400 font-bold">Date</p>
-                                            <p className="font-bold text-slate-800">{new Date(selectedSlip.payment_date).toLocaleDateString()}</p>
+                                            <p className="font-bold text-slate-800">{new Date(selectedSlip.payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}</p>
                                         </div>
                                         <div>
                                             <p className="text-[10px] uppercase text-slate-400 font-bold">Employee ID</p>

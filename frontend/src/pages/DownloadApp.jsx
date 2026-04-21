@@ -8,13 +8,8 @@ const DownloadApp = () => {
     const isProduction = import.meta.env.VITE_APP_ENV === 'production';
 
     // Dynamic Download URL Logic
+    const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.rudrappa.connect2campus';
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-    // Local gets the NetworkFix (Test) APK, Production gets the official SchoolApp.apk
-    const downloadUrl = isLocal ? '/SchoolApp_NetworkFix.apk' : '/SchoolApp.apk';
-    const downloadFilename = isLocal ? 'SchoolApp_NetworkFix.apk' : 'SchoolApp.apk';
-    const buttonText = isLocal ? 'Download Test APK (Debug)' : 'Download Official App';
-
 
     return (
         <div className="relative min-h-screen w-full overflow-hidden">
@@ -44,14 +39,14 @@ const DownloadApp = () => {
                                 <Smartphone size={40} className="text-black" />
                             </div>
                             <h1 className="text-4xl md:text-5xl font-cursive text-white mb-3 drop-shadow-lg">
-                                {!isLocal ? 'Get the App' : 'Download Test App'}
+                                Get Connect to Campus
                             </h1>
                             <p className="text-gray-300 text-lg">
-                                Complete School Management System
+                                Official Mobile App for Schools
                             </p>
                             <div className="inline-block mt-4 px-4 py-2 bg-green-500/20 border border-green-500/50 rounded-full">
                                 <p className="text-green-300 text-sm font-bold">
-                                    {!isLocal ? 'v1.0 - Official Release' : 'v9.0 - Development Build'}
+                                    Now Available on Google Play Store
                                 </p>
                             </div>
                         </div>
@@ -77,14 +72,14 @@ const DownloadApp = () => {
 
                         {/* Download Button */}
                         <div className="text-center mb-8 flex flex-col items-center gap-4">
-                            {/* Force APK Download for now until Play Store launch */}
                             <a
-                                href={`${downloadUrl}?v=${new Date().getTime()}`}
-                                download={downloadFilename}
+                                href={playStoreUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-black font-bold rounded-xl shadow-lg shadow-yellow-400/30 transform transition-all hover:scale-105 text-lg"
                             >
-                                <Download size={24} />
-                                {buttonText}
+                                <Smartphone size={24} />
+                                Install from Play Store
                             </a>
 
                             <button
@@ -96,38 +91,10 @@ const DownloadApp = () => {
                             </button>
                         </div>
 
-                        {/* Installation Instructions */}
-                        {!isProduction && (
-                            <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-6">
-                                <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-                                    <Shield size={20} className="text-blue-400" />
-                                    Installation Instructions
-                                </h3>
-                                <ol className="text-gray-300 space-y-2 text-sm">
-                                    <li className="flex gap-2">
-                                        <span className="text-yellow-400 font-bold">1.</span>
-                                        <span>Download the APK file to your Android device</span>
-                                    </li>
-                                    <li className="flex gap-2">
-                                        <span className="text-yellow-400 font-bold">2.</span>
-                                        <span>Go to Settings → Security → Enable "Install from Unknown Sources"</span>
-                                    </li>
-                                    <li className="flex gap-2">
-                                        <span className="text-yellow-400 font-bold">3.</span>
-                                        <span>Open the downloaded APK file and tap "Install"</span>
-                                    </li>
-                                    <li className="flex gap-2">
-                                        <span className="text-yellow-400 font-bold">4.</span>
-                                        <span>Open the app and login with your credentials</span>
-                                    </li>
-                                </ol>
-                            </div>
-                        )}
-
                         {/* Note */}
                         <div className="mt-6 text-center">
                             <p className="text-gray-400 text-xs">
-                                {isProduction ? '' : 'Note: This is a test build for development purposes.'}
+                                For the best experience, always keep your app updated via the Play Store.
                             </p>
                         </div>
 
@@ -135,7 +102,7 @@ const DownloadApp = () => {
 
                     {/* Footer */}
                     <div className="text-center mt-6">
-                        <p className="text-white/30 text-xs font-cursive tracking-widest">Connect to Campus {isProduction ? 'v1.0' : 'v9.0'}</p>
+                        <p className="text-white/30 text-xs font-cursive tracking-widest">Connect to Campus</p>
                     </div>
                 </div>
             </div>

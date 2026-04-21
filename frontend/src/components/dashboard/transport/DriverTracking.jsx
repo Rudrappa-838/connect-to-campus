@@ -45,6 +45,8 @@ const DriverTracking = () => {
     const [error, setError] = useState(null);
     const wakeLockRef = useRef(null);
     const [isMobileApp, setIsMobileApp] = useState(false);
+    const [showDisclosure, setShowDisclosure] = useState(false); // Google Play: Prominent Disclosure
+    const [disclosureAccepted, setDisclosureAccepted] = useState(false);
 
     // Detect if running in native app
     useEffect(() => {
@@ -73,10 +75,27 @@ const DriverTracking = () => {
         try {
             const perm = await Geolocation.checkPermissions();
             if (perm.location !== 'granted') {
+                // Show Prominent Disclosure BEFORE requesting permission (Google Play requirement)
+                const accepted = localStorage.getItem('location_disclosure_accepted');
+                if (!accepted) {
+                    setShowDisclosure(true);
+                    return; // Wait for user to accept disclosure
+                }
                 await Geolocation.requestPermissions();
             }
         } catch (err) {
             console.error('Permission check failed', err);
+        }
+    };
+
+    const handleDisclosureAccept = async () => {
+        localStorage.setItem('location_disclosure_accepted', 'true');
+        setDisclosureAccepted(true);
+        setShowDisclosure(false);
+        try {
+            await Geolocation.requestPermissions();
+        } catch (err) {
+            console.error('Permission request failed', err);
         }
     };
 
@@ -236,6 +255,44 @@ const DriverTracking = () => {
 
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col relative">
+
+            {/* ===== PROMINENT LOCATION DISCLOSURE DIALOG (Google Play Required) ===== */}
+            {showDisclosure && (
+                <div className="fixed inset-0 bg-black/70 z-[99999] flex items-center justify-center p-5">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden">
+                        <div className="bg-indigo-600 p-5 text-white text-center">
+                            <MapPin size={36} className="mx-auto mb-2" />
+                            <h2 className="text-xl font-black">Location Permission Required</h2>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-slate-700 font-bold mb-3 text-sm">📍 Why we need your location:</p>
+                            <ul className="text-slate-600 text-sm space-y-2 mb-5">
+                                <li className="flex gap-2"><span>🚌</span><span>To broadcast your <strong>live bus location</strong> to parents and school admins</span></li>
+                                <li className="flex gap-2"><span>🔒</span><span>Location is used <strong>only for school transport tracking</strong> — never shared with advertisers</span></li>
+                                <li className="flex gap-2"><span>📱</span><span>Background location is used so tracking continues <strong>even when app is minimized</strong></span></li>
+                                <li className="flex gap-2"><span>❌</span><span>You can <strong>stop tracking</strong> anytime using the Stop button</span></li>
+                            </ul>
+                            <a href="https://connect2campus.co.in/privacy-policy"
+                                className="text-indigo-500 text-xs underline block mb-4 text-center"
+                                target="_blank" rel="noopener noreferrer">
+                                Read our full Privacy Policy
+                            </a>
+                            <button
+                                onClick={handleDisclosureAccept}
+                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm mb-2 active:scale-95 transition-all"
+                            >
+                                ✅ Allow Location & Continue
+                            </button>
+                            <button
+                                onClick={() => setShowDisclosure(false)}
+                                className="w-full py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold text-sm active:scale-95 transition-all"
+                            >
+                                Not Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* 1. BULLETPROOF FIXED HEADER - RED BACK BUTTON */}
             <header className="fixed top-0 left-0 right-0 bg-indigo-700 text-white z-[9999] shadow-2xl safe-area-top">
                 <div className="px-5 h-20 flex items-center justify-between">

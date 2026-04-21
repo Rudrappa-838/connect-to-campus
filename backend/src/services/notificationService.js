@@ -18,7 +18,7 @@ const sendSMS = async (phoneNumber, message) => {
 
 // Real Push Notification Service (Firebase/FCM)
 // AND Save to DB for In-App Notification Center
-const sendPushNotification = async (recipientId, title, body, roleHint = null) => {
+const sendPushNotification = async (recipientId, title, body, roleHint = null, attachment_url = null, attachment_type = null) => {
     const client = await pool.connect();
     try {
         console.log(`[PUSH REQUEST] Recipient: ${recipientId} | Title: ${title}`);
@@ -39,71 +39,87 @@ const sendPushNotification = async (recipientId, title, body, roleHint = null) =
         // Default to Student if we assume numeric ID is a student (common case in this system)
         if (!finalRole) finalRole = 'Student';
 
-        // 0. Try direct User ID lookup first (Highest Priority)
-        // If recipientId is already a number, it might be a users.id
-        if (recipientId && !isNaN(recipientId)) {
-            const directRes = await client.query('SELECT id, role FROM users WHERE id = $1', [recipientId]);
-            if (directRes.rows.length > 0) {
-                const u = directRes.rows[0];
-                // Use it if role matches, or if we are in a broad targeting mode
-                if (!finalRole ||
-                    finalRole === 'DIRECT' ||
-                    finalRole === 'All' ||
-                    finalRole === 'Class' ||
-                    u.role.toUpperCase() === finalRole.toUpperCase() ||
-                    (finalRole === 'Staff' && ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER'].includes(u.role.toUpperCase()))
-                ) {
-                    dbUserId = u.id;
-                    console.log(`[PUSH RESOLVE] Direct User ID match found: ${dbUserId}`);
-                }
+        // 1. RESOLVE USER ID (for DB persistence and FCM Token lookup)
+        // This must be robust to handle Numeric IDs, Email logins, and Employee/Admission IDs
+        if (recipientId) {
+            const STAFF_ROLES = ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN'];
+            const searchVal = recipientId.toString().trim();
+            const isNumeric = !isNaN(searchVal);
+
+            let res;
+            if (finalRole === 'Student') {
+                res = await client.query(`
+                    SELECT u.id FROM users u 
+                    LEFT JOIN students s ON (s.id = u.linked_id OR LOWER(s.email) = LOWER(u.email))
+                    WHERE u.role = 'STUDENT' 
+                    AND (
+                        (u.linked_id::text = $1) OR 
+                        (s.id::text = $1) OR
+                        (s.admission_no ILIKE $1) OR 
+                        (u.email ILIKE $1 || '@student.school.com') OR
+                        (LOWER(u.email) = LOWER($1))
+                    )
+                    LIMIT 1
+                `, [searchVal]);
+            } else if (finalRole === 'Teacher') {
+                res = await client.query(`
+                    SELECT u.id FROM users u 
+                    LEFT JOIN teachers t ON (t.id = u.linked_id OR LOWER(t.email) = LOWER(u.email))
+                    WHERE u.role = 'TEACHER' 
+                    AND (
+                        (u.linked_id::text = $1) OR 
+                        (t.id::text = $1) OR
+                        (t.employee_id ILIKE $1) OR 
+                        (u.email ILIKE $1 || '@teacher.school.com') OR
+                        (LOWER(u.email) = LOWER($1))
+                    )
+                    LIMIT 1
+                `, [searchVal]);
+            } else if (finalRole === 'Staff') {
+                res = await client.query(`
+                    SELECT u.id FROM users u 
+                    LEFT JOIN staff st ON (st.id = u.linked_id OR LOWER(st.email) = LOWER(u.email))
+                    WHERE u.role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN') 
+                    AND (
+                        (u.linked_id::text = $1) OR 
+                        (st.id::text = $1) OR
+                        (st.employee_id ILIKE $1) OR 
+                        (u.email ILIKE $1 || '@staff.school.com') OR
+                        (LOWER(u.email) = LOWER($1))
+                    )
+                    LIMIT 1
+                `, [searchVal]);
+            } else {
+                // Fallback for direct User ID or generic Email
+                res = await client.query(`
+                    SELECT id FROM users 
+                    WHERE (id::text = $1) OR (LOWER(email) = LOWER($1))
+                    LIMIT 1
+                `, [searchVal]);
             }
-        }
 
-        // 1. Resolve via Role Tables if not already resolved
-        if (!dbUserId && finalRole === 'Student') {
-            // Check both standard student ID (numeric) and Admission Number
-            const res = await client.query(`
-                SELECT u.id 
-                FROM users u 
-                JOIN students s ON (LOWER(u.email) = LOWER(s.email) OR u.email = LOWER(s.admission_no) || '@student.school.com')
-                WHERE (s.id::text = $1 OR s.admission_no ILIKE $1)
-                AND u.role = 'STUDENT'
-             `, [recipientId.toString()]);
-            if (res.rows.length > 0) dbUserId = res.rows[0].id;
-
-        } else if (!dbUserId && finalRole === 'Teacher') {
-            const res = await client.query(`
-                SELECT u.id 
-                FROM users u 
-                JOIN teachers t ON (LOWER(u.email) = LOWER(t.email) OR u.email = t.employee_id || '@teacher.school.com')
-                WHERE (t.id::text = $1 OR t.employee_id = $1)
-                AND u.role = 'TEACHER'
-             `, [recipientId.toString()]);
-            if (res.rows.length > 0) dbUserId = res.rows[0].id;
-
-        } else if (!dbUserId && finalRole === 'Staff') {
-            const res = await client.query(`
-                SELECT u.id 
-                FROM users u 
-                JOIN staff s ON (LOWER(u.email) = LOWER(s.email) OR u.email = s.employee_id || '@staff.school.com')
-                WHERE (s.id::text = $1 OR s.employee_id = $1)
-                AND u.role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER')
-             `, [recipientId.toString()]);
-            if (res.rows.length > 0) dbUserId = res.rows[0].id;
+            if (res && res.rows.length > 0) {
+                dbUserId = res.rows[0].id;
+                console.log(`[PUSH RESOLVED] Found User ID: ${dbUserId} for ${finalRole} ${searchVal}`);
+            }
         }
 
         // 2. Insert into Notifications Table
         if (dbUserId) {
             await client.query(
-                'INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)',
-                [dbUserId, title, body, 'ALERT']
+                'INSERT INTO notifications (user_id, title, message, type, attachment_url, attachment_type) VALUES ($1, $2, $3, $4, $5, $6)',
+                [dbUserId, title, body, 'ALERT', attachment_url, attachment_type]
             );
 
             // 3. Send via Firebase
             const userTokenRes = await client.query('SELECT fcm_token FROM users WHERE id = $1', [dbUserId]);
             const token = userTokenRes.rows[0]?.fcm_token;
             if (token) {
-                await sendRealPush(token, title, body, { role: finalRole });
+                // Calculate Unread Count for badge (Include the current new one)
+                const unreadRes = await client.query('SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false', [dbUserId]);
+                const badgeCount = parseInt(unreadRes.rows[0].count);
+
+                await sendRealPush(token, title, body, { role: finalRole }, badgeCount);
             }
 
             console.log(`[REAL PUSH] Processed for User ID: ${dbUserId}`);
@@ -167,8 +183,16 @@ const sendAttendanceNotification = async (user, status) => {
             }
         }
 
+        // Detect Role for Push Logic
+        let roleHint = 'Student';
+        if (user.employee_id) {
+            // Check if user is a teacher or staff (role check or department)
+            if (user.role && user.role.toLowerCase().includes('teacher')) roleHint = 'Teacher';
+            else roleHint = 'Staff';
+        }
+
         // Always send Mobile App Push Notification (FREE & Real-time)
-        await sendPushNotification(user.id, title, `${user.name} has ${message.toLowerCase()}.`);
+        await sendPushNotification(user.id, title, `${user.name} has ${message.toLowerCase()}.`, roleHint);
 
     } catch (error) {
         console.error('Error sending attendance notification:', error);

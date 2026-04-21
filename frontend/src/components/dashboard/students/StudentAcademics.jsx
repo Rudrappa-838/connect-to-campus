@@ -132,7 +132,7 @@ const StudentAcademics = () => {
     };
 
     const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString();
+        return new Date(dateString).toLocaleDateString('en-GB');
     };
 
     if (!profile) return <div className="text-center py-20 text-slate-400">Loading academic details...</div>;

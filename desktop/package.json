@@ -1,0 +1,32 @@
+{
+    "name": "connect-to-campus-desktop",
+    "version": "1.0.0",
+    "main": "main.js",
+    "description": "Desktop Application for Connect To Campus",
+    "author": "Connect To Campus Team",
+    "scripts": {
+        "start": "electron .",
+        "build": "electron-builder"
+    },
+    "build": {
+        "appId": "com.connecttocampus.desktop",
+        "productName": "Connect To Campus",
+        "files": [
+            "main.js",
+            "offline.html",
+            "package.json"
+        ],
+        "win": {
+            "target": "dir"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": true
+        }
+    },
+    "devDependencies": {
+        "electron": "^28.2.0",
+        "electron-builder": "^24.9.1"
+    }
+}

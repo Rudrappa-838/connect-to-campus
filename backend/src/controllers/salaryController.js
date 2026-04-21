@@ -171,13 +171,8 @@ exports.markSalaryPaid = async (req, res) => {
         if (empNameRes.rows.length > 0) {
             const title = 'Salary Credited';
             const body = `Dear ${empNameRes.rows[0].name}, your salary of ₹${amount} for ${month}/${year} has been credited.`;
-            // Mapping employee_id to user_id might be needed if they are different, 
-            // but usually we can search by role/link. For now assuming employee_id is sufficient or service handles it.
-            // Actually sendPushNotification takes a generic userId. 
-            // We'll pass the employee_id and let the service logic (which is mock) handle it, 
-            // or ideally we should resolve the 'users' table ID. 
-            // For this mock, passing the raw ID with a prefix is sufficient for the log.
-            await sendPushNotification(`${employee_type}_${employee_id}`, title, body);
+            // Fixed: Pass employee_id and the correct roleHint so notificationService can resolve the user
+            await sendPushNotification(employee_id, title, body, employee_type);
         }
 
         res.json({ message: 'Salary marked as paid', payment: result.rows[0] });
@@ -236,46 +231,75 @@ exports.getMySalaryDetails = async (req, res) => {
         const email = req.user.email;
         const { year } = req.query; // Optional filter by year
 
-        // First find the teacher/staff ID
+        const STAFF_ROLES = ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN', 'TRANSPORT_MANAGER'];
+
         let employee_id, employee_type, profile_data;
 
         if (req.user.role === 'TEACHER') {
-            // Robust Teacher Lookup
-            let tRes = await pool.query(
-                'SELECT id, employee_id, salary_per_day, join_date FROM teachers WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
-                [email, school_id]
-            );
-            if (tRes.rows.length === 0 && email.endsWith('@teacher.school.com')) {
-                const potentialEmpId = email.split('@')[0].toUpperCase();
-                tRes = await pool.query(
-                    'SELECT id, employee_id, salary_per_day, join_date FROM teachers WHERE employee_id = $1 AND school_id = $2',
-                    [potentialEmpId, school_id]
+            // Use linkedId from JWT first (fastest path)
+            if (req.user.linkedId) {
+                const tRes = await pool.query(
+                    'SELECT id, employee_id, salary_per_day, join_date FROM teachers WHERE id = $1 AND school_id = $2',
+                    [req.user.linkedId, school_id]
                 );
+                if (tRes.rows.length > 0) {
+                    employee_id = tRes.rows[0].id;
+                    profile_data = tRes.rows[0];
+                    employee_type = 'Teacher';
+                }
             }
 
-            if (tRes.rows.length === 0) return res.status(404).json({ message: 'Teacher profile not found' });
-            employee_id = tRes.rows[0].id;
-            profile_data = tRes.rows[0];
-            employee_type = 'Teacher';
-
-        } else if (req.user.role === 'STAFF' || req.user.role === 'DRIVER') {
-            // Robust Staff Lookup
-            let sRes = await pool.query(
-                'SELECT id, employee_id, salary_per_day, join_date FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
-                [email, school_id]
-            );
-            if (sRes.rows.length === 0 && email.endsWith('@staff.school.com')) {
-                const potentialEmpId = email.split('@')[0].toUpperCase();
-                sRes = await pool.query(
-                    'SELECT id, employee_id, salary_per_day, join_date FROM staff WHERE employee_id = $1 AND school_id = $2',
-                    [potentialEmpId, school_id]
+            // Fallback to email lookup
+            if (!employee_id) {
+                let tRes = await pool.query(
+                    'SELECT id, employee_id, salary_per_day, join_date FROM teachers WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
+                    [email, school_id]
                 );
+                if (tRes.rows.length === 0 && email.includes('@')) {
+                    const potentialEmpId = email.split('@')[0].toUpperCase();
+                    tRes = await pool.query(
+                        'SELECT id, employee_id, salary_per_day, join_date FROM teachers WHERE employee_id ILIKE $1 AND school_id = $2',
+                        [potentialEmpId, school_id]
+                    );
+                }
+                if (tRes.rows.length === 0) return res.status(404).json({ message: 'Teacher profile not found' });
+                employee_id = tRes.rows[0].id;
+                profile_data = tRes.rows[0];
+                employee_type = 'Teacher';
             }
 
-            if (sRes.rows.length === 0) return res.status(404).json({ message: 'Staff profile not found' });
-            employee_id = sRes.rows[0].id;
-            profile_data = sRes.rows[0];
-            employee_type = 'Staff';
+        } else if (STAFF_ROLES.includes(req.user.role)) {
+            // Use linkedId from JWT first
+            if (req.user.linkedId) {
+                const sRes = await pool.query(
+                    'SELECT id, employee_id, salary_per_day, join_date FROM staff WHERE id = $1 AND school_id = $2',
+                    [req.user.linkedId, school_id]
+                );
+                if (sRes.rows.length > 0) {
+                    employee_id = sRes.rows[0].id;
+                    profile_data = sRes.rows[0];
+                    employee_type = 'Staff';
+                }
+            }
+
+            // Fallback to email lookup
+            if (!employee_id) {
+                let sRes = await pool.query(
+                    'SELECT id, employee_id, salary_per_day, join_date FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
+                    [email, school_id]
+                );
+                if (sRes.rows.length === 0 && email.includes('@')) {
+                    const potentialEmpId = email.split('@')[0].toUpperCase();
+                    sRes = await pool.query(
+                        'SELECT id, employee_id, salary_per_day, join_date FROM staff WHERE employee_id ILIKE $1 AND school_id = $2',
+                        [potentialEmpId, school_id]
+                    );
+                }
+                if (sRes.rows.length === 0) return res.status(404).json({ message: 'Staff profile not found' });
+                employee_id = sRes.rows[0].id;
+                profile_data = sRes.rows[0];
+                employee_type = 'Staff';
+            }
         } else {
             return res.status(403).json({ message: 'Salary details only available for Teachers and Staff' });
         }

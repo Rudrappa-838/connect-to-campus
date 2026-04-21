@@ -62,13 +62,20 @@ const createNotification = async (userId, title, message, type = 'INFO', data = 
             [userId, title, message, type]
         );
 
-        // 2. Try to Send Push Notification
+        // 2. Get FCM token and unread count
         const userRes = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [userId]);
         const token = userRes.rows[0]?.fcm_token;
 
         if (token) {
-            // FIRE AND FORGET - Don't wait for push to finish to save DB record
-            sendPushNotification(token, title, message, { ...data, type })
+            // Calculate total unread count (including this new one)
+            const unreadRes = await pool.query(
+                'SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false',
+                [userId]
+            );
+            const badgeCount = parseInt(unreadRes.rows[0].count) || 1;
+
+            // FIRE AND FORGET - Don't block the response
+            sendPushNotification(token, title, message, { ...data, type }, badgeCount)
                 .catch(err => console.error('Push delivery failed:', err));
         }
 
@@ -79,9 +86,33 @@ const createNotification = async (userId, title, message, type = 'INFO', data = 
     }
 };
 
+// Update FCM token for a user
+const updateToken = async (req, res) => {
+    try {
+        const { token } = req.body;
+        const userId = req.user.id;
+
+        if (!token) {
+            return res.status(400).json({ message: 'Token is required' });
+        }
+
+        await pool.query(
+            'UPDATE users SET fcm_token = $1 WHERE id = $2',
+            [token, userId]
+        );
+
+        console.log(`[PUSH] Token updated for user ${userId}`);
+        res.json({ message: 'Token updated successfully' });
+    } catch (error) {
+        console.error('Error updating FCM token:', error);
+        res.status(500).json({ message: 'Server error updating token' });
+    }
+};
+
 module.exports = {
     getMyNotifications,
     markAsRead,
     markAllAsRead,
-    createNotification
+    createNotification,
+    updateToken
 };

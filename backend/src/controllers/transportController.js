@@ -243,13 +243,22 @@ exports.deleteRoute = async (req, res) => {
 exports.updateLocation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { lat, lng } = req.body;
+        const { lat, lng, speed } = req.body;
         const school_id = req.user.schoolId;
 
+        // Ensure valid speed (Driver App sends speed in km/h or m/s depending on device, usually needs no conversion here as App handles it or raw is fine)
+        // Capacitor Geolocation speed is in m/s. We might want to convert to km/h * 3.6 to match Traccar default (Knots->km/h) or just store as is.
+        // Let's store as km/h for consistency with Webhook. 1 m/s = 3.6 km/h.
+        // But DriverTracking.jsx sends raw speed. Let's multiply by 3.6 if it seems small? No, let's just store raw and handle display.
+        // Actually, Webhook stores km/h. Capacitor sends m/s.
+        // Let's convert m/s to km/h: speed * 3.6
+        const currentSpeed = speed ? parseFloat(speed) * 3.6 : 0;
+
         const result = await pool.query(
-            `UPDATE transport_vehicles SET current_lat = $1, current_lng = $2, status = 'Active', last_updated = NOW()
-             WHERE id = $3 AND school_id = $4 RETURNING *`,
-            [lat, lng, id, school_id]
+            `UPDATE transport_vehicles 
+             SET current_lat = $1, current_lng = $2, speed = $3, status = 'Active', last_updated = NOW()
+             WHERE id = $4 AND school_id = $5 RETURNING *`,
+            [lat, lng, currentSpeed, id, school_id]
         );
 
         if (result.rows.length === 0) {
@@ -263,30 +272,56 @@ exports.updateLocation = async (req, res) => {
     }
 };
 
-// Hardware GPS Webhook (Unprotected or API Key protected)
+// Hardware GPS Webhook (Works with Direct HTTP and Traccar Forwarding)
 exports.handleGpsWebhook = async (req, res) => {
     try {
-        // Expected payload from standard GPS trackers often varies.
-        // We will support a generic JSON payload: { "imei": "12345", "lat": 12.34, "lng": 77.12 }
-        const { imei, lat, lng } = req.body;
+        console.log('GPS Webhook received:', JSON.stringify(req.body, null, 2)); // Debug log
 
-        if (!imei || !lat || !lng) {
-            return res.status(400).json({ message: 'Invalid Format. Required: imei, lat, lng' });
+        let imei, latitude, longitude, speed;
+        let isKnots = false; // Flag to track unit conversion
+
+        // 1. Check for Traccar Format (Standard Open Source GPS Server)
+        if (req.body.device && req.body.position) {
+            imei = req.body.device.uniqueId;
+            latitude = req.body.position.latitude;
+            longitude = req.body.position.longitude;
+            speed = req.body.position.speed; // usually in knots, might need conversion
+            isKnots = true;
+        }
+        // 2. Check for Simple Format (Direct HTTP Post)
+        else {
+            imei = req.body.imei || req.body.device_id || req.body.uniqueId;
+            latitude = req.body.lat || req.body.latitude;
+            longitude = req.body.lng || req.body.long || req.body.longitude;
+            speed = req.body.speed;
         }
 
-        // Removed last_updated as we didn't add that column explicitly yet
+        if (!imei || !latitude || !longitude) {
+            return res.status(400).json({ message: 'Invalid Format. Required: imei/uniqueId, lat/latitude, lng/longitude' });
+        }
+
+        // Normalize Coordinates
+        const lat = parseFloat(latitude);
+        const lng = parseFloat(longitude);
+
+        // Speed Calculation: Convert Knots (Traccar) to km/h, otherwise assume km/h
+        const spd = speed ? (isKnots ? parseFloat(speed) * 1.852 : parseFloat(speed)) : 0;
+
+        // Update Vehicle Location logic
         const result = await pool.query(
             `UPDATE transport_vehicles 
-             SET current_lat = $1, current_lng = $2
-             WHERE gps_device_id = $3 RETURNING *`,
-            [lat, lng, imei]
+             SET current_lat = $1, current_lng = $2, speed = $3, status = 'Active', last_updated = NOW()
+             WHERE gps_device_id = $4 RETURNING *`,
+            [lat, lng, spd, imei]
         );
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'Device IMEI not registered' });
+            console.warn(`GPS Device ID ${imei} not found in database.`);
+            return res.status(404).json({ message: 'Device IMEI not registered in Transport Management' });
         }
 
-        res.json({ message: 'Location updated via GPS Hardware' });
+        console.log(`Updated location for Vehicle ${result.rows[0].vehicle_number} (IMEI: ${imei})`);
+        res.json({ message: 'Location updated via GPS Hardware', vehicle: result.rows[0].vehicle_number });
     } catch (error) {
         console.error('GPS Webhook Error:', error);
         res.status(500).json({ message: 'Server error processing GPS data' });

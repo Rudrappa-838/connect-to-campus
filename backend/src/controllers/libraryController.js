@@ -300,11 +300,9 @@ exports.returnBook = async (req, res) => {
 
         const transactionId = transRes.rows[0].id;
 
-        // 3. Update Transaction
+        // 3. DELETE Transaction (Do not keep history as per requirement)
         await client.query(
-            `UPDATE library_transactions 
-             SET return_date = CURRENT_TIMESTAMP, status = 'Returned'
-             WHERE id = $1`,
+            `DELETE FROM library_transactions WHERE id = $1`,
             [transactionId]
         );
 
@@ -315,7 +313,7 @@ exports.returnBook = async (req, res) => {
         );
 
         await client.query('COMMIT');
-        res.json({ message: 'Book returned successfully', book: book.title });
+        res.json({ message: 'Book returned successfully (Transaction removed)', book: book.title });
 
     } catch (error) {
         await client.query('ROLLBACK');

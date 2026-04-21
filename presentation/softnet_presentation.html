@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoftNet - Feature-Accurate Presentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        body {
+            background: #0f172a;
+            color: white;
+            overflow: hidden;
+        }
+
+        .slide {
+            height: 100vh;
+            width: 100vw;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+            animation: fadeIn 0.4s ease;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        .slide.active {
+            display: flex;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: #38bdf8;
+            text-shadow: 0 0 30px rgba(56, 189, 248, 0.3);
+        }
+
+        h2 {
+            font-size: 2.2rem;
+            margin-bottom: 30px;
+            color: #e2e8f0;
+            border-bottom: 2px solid #38bdf8;
+            padding-bottom: 10px;
+        }
+
+        p {
+            font-size: 1.3rem;
+            color: #94a3b8;
+            max-width: 900px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            width: 80%;
+            max-width: 1200px;
+            text-align: left;
+        }
+
+        .feature-box {
+            background: rgba(30, 41, 59, 0.7);
+            padding: 25px;
+            border-radius: 12px;
+            border-left: 5px solid #38bdf8;
+            transition: transform 0.2s;
+        }
+
+        .feature-box:hover {
+            transform: translateY(-5px);
+            background: rgba(30, 41, 59, 1);
+        }
+
+        .feature-box h3 {
+            color: #fff;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .feature-box p {
+            font-size: 1rem;
+            margin: 0;
+            color: #cbd5e1;
+        }
+
+        .img-container {
+            width: 70%;
+            max-height: 55vh;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+            border: 1px solid #334155;
+            margin: 0 auto;
+        }
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #0f172a;
+        }
+
+        .slide-number {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            font-size: 1rem;
+            color: #64748b;
+            font-weight: bold;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        button {
+            padding: 12px 30px;
+            background: #38bdf8;
+            color: #0f172a;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #0ea5e9;
+            transform: scale(1.05);
+        }
+
+        button:disabled {
+            background: #334155;
+            color: #64748b;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .progress {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            transition: width 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.98);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="progress" id="progressBar" style="width: 0%"></div>
+    <div class="slide-number" id="slideNumber">1 / 14</div>
+
+    <!-- Slide 1: Title -->
+    <div class="slide active">
+        <h1 style="font-size: 5rem;">SoftNet ERP</h1>
+        <h2 style="border: none;">The Real Cloud-Based School System</h2>
+        <p style="font-size: 1.5rem; margin-top: 20px;">Powered by React, Node.js & AWS.</p>
+        <p style="color: #64748b;">Press SPACE or Next to start</p>
+    </div>
+
+    <!-- Slide 2: Dashboard -->
+    <div class="slide">
+        <h2>Admin Dashboard</h2>
+        <p>Your central command center for live school operations.</p>
+        <div class="img-container">
+            <img src="softnet_dashboard_ui_1769852605699.png" alt="Admin Dashboard">
+        </div>
+    </div>
+
+    <!-- Slide 3: Student Management -->
+    <div class="slide">
+        <h2>📋 Student Management</h2>
+        <div class="grid-container">
+            <div class="feature-box">
+                <h3>Full Admissions</h3>
+                <p>Manage student intake, personal details, and documents.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Certificates</h3>
+                <p>Auto-generate study certificates and bonafide certificates.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Promotion</h3>
+                <p>Seamlessly promote students to the next academic year.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Student Doubts</h3>
+                <p>A dedicated module for students to ask academic doubts online.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 4: Academics & Results -->
+    <div class="slide">
+        <h2>🎓 Academics & Results</h2>
+        <div class="grid-container">
+            <div class="feature-box">
+                <h3>Exam Scheduling</h3>
+                <p>Create and manage exam timetables digitally.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Marks & Grades</h3>
+                <p>Enter marks and auto-calculate grades based on your rules.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Topper Lists</h3>
+                <p>Instantly generate class-wise and school-wise topper lists.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Question Papers</h3>
+                <p>Repository for managing and printing question papers.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 5: Fees Management -->
+    <div class="slide">
+        <h2>💰 Fee Management</h2>
+        <div class="grid-container">
+            <div class="feature-box">
+                <h3>Fee Collection</h3>
+                <p>Fast fee collection interface for front-office staff.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Structures</h3>
+                <p>Flexible fee configuration for different classes and categories.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Transport Fees</h3>
+                <p>Linked transport fee collection based on routes.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Dues Reports</h3>
+                <p>Track pending fees and specific student balances.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 6: Transport Tracking -->
+    <div class="slide">
+        <h2>🚌 Live Transport Security</h2>
+        <p>Real-time features keeping students safe.</p>
+        <div class="img-container">
+            <img src="softnet_tracking_ui_1769852651597.png" alt="Live Map">
+        </div>
+    </div>
+
+    <!-- Slide 7: Transport Features -->
+    <div class="slide">
+        <h2>🚌 Transport Management</h2>
+        <div class="grid-container">
+            <div class="feature-box">
+                <h3>Live Map</h3>
+                <p>Real-time Google Maps integration to track bus locations.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Driver Tracking</h3>
+                <p>Monitor driver activity and route adherence.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Route Management</h3>
+                <p>Define clear routes and stops for every vehicle.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 8: Digital Attendance -->
+    <div class="slide">
+        <h2>📅 Smart Attendance</h2>
+        <div class="grid-container">
+            <div class="feature-box">
+                <h3>Biometric Integration</h3>
+                <p>Hardware-ready biometric management system.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Daily Status</h3>
+                <p>Class-wise daily attendance marking and reports.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Leave Management</h3>
+                <p>Handle student and staff leave applications digitally.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 9: Hostel Management -->
+    <div class="slide">
+        <h2>🛏️ Hostel Management</h2>
+        <div class="grid-container">
+            <div class="feature-box">
+                <h3>Room Allocation</h3>
+                <p>Visual interface to allocate students to specific rooms/beds.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Hostel Finance</h3>
+                <p>Track hostel-specific fees and expenses separate from school fees.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Occupancy Views</h3>
+                <p>See live status of available vs occupied beds.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 10: Library System -->
+    <div class="slide">
+        <h2>📚 Library Management</h2>
+        <div class="grid-container">
+            <div class="feature-box">
+                <h3>Book Management</h3>
+                <p>Catalog your entire inventory of books.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Issue & Return</h3>
+                <p>Digital tracking of book circulation to students and staff.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Overview</h3>
+                <p>Dashboard for library stats (Total Books, Issued, Overdue).</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 11: HR & Payroll -->
+    <div class="slide">
+        <h2>👔 Staff & HR</h2>
+        <div class="grid-container">
+            <div class="feature-box">
+                <h3>Staff Profiles</h3>
+                <p>Manage Teaching, Non-Teaching, and Transport staff.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Salary Slips</h3>
+                <p>Auto-generate professional salary slips for all employees.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Staff Attendance</h3>
+                <p>Track staff working days and leaves for payroll.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 12: Mobile App -->
+    <div class="slide">
+        <h2>📱 Parents Mobile App</h2>
+        <p>Bridging the gap between home and school.</p>
+        <div class="img-container" style="background: transparent; border: none; box-shadow: none;">
+            <img src="softnet_mobile_ui_1769852631285.png" alt="Mobile App"
+                style="border-radius: 30px; box-shadow: 0 30px 60px rgba(0,0,0,0.5);">
+        </div>
+    </div>
+
+    <!-- Slide 13: Technical Specs -->
+    <div class="slide">
+        <h2>⚙️ Technical Superiority</h2>
+        <div class="grid-container">
+            <div class="feature-box">
+                <h3>Security</h3>
+                <p>Role-based access control (Super Admin, School Admin, Teacher).</p>
+            </div>
+            <div class="feature-box">
+                <h3>Reliability</h3>
+                <p>Built on modern tech (React, Node.js) for high speed.</p>
+            </div>
+            <div class="feature-box">
+                <h3>Scalability</h3>
+                <p>Runs on AWS Cloud, ready to handle thousands of students.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 14: Contact -->
+    <div class="slide">
+        <h1>Transform Your School</h1>
+        <p>Ready to deploy SoftNet.</p>
+        <div style="background: #1e293b; padding: 40px; border-radius: 20px; border: 1px solid #334155;">
+            <h2 style="color: #38bdf8; border: none; margin-bottom: 10px;">Contact Us</h2>
+            <p style="margin: 0; font-size: 1.2rem;">📞 +91 98765 43210</p>
+            <p style="margin: 10px 0 0; font-size: 1.2rem;">📧 contact@softnet.com</p>
+            <p style="margin: 10px 0 0; font-size: 1.2rem;">🌐 www.softnet.com</p>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="prevBtn" onclick="changeSlide(-1)" disabled>Previous</button>
+        <button id="nextBtn" onclick="changeSlide(1)">Next</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const progressBar = document.getElementById('progressBar');
+        const slideNumber = document.getElementById('slideNumber');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        function updateUI() {
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active');
+                if (index === currentSlide) slide.classList.add('active');
+            });
+
+            // Update progress
+            const progress = ((currentSlide + 1) / slides.length) * 100;
+            progressBar.style.width = `${progress}%`;
+            slideNumber.textContent = `${currentSlide + 1} / ${slides.length}`;
+
+            // Update buttons
+            prevBtn.disabled = currentSlide === 0;
+            nextBtn.textContent = currentSlide === slides.length - 1 ? 'Finish' : 'Next';
+        }
+
+        function changeSlide(direction) {
+            currentSlide += direction;
+            if (currentSlide < 0) currentSlide = 0;
+            if (currentSlide >= slides.length) currentSlide = slides.length - 1;
+            updateUI();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Space') changeSlide(1);
+            if (e.key === 'ArrowLeft') changeSlide(-1);
+        });
+    </script>
+</body>
+
+</html>

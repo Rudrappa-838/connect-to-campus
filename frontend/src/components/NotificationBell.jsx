@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { Bell, Check, X } from 'lucide-react';
+import { Bell, Check, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
+import { Browser } from '@capacitor/browser';
+import api from '../api/axios';
 
 const NotificationBell = () => {
     const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
     const [isOpen, setIsOpen] = useState(false);
+    const [selectedNotification, setSelectedNotification] = useState(null);
     const navigate = useNavigate();
 
     const toggleDropdown = () => setIsOpen(!isOpen);
@@ -13,6 +16,14 @@ const NotificationBell = () => {
     const handleMarkRead = (e, id) => {
         e.stopPropagation();
         markAsRead(id);
+    };
+
+    const handleNotificationClick = (notification) => {
+        setSelectedNotification(notification);
+        setIsOpen(false);
+        if (!notification.is_read) {
+            markAsRead(notification.id);
+        }
     };
 
     return (
@@ -76,13 +87,7 @@ const NotificationBell = () => {
                                 {notifications.map((notification) => (
                                     <li
                                         key={notification.id}
-                                        onClick={() => {
-                                            if (notification.link) {
-                                                navigate(notification.link);
-                                            }
-                                            markAsRead(notification.id);
-                                            setIsOpen(false);
-                                        }}
+                                        onClick={() => handleNotificationClick(notification)}
                                         className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${!notification.is_read ? 'bg-blue-50/50' : ''}`}
                                     >
                                         <div className="flex justify-between items-start">
@@ -94,7 +99,13 @@ const NotificationBell = () => {
                                                     {notification.message}
                                                 </p>
                                                 <p className="text-[10px] text-gray-400 mt-2">
-                                                    {new Date(notification.created_at).toLocaleString()}
+                                                    {new Date(notification.created_at).toLocaleDateString('en-GB', {
+                                                        day: '2-digit',
+                                                        month: '2-digit',
+                                                        year: '2-digit',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
                                                 </p>
                                             </div>
                                             {!notification.is_read && (
@@ -121,6 +132,73 @@ const NotificationBell = () => {
                     className="fixed inset-0 z-40 bg-transparent"
                     onClick={() => setIsOpen(false)}
                 />
+            )}
+
+            {/* Full-Screen Notification Details Modal */}
+            {selectedNotification && (
+                <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+                        {/* Header */}
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                <Bell size={20} className="text-indigo-600" />
+                                Notification Details
+                            </h3>
+                            <button
+                                onClick={() => setSelectedNotification(null)}
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        
+                        {/* Body */}
+                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                            <h2 className="text-xl font-bold text-slate-800 mb-2">
+                                {selectedNotification.title}
+                            </h2>
+                            <p className="text-xs text-slate-400 mb-6 pb-4 border-b border-slate-100">
+                                {new Date(selectedNotification.created_at).toLocaleDateString('en-GB', {
+                                    day: '2-digit', month: '2-digit', year: '2-digit', 
+                                    hour: '2-digit', minute: '2-digit'
+                                })}
+                            </p>
+                            
+                            <div className="text-slate-600 leading-relaxed whitespace-pre-wrap text-base mb-8">
+                                {selectedNotification.message}
+                            </div>
+
+                            {selectedNotification.attachment_url && (
+                                <div className="mt-4 pt-6 border-t border-slate-100">
+                                    <button
+                                        onClick={async () => {
+                                            const url = `${api.defaults.baseURL}${selectedNotification.attachment_url}`;
+                                            try {
+                                                await Browser.open({ url });
+                                            } catch (e) {
+                                                window.open(url, '_blank', 'noreferrer');
+                                            }
+                                        }}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 font-semibold hover:bg-indigo-100 transition-all"
+                                    >
+                                        {(selectedNotification.attachment_type || '').includes('pdf') ? <FileText size={18} /> : <ImageIcon size={18} />}
+                                        View Attachment
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Footer */}
+                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                            <button
+                                onClick={() => setSelectedNotification(null)}
+                                className="px-6 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

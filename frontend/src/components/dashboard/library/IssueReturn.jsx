@@ -364,8 +364,8 @@ const IssueReturn = () => {
                                             </td>
                                             <td className="px-4 py-3 text-slate-500 text-xs">
                                                 {item.status === 'Issued' ?
-                                                    new Date(item.issue_date).toLocaleDateString() :
-                                                    new Date(item.return_date).toLocaleDateString()
+                                                    new Date(item.issue_date).toLocaleDateString('en-GB') :
+                                                    new Date(item.return_date).toLocaleDateString('en-GB')
                                                 }
                                             </td>
                                         </tr>

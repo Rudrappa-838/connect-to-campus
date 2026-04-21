@@ -31,10 +31,10 @@ const login = async (req, res) => {
                 const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id = $1', [email]);
                 if (tRes.rows.length > 0) checkEmails.push(tRes.rows[0].email);
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) { // Staff roles
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(role)) { // Staff roles
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
-                const stRes = await pool.query('SELECT email FROM staff WHERE employee_id = $1', [email]);
+                const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) checkEmails.push(stRes.rows[0].email);
             }
             else if (role === 'SCHOOL_ADMIN') {
@@ -49,20 +49,15 @@ const login = async (req, res) => {
             }
         }
 
-        // Find user by Email(s) AND Role (if provided)
-        let query = `SELECT * FROM users WHERE email = ANY($1::text[])`;
-        let params = [checkEmails];
-
-        if (role) {
-            if (role === 'STAFF') {
-                query += ` AND role IN ('STAFF', 'DRIVER')`; // Allow both for Staff login
-            } else {
-                query += ` AND role = $2`;
-                params.push(role);
-            }
-        }
-
-        const result = await pool.query(query, params);
+        // Find user by Email(s) AND Role (if provided) - Ignore users from deleted schools
+        const result = await pool.query(`
+            SELECT u.* 
+            FROM users u 
+            LEFT JOIN schools s ON u.school_id = s.id 
+            WHERE LOWER(u.email) = ANY($1::text[])
+            AND (u.school_id IS NULL OR s.status IS NULL OR s.status != 'Deleted')
+            ORDER BY u.id DESC
+        `, [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase())]);
 
         let user = null;
         if (result.rows.length > 0) {
@@ -88,19 +83,24 @@ const login = async (req, res) => {
         }
 
         // Role verification (Redundant due to SQL filter but good for safety/custom logic)
+        const STAFF_SUB_ROLES = ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'];
         if (role) {
-            if (role === 'STAFF') {
-                // strict check if needed
+            if (STAFF_SUB_ROLES.includes(role) && STAFF_SUB_ROLES.includes(user.role)) {
+                // Allowed: Any staff sub-role can log in as STAFF or vice-versa
             } else if (user.role !== role) {
                 return res.status(403).json({ message: `Access denied. You are not a ${role}` });
             }
         }
 
-        // Check School Status (Is Active?)
+        // Check School Status (Is Active?) and Get Institution Type
+        let schoolType = 'SCHOOL'; // Default
         if (user.school_id) {
-            const schoolStatusRes = await pool.query('SELECT is_active FROM schools WHERE id = $1', [user.school_id]);
-            if (schoolStatusRes.rows.length > 0 && !schoolStatusRes.rows[0].is_active) {
-                return res.status(403).json({ message: 'Contact Super Admin for service' });
+            const schoolStatusRes = await pool.query('SELECT is_active, institution_type FROM schools WHERE id = $1', [user.school_id]);
+            if (schoolStatusRes.rows.length > 0) {
+                if (!schoolStatusRes.rows[0].is_active) {
+                    return res.status(403).json({ message: 'Contact Super Admin for service' });
+                }
+                schoolType = schoolStatusRes.rows[0].institution_type || 'SCHOOL';
             }
         }
 
@@ -150,21 +150,43 @@ const login = async (req, res) => {
         } else if (user.role === 'TEACHER') {
             let tRes = await pool.query('SELECT id FROM teachers WHERE school_id = $1 AND email = $2', [user.school_id, user.email]);
             if (tRes.rows.length === 0) {
-                const potentialEmpId = user.email.split('@')[0];
-                tRes = await pool.query('SELECT id FROM teachers WHERE school_id = $1 AND employee_id = $2', [user.school_id, potentialEmpId]);
+                const potentialEmpId = (user.email || '').split('@')[0];
+                tRes = await pool.query('SELECT id FROM teachers WHERE school_id = $1 AND employee_id ILIKE $2', [user.school_id, potentialEmpId]);
             }
             if (tRes.rows.length > 0) linkedId = tRes.rows[0].id;
 
-        } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(user.role)) {
-            let stRes = await pool.query('SELECT id FROM staff WHERE school_id = $1 AND email = $2', [user.school_id, user.email]);
-            if (stRes.rows.length === 0) {
-                const potentialEmpId = user.email.split('@')[0];
-                stRes = await pool.query('SELECT id FROM staff WHERE school_id = $1 AND employee_id = $2', [user.school_id, potentialEmpId]);
+        } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(user.role)) {
+            // First Priority: Use the linked_id stored directly in the users table
+            if (user.linked_id) {
+                const stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE id = $1 AND school_id = $2', [user.linked_id, user.school_id]);
+                if (stRes.rows.length > 0) {
+                    linkedId = stRes.rows[0].id;
+                    user.library_access = stRes.rows[0].library_access;
+                    user.hostel_access = stRes.rows[0].hostel_access;
+                }
             }
-            if (stRes.rows.length > 0) linkedId = stRes.rows[0].id;
+            
+            // Second Priority: Fallback to Email / Employee ID matching
+            if (!linkedId) {
+                let stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE school_id = $1 AND email = $2', [user.school_id, user.email]);
+                if (stRes.rows.length === 0) {
+                    const potentialEmpId = (user.email || '').split('@')[0];
+                    stRes = await pool.query('SELECT id, library_access, hostel_access FROM staff WHERE school_id = $1 AND employee_id ILIKE $2', [user.school_id, potentialEmpId]);
+                }
+                if (stRes.rows.length > 0) {
+                    linkedId = stRes.rows[0].id;
+                    user.library_access = stRes.rows[0].library_access;
+                    user.hostel_access = stRes.rows[0].hostel_access;
+                }
+            }
         }
 
         // Generate Token
+        // Admin roles: short-lived (8h) — they use browser sessions, not mobile app
+        // Mobile roles: long-lived (365d) — they stay logged in on device until manual logout
+        const ADMIN_ROLES = ['SCHOOL_ADMIN', 'SUPER_ADMIN'];
+        const tokenExpiry = ADMIN_ROLES.includes(user.role) ? '8h' : '365d';
+
         const token = jwt.sign(
             {
                 id: user.id,
@@ -174,7 +196,7 @@ const login = async (req, res) => {
                 linkedId: linkedId // Embedded ID for fast access
             },
             process.env.JWT_SECRET,
-            { expiresIn: '365d' }
+            { expiresIn: tokenExpiry }
         );
 
         // Update user with new session token
@@ -197,6 +219,9 @@ const login = async (req, res) => {
                 email: user.email,
                 role: user.role,
                 schoolId: user.school_id,
+                institutionType: schoolType,
+                libraryAccess: user.library_access || user.role === 'LIBRARIAN' || false,
+                hostelAccess: user.hostel_access || user.role === 'WARDEN' || false,
                 mustChangePassword: user.must_change_password || false
             }
         });
@@ -222,7 +247,7 @@ const logout = async (req, res) => {
 };
 
 const changePassword = async (req, res) => {
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword, role } = req.body;
     let { email } = req.body;
 
     // Use authenticated user ID if available, otherwise rely on email/ID lookup
@@ -267,8 +292,17 @@ const changePassword = async (req, res) => {
             }
 
             // Find user matching ANY of these emails
-            const eRes = await pool.query('SELECT * FROM users WHERE email = ANY($1::text[])', [checkEmails]);
-            user = eRes.rows[0];
+            const eRes = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[])', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase())]);
+            
+            if (role) {
+                if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(role)) {
+                    user = eRes.rows.find(u => ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(u.role));
+                } else {
+                    user = eRes.rows.find(u => u.role === role);
+                }
+            } else {
+                user = eRes.rows[0];
+            }
         }
 
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -363,7 +397,7 @@ const forgotPassword = async (req, res) => {
                     userDetails.email = tRes.rows[0].email;
                 }
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) {
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 // Use 'name' column as first_name/last_name might not exist
                 const stRes = await pool.query('SELECT email, employee_id, name FROM staff WHERE employee_id ILIKE $1', [email]);
@@ -374,20 +408,27 @@ const forgotPassword = async (req, res) => {
                     userDetails.email = stRes.rows[0].email;
                 }
             }
+            else if (role === 'SCHOOL_ADMIN') {
+                // Support school_code lookup for School Admins
+                const schoolRes = await pool.query('SELECT id, name, contact_email FROM schools WHERE school_code ILIKE $1', [email]);
+                if (schoolRes.rows.length > 0) {
+                    userDetails.schoolName = schoolRes.rows[0].name;
+                    userDetails.id = schoolRes.rows[0].school_code; // Input ID
+                    userDetails.name = "School Administrator"; // Generic name
+
+                    // Find the ADMIN USER linked to this school
+                    const adminUserRes = await pool.query('SELECT email FROM users WHERE school_id = $1 AND role = $2', [schoolRes.rows[0].id, 'SCHOOL_ADMIN']);
+
+                    if (adminUserRes.rows.length > 0) {
+                        checkEmails.push(adminUserRes.rows[0].email);
+                        userDetails.email = adminUserRes.rows[0].email;
+                    }
+                }
+            }
         }
 
         // Find user
-        let query = `SELECT * FROM users WHERE email = ANY($1::text[])`;
-        let params = [checkEmails];
-
-        if (role === 'STAFF') {
-            query += ` AND role IN ('STAFF', 'DRIVER')`;
-        } else {
-            query += ` AND role = $2`;
-            params.push(role);
-        }
-
-        const result = await pool.query(query, params);
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[])', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase())]);
         const user = result.rows[0];
 
         if (!user) {
@@ -412,67 +453,24 @@ const forgotPassword = async (req, res) => {
 
         await pool.query('UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE id = $3', [otp, otpExpires, user.id]);
 
+        // 2. Resolve 'users' table ID for DB persistence
+        const { sendOTP } = require('../services/emailService');
+
         // Log for development (always visible)
-        console.log('----- PASSWORD RESET OTP (Dev Mode) -----');
-        console.log(`Role: ${role}, ID: ${userDetails.id}, Sent To: ${recipientEmail}`);
-        console.log(`OTP: ${otp}`);
-        console.log('----------------------------------------');
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('----- PASSWORD RESET OTP (Dev Mode) -----');
+            console.log(`Role: ${role}, ID: ${userDetails.id}, Sent To: ${recipientEmail}`);
+            console.log(`OTP: ${otp}`);
+            console.log('----------------------------------------');
+        }
 
         // Attempt to send Real Email if configured
-        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-            try {
-                const transporter = nodemailer.createTransport({
-                    host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-                    port: parseInt(process.env.SMTP_PORT) || 587,
-                    secure: false, // Use STARTTLS
-                    auth: {
-                        user: process.env.EMAIL_USER,
-                        pass: process.env.EMAIL_PASS
-                    },
-                    connectionTimeout: 30000,
-                    greetingTimeout: 30000,
-                    socketTimeout: 30000
-                });
-
-                const mailOptions = {
-                    from: process.env.EMAIL_USER,
-                    to: recipientEmail,
-                    subject: 'Password Reset OTP - School Portal',
-                    html: `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-                            <h2 style="color: #2563eb; text-align: center;">Password Reset Request</h2>
-                            <hr style="border: 1px solid #e0e0e0;">
-                            
-                            <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                                <p style="margin: 10px 0;"><strong>School:</strong> ${userDetails.schoolName || 'N/A'}</p>
-                                <p style="margin: 10px 0;"><strong>Role:</strong> ${role}</p>
-                                <p style="margin: 10px 0;"><strong>ID:</strong> ${userDetails.id}</p>
-                                ${userDetails.name ? `<p style="margin: 10px 0;"><strong>Name:</strong> ${userDetails.name}</p>` : ''}
-                            </div>
-                            
-                            <p style="font-size: 16px; color: #374151;">Your One-Time Password (OTP) for password reset is:</p>
-                            
-                            <div style="background-color: #2563eb; color: white; font-size: 32px; font-weight: bold; text-align: center; padding: 20px; border-radius: 8px; letter-spacing: 8px; margin: 20px 0;">
-                                ${otp}
-                            </div>
-                            
-                            <p style="color: #dc2626; font-weight: bold;">⏰ This OTP expires in 10 minutes.</p>
-                            <p style="color: #6b7280; font-size: 14px;">If you did not request this password reset, please ignore this email and your password will remain unchanged.</p>
-                            
-                            <hr style="border: 1px solid #e0e0e0; margin-top: 30px;">
-                            <p style="text-align: center; color: #9ca3af; font-size: 12px;">School Management System - Secure Password Reset</p>
-                        </div>
-                    `
-                };
-
-                await transporter.sendMail(mailOptions);
-                console.log('OTP Email sent successfully to ' + recipientEmail);
-            } catch (emailErr) {
-                console.error('Failed to send OTP email:', emailErr.message);
-                // Don't fail the request
-            }
-        } else {
-            console.log('NOTE: Real email sending skipped. Add EMAIL_USER and EMAIL_PASS to .env to enable.');
+        try {
+            await sendOTP(recipientEmail, otp, userDetails);
+            console.log('OTP Email sent successfully to ' + recipientEmail);
+        } catch (emailErr) {
+            console.error('Failed to send OTP email:', emailErr.message);
+            // Don't fail the request (user can still see OTP in dev logs if needed)
         }
 
         res.json({
@@ -499,28 +497,28 @@ const getUserDetails = async (req, res) => {
 
         if (!isEmail && role) {
             if (role === 'STUDENT') {
-                const sRes = await pool.query('SELECT email, admission_no, first_name, last_name FROM students WHERE admission_no ILIKE $1', [email]);
+                const sRes = await pool.query('SELECT email, admission_no, first_name, last_name, name FROM students WHERE admission_no ILIKE $1', [email]);
                 if (sRes.rows.length > 0) {
                     const student = sRes.rows[0];
-                    userInfo.name = `${student.first_name || ''} ${student.last_name || ''}`.trim();
+                    userInfo.name = `${student.first_name || ''} ${student.last_name || ''}`.trim() || student.name;
                     userInfo.email = student.email;
                     userInfo.id = student.admission_no;
                 }
             }
             else if (role === 'TEACHER') {
-                const tRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM teachers WHERE employee_id ILIKE $1', [email]);
+                const tRes = await pool.query('SELECT email, employee_id, first_name, last_name, name FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) {
                     const teacher = tRes.rows[0];
-                    userInfo.name = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim();
+                    userInfo.name = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim() || teacher.name;
                     userInfo.email = teacher.email;
                     userInfo.id = teacher.employee_id;
                 }
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
-                const stRes = await pool.query('SELECT email, employee_id, first_name, last_name FROM staff WHERE employee_id ILIKE $1', [email]);
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) {
+                const stRes = await pool.query('SELECT email, employee_id, first_name, last_name, name FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) {
                     const staff = stRes.rows[0];
-                    userInfo.name = `${staff.first_name || ''} ${staff.last_name || ''}`.trim();
+                    userInfo.name = `${staff.first_name || ''} ${staff.last_name || ''}`.trim() || staff.name;
                     userInfo.email = staff.email;
                     userInfo.id = staff.employee_id;
                 }
@@ -578,26 +576,23 @@ const verifyOTP = async (req, res) => {
                 const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) checkEmails.push(tRes.rows[0].email);
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) {
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) checkEmails.push(stRes.rows[0].email);
             }
+            else if (role === 'SCHOOL_ADMIN') {
+                // Support school_code lookup for School Admins (Verify OTP)
+                const schoolRes = await pool.query('SELECT id FROM schools WHERE school_code ILIKE $1', [email]);
+                if (schoolRes.rows.length > 0) {
+                    const adminRes = await pool.query('SELECT email FROM users WHERE school_id = $1 AND role = $2', [schoolRes.rows[0].id, 'SCHOOL_ADMIN']);
+                    if (adminRes.rows.length > 0) checkEmails.push(adminRes.rows[0].email);
+                }
+            }
         }
 
-        // Find user with matching OTP
-        let query = `SELECT * FROM users WHERE email = ANY($1::text[]) AND reset_password_token = $2 AND reset_password_expires > $3`;
-        let params = [checkEmails, otp.trim(), Date.now()];
-
-        if (role === 'STAFF') {
-            query += ` AND role IN ('STAFF', 'DRIVER')`;
-        } else {
-            query += ` AND role = $4`;
-            params.push(role);
-        }
-
-        const result = await pool.query(query, params);
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[]) AND reset_password_token = $2 AND reset_password_expires > $3', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase()), otp.trim(), Date.now()]);
         const user = result.rows[0];
 
         if (!user) {
@@ -642,26 +637,23 @@ const resetPassword = async (req, res) => {
                 const tRes = await pool.query('SELECT email FROM teachers WHERE employee_id ILIKE $1', [email]);
                 if (tRes.rows.length > 0) checkEmails.push(tRes.rows[0].email);
             }
-            else if (['STAFF', 'DRIVER', 'ACCOUNTANT'].includes(role)) {
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) {
                 checkEmails.push(`${email}@staff.school.com`);
                 checkEmails.push(`${email.toLowerCase()}@staff.school.com`);
                 const stRes = await pool.query('SELECT email FROM staff WHERE employee_id ILIKE $1', [email]);
                 if (stRes.rows.length > 0) checkEmails.push(stRes.rows[0].email);
             }
+            else if (role === 'SCHOOL_ADMIN') {
+                // Support school_code lookup for School Admins (Reset Password)
+                const schoolRes = await pool.query('SELECT id FROM schools WHERE school_code ILIKE $1', [email]);
+                if (schoolRes.rows.length > 0) {
+                    const adminRes = await pool.query('SELECT email FROM users WHERE school_id = $1 AND role = $2', [schoolRes.rows[0].id, 'SCHOOL_ADMIN']);
+                    if (adminRes.rows.length > 0) checkEmails.push(adminRes.rows[0].email);
+                }
+            }
         }
 
-        // Find user with valid OTP and expiry
-        let query = `SELECT * FROM users WHERE email = ANY($1::text[]) AND reset_password_token = $2 AND reset_password_expires > $3`;
-        let params = [checkEmails, otp.trim(), Date.now()];
-
-        if (role === 'STAFF') {
-            query += ` AND role IN ('STAFF', 'DRIVER')`;
-        } else {
-            query += ` AND role = $4`;
-            params.push(role);
-        }
-
-        const result = await pool.query(query, params);
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = ANY($1::text[]) AND reset_password_token = $2 AND reset_password_expires > $3', [checkEmails.filter(Boolean).map(e => e.trim().toLowerCase()), otp.trim(), Date.now()]);
         const user = result.rows[0];
 
         if (!user) {

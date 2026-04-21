@@ -6,6 +6,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { InstitutionProvider } from './context/InstitutionContext';
 import { LoadingProvider, useLoading } from './context/LoadingContext';
 import { setLoadingCallbacks } from './api/axios';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -24,41 +25,115 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import StaffDashboard from './pages/StaffDashboard';
 import Welcome from './pages/Welcome';
 import DownloadApp from './pages/DownloadApp';
+import DownloadDesktop from './components/DownloadDesktop';
+import TemplatesDemo from './pages/TemplatesDemo';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 // Components
 import DriverTracking from './components/dashboard/transport/DriverTracking';
 import NotificationRegistration from './components/NotificationRegistration';
+import AppUpdateChecker from './components/AppUpdateChecker';
+import OfflineBanner from './components/OfflineBanner';
 
-import { PushNotifications } from '@capacitor/push-notifications';
+import { Preferences } from '@capacitor/preferences';
 import SplashScreen from './components/SplashScreen';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, role }) => {
   const { user, loading } = useAuth();
+  const [isChecking, setIsChecking] = React.useState(true);
 
-  if (loading) return <SplashScreen />;
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsChecking(false);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [user]);
+
+  if (loading || isChecking) return <SplashScreen />;
 
   if (!user) {
-
     return <Navigate to="/login" />;
   }
 
-  // Create checks
   if (role) {
     if (Array.isArray(role)) {
       if (!role.includes(user.role)) {
-
         return <Navigate to="/login" />;
       }
     } else {
       if (user.role !== role) {
-
         return <Navigate to="/login" />;
       }
     }
   }
 
   return children;
+};
+const RootRedirect = () => {
+  const { user, loading } = useAuth();
+  const [welcomeChecked, setWelcomeChecked] = React.useState(false);
+  const [shouldShowWelcome, setShouldShowWelcome] = React.useState(true);
+
+  React.useEffect(() => {
+    const checkWelcome = async () => {
+      if (loading) return;
+      try {
+        let shown = false;
+        if (Capacitor.isNativePlatform()) {
+          const { value } = await Preferences.get({ key: 'welcome_shown' });
+          shown = value === 'true';
+        } else {
+          shown = localStorage.getItem('welcome_shown') === 'true';
+        }
+        setShouldShowWelcome(!shown);
+      } catch (e) {
+        console.warn('Welcome check failed', e);
+      } finally {
+        setWelcomeChecked(true);
+      }
+    };
+    checkWelcome();
+  }, [loading]);
+
+  if (loading || !welcomeChecked) return <SplashScreen />;
+
+  if (user) {
+    switch (user.role) {
+      case 'SUPER_ADMIN': return <Navigate to="/super-admin" />;
+      case 'SCHOOL_ADMIN': return <Navigate to="/school-admin" />;
+      case 'TEACHER': return <Navigate to="/teacher" />;
+      case 'STUDENT': return <Navigate to="/student" />;
+      case 'STAFF':
+      case 'DRIVER': return <Navigate to="/staff" />;
+      default: return <Navigate to="/login" />;
+    }
+  }
+
+  if (shouldShowWelcome) {
+    return <Navigate to="/welcome" />;
+  }
+
+  return <Navigate to="/login" />;
+};
+
+// Login Redirect Component (If already logged in, go to dashboard)
+const LoginRedirect = () => {
+  const { user, loading } = useAuth();
+  if (loading) return <SplashScreen />;
+
+  if (user) {
+    switch (user.role) {
+      case 'SUPER_ADMIN': return <Navigate to="/super-admin" />;
+      case 'SCHOOL_ADMIN': return <Navigate to="/school-admin" />;
+      case 'TEACHER': return <Navigate to="/teacher" />;
+      case 'STUDENT': return <Navigate to="/student" />;
+      case 'STAFF':
+      case 'DRIVER': return <Navigate to="/staff" />;
+      default: return <Login />;
+    }
+  }
+  return <Login />;
 };
 
 // Inner App Component to access LoadingContext
@@ -85,114 +160,87 @@ const AppContent = () => {
     };
 
     // 2. Setup Push Notifications
-    const setupNotifications = async () => {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          // Request permission
-          const result = await PushNotifications.requestPermissions();
-          if (result.receive === 'granted') {
-            await PushNotifications.register();
-
-            // Create High Importance Channel for "WhatsApp-style" heads-up notifications
-            await PushNotifications.createChannel({
-              id: 'school_notifications',
-              name: 'School Notifications',
-              importance: 5, // HIGH
-              visibility: 1, // PUBLIC
-              vibration: true,
-            });
-          }
-
-          // Listeners
-          PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            toast.success(notification.title || 'New Notification');
-          });
-
-          PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-            // Navigate to specific page logic here
-            console.log('Push action:', notification);
-          });
-
-        } catch (err) {
-          console.log('Push Notification setup failed', err);
-        }
-      }
-    };
-
     setupStatusBar();
-    setupNotifications();
   }, []);
 
   return (
     <AuthProvider>
-      <NotificationProvider>
-        <NotificationRegistration />
-        <Router>
-          <div className="min-h-screen bg-gray-50">
-            <Toaster position="top-center" />
-            <Routes>
-              <Route path="/" element={<Navigate to="/welcome" />} />
-              <Route path="/welcome" element={<Welcome />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/download" element={<DownloadApp />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password/:token" element={<ResetPassword />} />
-              <Route path="/change-password" element={<ChangePassword />} />
-              <Route path="/setup-admin" element={<SetupAdmin />} />
-              <Route path="/super-admin-login" element={<SuperAdminLogin />} />
-              <Route
-                path="/super-admin"
-                element={
-                  <ProtectedRoute role="SUPER_ADMIN">
-                    <SuperAdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/school-admin"
-                element={
-                  <ProtectedRoute role="SCHOOL_ADMIN">
-                    <SchoolAdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/teacher"
-                element={
-                  <ProtectedRoute role="TEACHER">
-                    <TeacherDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/student"
-                element={
-                  <ProtectedRoute role="STUDENT">
-                    <StudentDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/staff"
-                element={
-                  <ProtectedRoute role={["STAFF", "DRIVER"]}>
-                    <StaffDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/driver-tracking"
-                element={
-                  <ProtectedRoute role={["SCHOOL_ADMIN", "DRIVER", "STAFF"]}>
-                    <DriverTracking />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<Navigate to="/login" />} />
-            </Routes>
-          </div>
-        </Router>
-      </NotificationProvider>
+      <InstitutionProvider>
+        <NotificationProvider>
+          <NotificationRegistration />
+          <AppUpdateChecker />
+          <OfflineBanner />
+
+          <Router>
+            <div className="min-h-screen bg-gray-50">
+              <Toaster position="top-center" />
+              <Routes>
+                <Route path="/" element={<RootRedirect />} />
+                <Route path="/welcome" element={<Welcome />} />
+                <Route path="/login" element={<LoginRedirect />} />
+                <Route path="/templates" element={<TemplatesDemo />} />
+                <Route path="/download" element={<DownloadApp />} />
+                <Route path="/download-desktop" element={<DownloadDesktop />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password/:token" element={<ResetPassword />} />
+                <Route path="/change-password" element={<ChangePassword />} />
+                <Route path="/setup-admin" element={<SetupAdmin />} />
+                <Route path="/super-admin-login" element={<SuperAdminLogin />} />
+                <Route
+                  path="/super-admin"
+                  element={
+                    <ProtectedRoute role="SUPER_ADMIN">
+                      <SuperAdminDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/school-admin"
+                  element={
+                    <ProtectedRoute role="SCHOOL_ADMIN">
+                      <SchoolAdminDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/teacher"
+                  element={
+                    <ProtectedRoute role="TEACHER">
+                      <TeacherDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/student"
+                  element={
+                    <ProtectedRoute role="STUDENT">
+                      <StudentDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/staff"
+                  element={
+                    <ProtectedRoute role={["STAFF", "DRIVER"]}>
+                      <StaffDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/driver-tracking"
+                  element={
+                    <ProtectedRoute role={["SCHOOL_ADMIN", "DRIVER", "STAFF"]}>
+                      <DriverTracking />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/login" />} />
+              </Routes>
+            </div>
+          </Router>
+        </NotificationProvider>
+      </InstitutionProvider>
     </AuthProvider>
   );
 };

@@ -9,6 +9,12 @@
 
 body {
   @apply bg-gray-50 text-gray-900;
+  touch-action: manipulation;
+}
+
+/* Prevent iOS/Android auto-zoom on input focus */
+input, textarea, select {
+  font-size: 16px !important;
 }
 
 /* Mobile Safe Area Utilities */

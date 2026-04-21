@@ -106,6 +106,7 @@ const StudentAttendanceReports = ({ config }) => {
                     .total-p { background-color: #d1fae5; font-weight: bold; }
                     .total-a { background-color: #fee2e2; font-weight: bold; }
                     .h { background-color: #f3f4f6; color: #374151; font-weight: bold; }
+                    .s { background-color: #fee2e2; color: #991b1b; font-weight: bold; }
                     @media print {
                         body { padding: 10px; }
                         @page { margin: 0.5cm; size: landscape; }
@@ -119,7 +120,11 @@ const StudentAttendanceReports = ({ config }) => {
                     <thead>
                         <tr>
                             <th class="name">Student Name</th>
-                            ${dates.map(d => `<th>${d}</th>`).join('')}
+                            ${dates.map(d => {
+                                const dayName = new Date(year, month - 1, d).toLocaleDateString('en-US', { weekday: 'narrow' });
+                                const isSunday = new Date(year, month - 1, d).getDay() === 0;
+                                return `<th style="${isSunday ? 'color: #ef4444; background: #fef2f2;' : ''}">${dayName}<br/><span style="font-size: 8px; font-weight: normal; opacity: 0.8">${d}</span></th>`;
+                            }).join('')}
                             <th class="total-p">P</th>
                             <th class="total-a">A</th>
                         </tr>
@@ -128,14 +133,18 @@ const StudentAttendanceReports = ({ config }) => {
                         ${report.map(student => `
                             <tr>
                                 <td style="text-align: left;">${student.name}</td>
-                                ${dates.map(d => {
+                                 ${dates.map(d => {
             const status = student.attendance[d];
+            const isSunday = new Date(year, month - 1, d).getDay() === 0;
             let cls = '';
             let content = '-';
-            if (status === 'Present') { cls = 'p'; content = 'P'; }
+            
+            if (isSunday) { cls = 's'; content = 'S'; }
+            else if (status === 'Present') { cls = 'p'; content = 'P'; }
             else if (status === 'Absent') { cls = 'a'; content = 'A'; }
             else if (status === 'Late') { cls = 'l'; content = 'L'; }
             else if (status === 'Holiday') { cls = 'h'; content = 'H'; }
+            
             return `<td class="${cls}">${content}</td>`;
         }).join('')}
                                 <td class="total-p">${student.totalP}</td>
@@ -204,11 +213,18 @@ const StudentAttendanceReports = ({ config }) => {
                             <thead>
                                 <tr>
                                     <th className="p-2 border-b border-slate-200 text-left w-40 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">Student Name</th>
-                                    {dates.map(d => (
-                                        <th key={d} className="border-b border-l border-slate-100 text-center font-semibold text-slate-500 bg-slate-50/50 text-[9px] p-0.5">
-                                            {d}
-                                        </th>
-                                    ))}
+                                    {dates.map(d => {
+                                        const dayName = new Date(year, month - 1, d).toLocaleDateString('en-US', { weekday: 'narrow' });
+                                        const isSunday = new Date(year, month - 1, d).getDay() === 0;
+                                        return (
+                                            <th key={d} className={`border-b border-l border-slate-100 text-center font-semibold bg-slate-50/50 text-[9px] p-0.5 ${isSunday ? 'text-red-500 bg-red-50/30' : 'text-slate-500'}`}>
+                                                <div className="flex flex-col items-center">
+                                                    <span>{dayName}</span>
+                                                    <span className="text-[8px] opacity-70">{d}</span>
+                                                </div>
+                                            </th>
+                                        );
+                                    })}
                                     <th className="border-b border-l border-slate-200 bg-emerald-50 text-emerald-700 font-bold w-8 text-center text-[10px] p-0.5">P</th>
                                     <th className="border-b border-slate-200 bg-rose-50 text-rose-700 font-bold w-8 text-center text-[10px] p-0.5">A</th>
                                 </tr>
@@ -227,7 +243,11 @@ const StudentAttendanceReports = ({ config }) => {
 
                                             const isSunday = new Date(year, month - 1, d).getDay() === 0;
 
-                                            if (status === 'Present') {
+                                             if (isSunday) {
+                                                bg = 'bg-red-50';
+                                                text = 'text-red-600';
+                                                content = 'S'; // Sunday prioritized
+                                            } else if (status === 'Present') {
                                                 bg = 'bg-emerald-100/70';
                                                 text = 'text-emerald-700';
                                                 content = 'P';
@@ -239,10 +259,6 @@ const StudentAttendanceReports = ({ config }) => {
                                                 bg = 'bg-amber-100/70';
                                                 text = 'text-amber-700';
                                                 content = 'L';
-                                            } else if (isSunday) {
-                                                bg = 'bg-red-50';
-                                                text = 'text-red-600';
-                                                content = 'S';
                                             } else if (status === 'Holiday') {
                                                 bg = 'bg-slate-100/70';
                                                 text = 'text-slate-700';

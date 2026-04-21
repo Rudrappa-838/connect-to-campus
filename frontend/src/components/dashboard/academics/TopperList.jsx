@@ -337,16 +337,16 @@ const TopperList = ({ config }) => {
 
             {/* Toppers List */}
             {toppers.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden print:shadow-none print:rounded-none">
                     {/* Print Header */}
-                    <div className="hidden print:block p-8 pb-0">
-                        <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
-                            <h1 className="text-3xl font-black uppercase tracking-wider text-slate-800 mb-2">Topper List Report</h1>
-                            <div className="flex flex-wrap justify-center gap-6 text-lg font-bold text-slate-600">
+                    <div className="hidden print:block p-8 pb-4">
+                        <div className="text-center border-b-2 border-slate-800 pb-2 mb-4">
+                            <h1 className="text-2xl font-black uppercase tracking-wider text-slate-800 mb-2">Topper List Report</h1>
+                            <div className="flex flex-wrap justify-center gap-4 text-sm font-bold text-slate-600">
                                 <span>Class: {classes.find(c => c.id == selectedClassId)?.name}</span>
                                 {selectedSection && <span>Section: {getSectionsForClass().find(s => s.id == selectedSection || s.name == selectedSection)?.name || selectedSection}</span>}
                                 <span>Exam: {schedules.find(s => s.id == selectedScheduleId)?.exam_type_name || schedules.find(s => s.id == selectedScheduleId)?.exam_type}</span>
-                                <span>Date: {new Date().toLocaleDateString()}</span>
+                                <span>Date: {new Date().toLocaleDateString('en-GB')}</span>
                             </div>
                         </div>
                     </div>
@@ -372,62 +372,89 @@ const TopperList = ({ config }) => {
                     </div>
 
                     {/* Table */}
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gradient-to-r from-slate-700 to-slate-800 text-white">
+                    <div className="">
+                        <table className="w-full table-fixed text-sm print:text-xs">
+                            <thead className="bg-gradient-to-r from-slate-700 to-slate-800 text-white print:bg-none print:bg-slate-200 print:text-black">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase">Rank</th>
-                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase">Student</th>
-                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase">Admission No</th>
+                                    <th className="px-2 py-2 text-left font-bold uppercase w-10">#</th>
+                                    <th className="px-2 py-2 text-left font-bold uppercase w-32">Student</th>
                                     {subjects.map((subject) => (
-                                        <th key={subject} className="px-4 py-3 text-center text-xs font-bold uppercase">
-                                            {subject}
+                                        <th key={subject} className="px-1 py-1 text-center font-bold uppercase truncate max-w-[80px]" title={subject}>
+                                            {subject.slice(0, 3)}
                                         </th>
                                     ))}
-                                    <th className="px-4 py-3 text-center text-xs font-bold uppercase bg-indigo-600">Total</th>
-                                    <th className="px-4 py-3 text-center text-xs font-bold uppercase bg-purple-600">%</th>
+                                    <th className="px-2 py-2 text-center font-bold uppercase bg-indigo-600 print:bg-slate-300 w-16">Total</th>
+                                    <th className="px-2 py-2 text-center font-bold uppercase bg-purple-600 print:bg-slate-300 w-16">%</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {toppers.map((student, index) => (
-                                    <tr
-                                        key={student.student_id}
-                                        className={`hover:bg-slate-50 transition-colors ${index === 0 ? 'bg-yellow-50' :
-                                            index === 1 ? 'bg-gray-50' :
-                                                index === 2 ? 'bg-orange-50' : ''
-                                            }`}
-                                    >
-                                        <td className="px-4 py-4">
-                                            {getRankBadge(student.rank)}
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <div className="font-bold text-slate-800">{student.student_name}</div>
-                                            {student.section && (
-                                                <div className="text-xs text-slate-500">{student.section}</div>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-4 text-slate-600 font-mono text-sm">
-                                            {student.admission_number}
-                                        </td>
-                                        {subjects.map((subject) => (
-                                            <td key={subject} className="px-4 py-4 text-center">
-                                                <span className="inline-block px-3 py-1 bg-slate-100 rounded-lg font-bold text-slate-700">
-                                                    {student.marks[subject] !== undefined ? student.marks[subject] : '-'}
+                            <tbody className="divide-y divide-slate-200 print:divide-slate-300">
+                                {toppers.map((student, index) => {
+                                    // Format Name Logic: First Name + Father's Initial + Surname Initial(s)
+                                    const formatName = (fullName, fatherName) => {
+                                        if (!fullName) return '';
+                                        const parts = fullName.trim().split(/\s+/);
+                                        const firstName = parts[0];
+
+                                        // Father's Initial
+                                        let fatherInitial = '';
+                                        if (fatherName) {
+                                            fatherInitial = fatherName.trim().charAt(0).toUpperCase();
+                                        }
+
+                                        // Last Name / Surname Initials (from the name string parts)
+                                        // We skip the first part (First Name). 
+                                        // We also check if any part closely matches father's name to avoid duplication (basic check)
+                                        const lastInitials = parts.slice(1)
+                                            .filter(p => !fatherName || p.toLowerCase() !== fatherName.toLowerCase()) // Avoid full father name if present
+                                            .map(p => p.charAt(0).toUpperCase())
+                                            .join(' ');
+
+                                        let result = firstName;
+                                        if (fatherInitial) result += ` ${fatherInitial}`;
+                                        if (lastInitials) result += ` ${lastInitials}`;
+
+                                        return result;
+                                    };
+
+                                    return (
+                                        <tr
+                                            key={student.student_id}
+                                            className={`hover:bg-slate-50 transition-colors ${index === 0 ? 'bg-yellow-50' :
+                                                index === 1 ? 'bg-gray-50' :
+                                                    index === 2 ? 'bg-orange-50' : ''
+                                                }`}
+                                        >
+                                            <td className="px-2 py-2 font-bold">
+                                                {index + 1}
+                                            </td>
+                                            <td className="px-2 py-2">
+                                                <div className="font-bold text-slate-800 truncate leading-tight" title={student.student_name}>
+                                                    {formatName(student.student_name, student.father_name)}
+                                                </div>
+                                                {student.section && (
+                                                    <div className="text-[10px] text-slate-500">{student.section}</div>
+                                                )}
+                                            </td>
+                                            {subjects.map((subject) => (
+                                                <td key={subject} className="px-1 py-1 text-center">
+                                                    <span className="inline-block px-1.5 py-0.5 rounded font-bold text-slate-700 bg-slate-100 print:bg-transparent">
+                                                        {student.marks[subject] !== undefined ? student.marks[subject] : '-'}
+                                                    </span>
+                                                </td>
+                                            ))}
+                                            <td className="px-2 py-2 text-center bg-indigo-50 print:bg-transparent">
+                                                <span className="font-black text-indigo-700 print:text-black">
+                                                    {student.total_marks}
                                                 </span>
                                             </td>
-                                        ))}
-                                        <td className="px-4 py-4 text-center bg-indigo-50">
-                                            <span className="inline-block px-4 py-1.5 bg-indigo-600 text-white rounded-lg font-black">
-                                                {student.total_marks}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 text-center bg-purple-50">
-                                            <span className="inline-block px-4 py-1.5 bg-purple-600 text-white rounded-lg font-black">
-                                                {student.percentage.toFixed(2)}%
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
+                                            <td className="px-2 py-2 text-center bg-purple-50 print:bg-transparent">
+                                                <span className="font-black text-purple-700 print:text-black">
+                                                    {student.percentage.toFixed(1)}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

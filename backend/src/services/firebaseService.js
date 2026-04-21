@@ -39,7 +39,7 @@ if (fs.existsSync(serviceAccountPath)) {
 /**
  * Send push notification to a specific token
  */
-const sendPushNotification = async (token, title, body, data = {}) => {
+const sendPushNotification = async (token, title, body, data = {}, badge = null) => {
     if (!token) return;
 
     const message = {
@@ -47,9 +47,32 @@ const sendPushNotification = async (token, title, body, data = {}) => {
             title,
             body
         },
+        android: {
+            priority: 'high',
+            ttl: 86400000, // 24 hours in milliseconds
+            notification: {
+                channelId: 'school_notifications', // Matches the channel created in frontend
+                color: '#0ea5e9',
+                sticky: false,
+                visibility: 'public',
+                notificationCount: badge ? parseInt(badge) : undefined,
+                defaultSound: true,
+                defaultVibrateTimings: true,
+                priority: 'max' // Use 'max' for Android-specific priority
+            }
+        },
+        apns: {
+            payload: {
+                aps: {
+                    badge: badge ? parseInt(badge) : undefined,
+                    sound: 'default',
+                    'content-available': 1 // For background delivery
+                }
+            }
+        },
         data: {
             ...data,
-            click_action: 'FLUTTER_NOTIFICATION_CLICK' // Standard for Android
+            click_action: 'OPEN_NOTIFICATIONS'
         },
         token
     };
@@ -61,7 +84,6 @@ const sendPushNotification = async (token, title, body, data = {}) => {
             return response;
         } catch (error) {
             console.error('Error sending push notification:', error);
-            // If token is invalid, we might want to remove it from DB
             return null;
         }
     } else {

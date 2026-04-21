@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Printer } from 'lucide-react';
+import { Check, X, Printer, Camera, Edit2 } from 'lucide-react';
 import api from '../../../api/axios';
 
 const DailyAttendanceStatus = ({ config }) => {
@@ -9,7 +9,7 @@ const DailyAttendanceStatus = ({ config }) => {
     const [attendanceData, setAttendanceData] = useState([]);
     const [loading, setLoading] = useState(false);
 
-    const availableSections = config.classes?.find(c => c.class_id === parseInt(filterClass))?.sections || [];
+    const availableSections = config?.classes?.find(c => c.class_id === parseInt(filterClass))?.sections || [];
 
     // Auto-select first section when class changes
     useEffect(() => {
@@ -45,21 +45,23 @@ const DailyAttendanceStatus = ({ config }) => {
     };
 
     // Calculate Counts
+    // 'Unmarked' = no record taken yet → treated as Absent until marked Present/Late
     const stats = {
         total: attendanceData.length,
         present: attendanceData.filter(s => s.status === 'Present').length,
-        absent: attendanceData.filter(s => s.status === 'Absent').length,
+        absent: attendanceData.filter(s => s.status === 'Absent' || s.status === 'Unmarked').length,
         late: attendanceData.filter(s => s.status === 'Late').length,
-        unmarked: attendanceData.filter(s => s.status === 'Unmarked').length
+        unmarked: 0
     };
 
     const presentStudents = attendanceData.filter(s => s.status === 'Present');
-    const absentStudents = attendanceData.filter(s => s.status === 'Absent');
-    const otherStudents = attendanceData.filter(s => s.status === 'Late' || s.status === 'Unmarked');
+    // Unmarked students shown in Absent list (not yet marked = not came)
+    const absentStudents = attendanceData.filter(s => s.status === 'Absent' || s.status === 'Unmarked');
+    const otherStudents = attendanceData.filter(s => s.status === 'Late');
 
     const handlePrint = () => {
-        const className = config.classes?.find(c => c.class_id === parseInt(filterClass))?.class_name || 'All Classes';
-        const sectionName = availableSections.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
+        const className = config?.classes?.find(c => c.class_id === parseInt(filterClass))?.class_name || 'All Classes';
+        const sectionName = availableSections?.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
 
         const printContent = `
             <!DOCTYPE html>
@@ -92,7 +94,7 @@ const DailyAttendanceStatus = ({ config }) => {
                 <div class="header">
                     <h1>Daily Attendance Status</h1>
                     <div class="meta">
-                        Date: ${new Date(date).toLocaleDateString()} | Class: ${className} - ${sectionName}
+                        Date: ${new Date(date).toLocaleDateString('en-GB')} | Class: ${className} - ${sectionName}
                     </div>
                 </div>
 
@@ -152,7 +154,7 @@ const DailyAttendanceStatus = ({ config }) => {
                     <input type="date" className="input max-w-[150px] bg-slate-50 border-slate-200" value={date} onChange={e => setDate(e.target.value)} />
                     <select className="input max-w-[200px] bg-slate-50 border-slate-200" value={filterClass} onChange={e => setFilterClass(e.target.value)}>
                         <option value="">Select Class</option>
-                        {config.classes
+                        {config?.classes
                             ?.slice()
                             .sort((a, b) => a.class_name.localeCompare(b.class_name, undefined, { numeric: true }))
                             .map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
@@ -202,8 +204,8 @@ const DailyAttendanceStatus = ({ config }) => {
                             <div className="text-3xl font-black text-rose-600">{stats.absent}</div>
                         </div>
                         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-all">
-                            <div className="text-amber-600 text-[10px] font-bold uppercase tracking-widest mb-2">Late / Unmarked</div>
-                            <div className="text-3xl font-black text-amber-600">{stats.late + stats.unmarked}</div>
+                            <div className="text-amber-600 text-[10px] font-bold uppercase tracking-widest mb-2">Late</div>
+                            <div className="text-3xl font-black text-amber-600">{stats.late}</div>
                         </div>
                     </div>
 
@@ -233,7 +235,19 @@ const DailyAttendanceStatus = ({ config }) => {
                                                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                                                     <td className="px-5 py-3 font-mono text-slate-400 font-medium text-xs">#{s.roll_number || 'N/A'}</td>
                                                     <td className="px-5 py-3 font-medium text-slate-700">{s.name}</td>
-                                                    <td className="px-5 py-3 text-right text-slate-400 text-xs font-mono">{s.contact_number || '-'}</td>
+                                                    <td className="px-5 py-3 text-right flex items-center justify-end gap-3">
+                                                        <span className="text-slate-400 text-xs font-mono">{s.contact_number || '-'}</span>
+                                                        {s.marking_mode === 'face' && (
+                                                            <div className="p-1 bg-indigo-50 text-indigo-600 rounded-md" title="Marked via Face Scanner">
+                                                                <Camera size={10} />
+                                                            </div>
+                                                        )}
+                                                        {s.marking_mode === 'manual' && (
+                                                            <div className="p-1 bg-amber-50 text-amber-600 rounded-md" title="Marked Manually">
+                                                                <Edit2 size={10} />
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -251,7 +265,7 @@ const DailyAttendanceStatus = ({ config }) => {
                             <div className="p-4 border-b border-slate-100 bg-rose-50/50 flex justify-between items-center backdrop-blur-sm sticky top-0 z-10">
                                 <h3 className="text-sm font-bold text-rose-800 uppercase flex items-center gap-2">
                                     <div className="p-1 bg-rose-100/50 rounded-md"><X className="w-3.5 h-3.5" /></div>
-                                    Absent Students
+                                    Absent / Not Yet Marked
                                 </h3>
                                 <span className="bg-white text-rose-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-rose-100 shadow-sm">{stats.absent}</span>
                             </div>
@@ -270,7 +284,17 @@ const DailyAttendanceStatus = ({ config }) => {
                                                 <tr key={s.id} className="hover:bg-rose-50/30 transition-colors">
                                                     <td className="px-5 py-3 font-mono text-slate-400 font-medium text-xs">#{s.roll_number || 'N/A'}</td>
                                                     <td className="px-5 py-3 font-medium text-slate-700">{s.name}</td>
-                                                    <td className="px-5 py-3 text-right text-slate-400 text-xs font-mono">{s.contact_number || '-'}</td>
+                                                    <td className="px-5 py-3 text-right flex items-center justify-end gap-3">
+                                                        <span className="text-slate-400 text-xs font-mono">{s.contact_number || '-'}</span>
+                                                        {s.status === 'Unmarked' && (
+                                                            <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Not Marked</span>
+                                                        )}
+                                                        {s.marking_mode === 'manual' && s.status === 'Absent' && (
+                                                            <div className="p-1 bg-rose-50 text-rose-600 rounded-md" title="Marked Manually">
+                                                                <Edit2 size={10} />
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -284,12 +308,12 @@ const DailyAttendanceStatus = ({ config }) => {
                         </div>
                     </div>
 
-                    {/* Other/Unmarked */}
+                    {/* Late Students */}
                     {otherStudents.length > 0 && (
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-6">
                             <div className="p-4 border-b border-slate-100 bg-amber-50/50 flex justify-between items-center">
-                                <h3 className="text-sm font-bold text-amber-800 uppercase">Late / Unmarked</h3>
-                                <span className="bg-white text-amber-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-amber-100 shadow-sm">{stats.late + stats.unmarked}</span>
+                                <h3 className="text-sm font-bold text-amber-800 uppercase">Late Students</h3>
+                                <span className="bg-white text-amber-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-amber-100 shadow-sm">{stats.late}</span>
                             </div>
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {otherStudents.map(s => (

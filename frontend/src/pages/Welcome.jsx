@@ -1,10 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plane, Cloud, Zap } from 'lucide-react';
+import { Cloud } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Preferences } from '@capacitor/preferences';
+import { Capacitor } from '@capacitor/core';
 
 
 const Welcome = ({ onComplete }) => {
-    const [schoolName, setSchoolName] = useState('Connect to Campus');
+    const { user, loading } = useAuth();
+    const [schoolName, setSchoolName] = useState(() => {
+        const stored = localStorage.getItem('school_config');
+        if (stored) {
+            try {
+                const conf = JSON.parse(stored);
+                return conf.school_name || 'Connect to Campus';
+            } catch (e) {}
+        }
+        return 'Connect to Campus';
+    });
     const navigate = useNavigate();
     const hasNavigated = React.useRef(false);
 
@@ -12,8 +25,25 @@ const Welcome = ({ onComplete }) => {
         if (hasNavigated.current) return;
         hasNavigated.current = true;
 
-        // Mark welcome as shown in session
-        sessionStorage.setItem('welcome_shown', 'true');
+        // Skip if already logged in and navigating to login
+        if (user && !onComplete) {
+            switch (user.role) {
+                case 'SUPER_ADMIN': navigate('/super-admin', { replace: true }); return;
+                case 'SCHOOL_ADMIN': navigate('/school-admin', { replace: true }); return;
+                case 'TEACHER': navigate('/teacher', { replace: true }); return;
+                case 'STUDENT': navigate('/student', { replace: true }); return;
+                case 'STAFF':
+                case 'DRIVER': navigate('/staff', { replace: true }); return;
+                default: navigate('/login', { replace: true }); return;
+            }
+        }
+
+        // Mark welcome as shown in permanent storage (Survives app restart)
+        if (Capacitor.isNativePlatform()) {
+            Preferences.set({ key: 'welcome_shown', value: 'true' });
+        } else {
+            localStorage.setItem('welcome_shown', 'true');
+        }
 
         if (onComplete) {
             onComplete();
@@ -23,28 +53,20 @@ const Welcome = ({ onComplete }) => {
     };
 
     useEffect(() => {
-        // Check if welcome was already shown in this session
-        const welcomeShown = sessionStorage.getItem('welcome_shown');
-        if (welcomeShown === 'true') {
-            // Skip welcome and go directly to login
-            navigate('/login', { replace: true });
+        if (loading) return;
+
+        // Skip for Native App (per user request: "flights/buses only in web")
+        if (user || Capacitor.isNativePlatform()) {
+            handleComplete();
             return;
         }
 
         // Navigation after 5.5 seconds (Matches 5s Animation)
         const timeout = setTimeout(handleComplete, 5500);
 
-        // Fetch School Name
-        const storedConfig = localStorage.getItem('school_config');
-        if (storedConfig) {
-            try {
-                const conf = JSON.parse(storedConfig);
-                if (conf.school_name) setSchoolName(conf.school_name);
-            } catch (e) { }
-        }
 
         return () => clearTimeout(timeout);
-    }, [onComplete, navigate]);
+    }, [loading, user, onComplete, navigate]);
 
     return (
         <div className="relative w-full h-[100dvh] bg-sky-300 overflow-hidden flex flex-col justify-between">

@@ -391,7 +391,8 @@ exports.recordPayment = async (req, res) => {
         // Notification - Isolated so it doesn't fail the request if it errors
         try {
             const { sendPushNotification } = require('../services/notificationService');
-            const studentRes = await client.query('SELECT name FROM students WHERE id = $1', [student_id]);
+            // Use pool (not client) here since transaction is already committed
+            const studentRes = await pool.query('SELECT name FROM students WHERE id = $1', [student_id]);
             if (studentRes.rows.length > 0) {
                 const studentName = studentRes.rows[0].name;
                 // Explicitly use 'Student' as roleHint so it reaches the student's dashboard

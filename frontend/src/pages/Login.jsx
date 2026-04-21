@@ -33,6 +33,27 @@ const Login = () => {
     const isLoggingInRef = React.useRef(false);
     const abortControllerRef = React.useRef(null);
 
+    // Wake up server immediately on load (Fixes first attempt timeout issues)
+    React.useEffect(() => {
+        const wakeServer = async () => {
+            try {
+                // On Capacitor native or in production mode, use the production URL
+                // On local web development (laptop), use the local dev URL
+                const isNative = Capacitor.isNativePlatform();
+                const isLocalDev = !isNative && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+                const healthUrl = isLocalDev
+                    ? `http://${window.location.hostname}:5000/api`
+                    : 'https://connect2campus.co.in/api';
+
+                await fetch(healthUrl).catch(() => { });
+            } catch (e) {
+                // Ignore errors, this is just a wakeup ping
+            }
+        };
+        wakeServer();
+    }, []);
+
     // Check for error message in URL (from axios interceptor)
     React.useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -58,51 +79,64 @@ const Login = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (isLoggingIn || isLoggingInRef.current) return; // Prevent double click
+
+        // Use FormData to get values directly (Robust against Autofill state lag)
+        const formData = new FormData(e.target);
+        const emailVal = formData.get('email')?.toString().trim();
+        const passwordVal = formData.get('password')?.toString().trim();
+
+        if (isLoggingIn || isLoggingInRef.current) return;
+
+        console.log(`Login: Attempting login for ${emailVal} with role ${role}`);
+
+        if (!emailVal || !passwordVal) {
+            toast.error('Please fill in all fields');
+            return;
+        }
 
         setErrorMessage('');
         setIsLoggingIn(true);
         isLoggingInRef.current = true;
-
-        // Create new AbortController for this request
         abortControllerRef.current = new AbortController();
 
         try {
-            const result = await login(email.trim(), password.trim(), role);
+            const result = await login(emailVal, passwordVal, role);
+            console.log('Login: API Result:', result);
 
-            // Check if request was aborted
-            if (abortControllerRef.current?.signal.aborted) {
-                return;
-            }
+            if (abortControllerRef.current?.signal.aborted) return;
 
             if (result.success) {
+                console.log('DEBUG: Login Successful. User:', result.user); // Trace
+                // window.alert('Login Success! Redirecting...'); // Uncomment if desperate for visual confirmation
+
                 // Check for must_change_password flag from backend
-                if (result.user?.mustChangePassword) {
-                    toast('Please set a new password for security.', { icon: '🔒' });
-                    navigate('/change-password', { state: { email, role, oldPassword: password } });
+                // ONLY for Student, Teacher, and Staff roles (per user request)
+                if ((result.requiresPasswordChange || result.user?.mustChangePassword) && !['SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(role)) {
+                    toast('Please set a new password for security.', { icon: '🔒', duration: 4000 });
+                    navigate('/change-password', { state: { email: emailVal, role, oldPassword: passwordVal } });
                     return;
                 }
 
-                if (result.user?.mustChangePassword) {
-                    toast('Please set a new password for security.', { icon: '🔒' });
-                    navigate('/change-password', { state: { email, role, oldPassword: password } });
-                    return;
-                }
+                // Small delay to ensure consistency
+                await new Promise(resolve => setTimeout(resolve, 100));
 
-                // toast.success('Welcome back!'); // Removed as per request
+                // FORCE HARD RELOAD to clear any stale state
+                let targetPath = '/';
                 switch (role) {
-                    case 'SCHOOL_ADMIN': navigate('/school-admin'); break;
-                    case 'TEACHER': navigate('/teacher'); break;
-                    case 'STUDENT': navigate('/student'); break;
+                    case 'SCHOOL_ADMIN': targetPath = '/school-admin'; break;
+                    case 'TEACHER': targetPath = '/teacher'; break;
+                    case 'STUDENT': targetPath = '/student'; break;
                     case 'STAFF':
-                    case 'DRIVER': navigate('/staff'); break;
-                    default: navigate('/');
+                    case 'DRIVER': targetPath = '/staff'; break;
+                    default: targetPath = '/';
                 }
+
+                window.location.href = targetPath;
+                return;
             } else {
                 setErrorMessage(result.message);
+                if (result.message) window.alert(`Login Failed: ${result.message}`); // Force visibility
                 toast.error(result.message);
-                setIsLoggingIn(false);
-                isLoggingInRef.current = false;
             }
         } catch (error) {
             // Don't show error if request was aborted
@@ -111,10 +145,13 @@ const Login = () => {
             }
 
             console.error(error);
+            const msg = 'An unexpected error occurred';
+            setErrorMessage(msg);
+            window.alert(`Login Error: ${error.message || msg}`); // Force visibility
+        } finally {
+            // Always reset loading state
             setIsLoggingIn(false);
             isLoggingInRef.current = false;
-            setErrorMessage('An unexpected error occurred');
-        } finally {
             abortControllerRef.current = null;
         }
     };
@@ -181,7 +218,9 @@ const Login = () => {
                                 <input
                                     type="text"
                                     required
-                                    autoComplete="off"
+                                    id="login-email"
+                                    name="email"
+                                    autoComplete="username"
                                     className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all font-sans text-sm"
                                     placeholder={role === 'SCHOOL_ADMIN' ? 'Enter Email or School ID' :
                                         role === 'STUDENT' ? 'Enter Admission Number' :
@@ -190,7 +229,10 @@ const Login = () => {
                                     value={email}
                                     onChange={(e) => {
                                         cancelVerification();
-                                        setEmail(e.target.value.replace(/\s/g, ''));
+                                        const val = e.target.value;
+                                        // Validation Logic: Allow Alphanumeric + common ID/Email symbols (@ . / - _) for All Roles
+                                        const cleanVal = val.replace(/[^a-zA-Z0-9@.\/\-_]/g, '');
+                                        setEmail(cleanVal);
                                         setErrorMessage('');
                                     }}
                                 />
@@ -205,7 +247,9 @@ const Login = () => {
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         required
-                                        autoComplete="off"
+                                        id="login-password"
+                                        name="password" // Key fix
+                                        autoComplete="current-password"
                                         className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all font-sans text-sm pr-10"
                                         placeholder="Enter Password"
                                         value={password}
@@ -251,7 +295,7 @@ const Login = () => {
                                 className="w-full flex items-center justify-center gap-2 text-gray-400 hover:text-yellow-400 transition-colors text-xs font-semibold group"
                             >
                                 <Smartphone size={16} className="group-hover:scale-110 transition-transform" />
-                                Download App for Android
+                                Get it on Google Play
                             </Link>
                         </div>
                     )}

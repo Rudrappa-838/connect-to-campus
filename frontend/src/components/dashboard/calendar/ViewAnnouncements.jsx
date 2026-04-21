@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Clock, AlertCircle } from 'lucide-react';
+import { Bell, Clock, AlertCircle, FileText, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 
+import { Browser } from '@capacitor/browser';
 import { useAuth } from '../../../context/AuthContext';
 
 const ViewAnnouncements = () => {
@@ -29,7 +30,7 @@ const ViewAnnouncements = () => {
                     if (target === 'All') return true;
                     if (userRole === 'STUDENT' && (target === 'Student' || target === 'Class')) return true;
                     if (userRole === 'TEACHER' && target === 'Teacher') return true;
-                    if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(userRole) && target === 'Staff') return true;
+                    if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN'].includes(userRole) && target === 'Staff') return true;
                     return false;
                 });
                 setAnnouncements(filtered);
@@ -96,17 +97,7 @@ const ViewAnnouncements = () => {
                             key={item.id}
                             className={`relative overflow-hidden rounded-xl border p-6 transition-all hover:shadow-md ${getPriorityColor(item.priority)}`}
                         >
-                            {/* Target Badge - Visible to All */}
-                            <div className="absolute top-0 right-0 p-3 flex gap-2">
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${item.target_role === 'All' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-500 border-slate-200'
-                                    }`}>
-                                    {item.target_role === 'Class' && item.class_name ? `To ${item.class_name}` :
-                                        item.target_role === 'Student' ? 'To Students' :
-                                            item.target_role === 'Teacher' ? 'To Teachers' :
-                                                item.target_role === 'Staff' ? 'To Staffs' :
-                                                    `Universal Notice`}
-                                </span>
-                            </div>
+                            {/* Target Badge moved to title row to prevent overlap */}
                             {item.priority === 'Urgent' && (
                                 <div className="absolute top-0 right-0 p-2 opacity-10">
                                     <AlertCircle size={80} />
@@ -117,25 +108,53 @@ const ViewAnnouncements = () => {
                                 <div className="flex items-center gap-3">
                                     <h3 className="font-bold text-lg">{item.title}</h3>
                                     {item.priority !== 'Normal' && (
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${item.priority === 'Urgent' ? 'bg-red-100 border-red-200 text-red-700' : 'bg-orange-100 border-orange-200 text-orange-700'
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border flex-shrink-0 ${item.priority === 'Urgent' ? 'bg-red-100 border-red-200 text-red-700' : 'bg-orange-100 border-orange-200 text-orange-700'
                                             }`}>
                                             {item.priority}
                                         </span>
                                     )}
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${item.target_role === 'All' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-500 border-slate-200'
+                                        }`}>
+                                        {item.target_role === 'Class' && item.class_name ? `To ${item.class_name}` :
+                                            item.target_role === 'Student' ? 'To Students' :
+                                                item.target_role === 'Teacher' ? 'To Teachers' :
+                                                    item.target_role === 'Staff' ? 'To Staffs' :
+                                                        `Universal Notice`}
+                                    </span>
                                 </div>
                                 <span className="text-xs font-medium opacity-60 flex items-center gap-1">
                                     <Clock size={12} />
-                                    {new Date(item.created_at).toLocaleDateString()}
+                                    {new Date(item.created_at).toLocaleDateString('en-GB')}
                                 </span>
                             </div>
 
-                            <p className="text-sm opacity-90 leading-relaxed whitespace-pre-wrap relative z-10">
+                            <p className="text-sm opacity-90 leading-relaxed whitespace-pre-wrap relative z-10 mb-4">
                                 {item.message}
                             </p>
 
+                            {item.attachment_url && (
+                                <div className="mb-4 relative z-10">
+                                    <button 
+                                        onClick={async () => {
+                                            const url = `${api.defaults.baseURL}${item.attachment_url}`;
+                                            try {
+                                                await Browser.open({ url });
+                                            } catch (e) {
+                                                // Fallback for Web browser or if Capacitor Native plugin fails
+                                                window.open(url, '_blank', 'noreferrer');
+                                            }
+                                        }}
+                                        className="inline-flex items-center gap-2 px-3 py-2 bg-white/50 border border-black/10 rounded-lg text-sm font-medium hover:bg-white/80 transition-all text-current"
+                                    >
+                                        {(item.attachment_type || '').includes('pdf') ? <FileText size={16} /> : <ImageIcon size={16} />}
+                                        View Attachment
+                                    </button>
+                                </div>
+                            )}
+
                             {item.valid_until && (
-                                <div className="mt-4 pt-3 border-t border-black/5 text-xs font-medium opacity-60 flex items-center gap-2">
-                                    <span>Valid until: {new Date(item.valid_until).toLocaleDateString()}</span>
+                                <div className="mt-4 pt-3 border-t border-black/5 text-xs font-medium opacity-60 flex items-center gap-2 relative z-10">
+                                    <span>Valid until: {new Date(item.valid_until).toLocaleDateString('en-GB')}</span>
                                 </div>
                             )}
                         </div>

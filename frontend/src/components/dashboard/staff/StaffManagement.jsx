@@ -7,7 +7,7 @@ const StaffManagement = () => {
     const [staff, setStaff] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '' });
+    const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '', can_enroll_face: false, can_take_face_attendance: false });
     const [selectedId, setSelectedId] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [loading, setLoading] = useState(true);
@@ -25,7 +25,7 @@ const StaffManagement = () => {
     const openAddModal = () => {
         setIsEditing(false);
         setFieldErrors({});
-        setFormData({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '' });
+        setFormData({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '', can_enroll_face: false, can_take_face_attendance: false });
         setShowModal(true);
     };
 
@@ -105,6 +105,7 @@ const StaffManagement = () => {
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[11px] tracking-wider border-b border-slate-100">
                             <tr>
                                 <th className="p-4 pl-6">ID</th>
+                                <th className="p-4">Join Date</th>
                                 <th className="p-4">Name & Role</th>
                                 <th className="p-4">Salary/Month</th>
                                 <th className="p-4">Contact</th>
@@ -135,6 +136,9 @@ const StaffManagement = () => {
                                     {staff.map(t => (
                                         <tr key={t.id} className="group hover:bg-slate-50/50 transition-colors">
                                             <td className="p-4 pl-6 font-mono text-slate-400 text-xs">{t.employee_id || '-'}</td>
+                                            <td className="p-4 font-mono text-slate-500 text-xs">
+                                                {t.join_date ? new Date(t.join_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-'}
+                                            </td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
@@ -154,10 +158,27 @@ const StaffManagement = () => {
                                             <td className="p-4">
                                                 <div className="text-slate-600 text-sm">{t.phone}</div>
                                                 <div className="text-slate-400 text-xs">{t.email}</div>
+                                                {t.library_access && <div className="mt-1"><span className="bg-indigo-50 text-indigo-600 text-[10px] px-1.5 py-0.5 rounded-md font-bold border border-indigo-100">Library Access</span></div>}
+                                                {t.hostel_access && <div className="mt-1"><span className="bg-rose-50 text-rose-600 text-[10px] px-1.5 py-0.5 rounded-md font-bold border border-rose-100">Hostel Access</span></div>}
                                             </td>
                                             <td className="p-4 pr-6 text-right">
                                                 <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => { setIsEditing(true); setFieldErrors({}); setSelectedId(t.id); setFormData({ ...t, salary_per_month: t.salary_per_day ? (parseFloat(t.salary_per_day) * 26).toString() : '' }); setShowModal(true); }} className="text-indigo-500 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={18} /></button>
+                                                    <button onClick={() => { 
+                                                        setIsEditing(true); 
+                                                        setFieldErrors({}); 
+                                                        setSelectedId(t.id); 
+                                                        const monthlySalary = t.salary_per_day ? (parseFloat(t.salary_per_day) * 26).toFixed(0) : '0';
+                                                        setFormData({ 
+                                                            ...t, 
+                                                            join_date: t.join_date ? t.join_date.split('T')[0] : '',
+                                                            salary_per_month: monthlySalary,
+                                                            library_access: t.library_access || false,
+                                                            hostel_access: t.hostel_access || false,
+                                                            can_enroll_face: t.can_enroll_face || false,
+                                                            can_take_face_attendance: t.can_take_face_attendance || false
+                                                        }); 
+                                                        setShowModal(true); 
+                                                    }} className="text-indigo-500 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={18} /></button>
                                                     <button onClick={() => handleDelete(t.id)} disabled={isSubmitting} className={`text-rose-500 hover:bg-rose-50 p-2 rounded-lg transition-colors ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}><Trash2 size={18} /></button>
                                                 </div>
                                             </td>
@@ -189,42 +210,47 @@ const StaffManagement = () => {
                         </div>
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="label">Full Name <span className="text-red-500">*</span></label>
-                                    <input
-                                        className="input"
-                                        placeholder="Full Name"
-                                        required
-                                        pattern="[A-Za-z\s]+"
-                                        title="Letters and spaces only"
-                                        autoComplete="off"
-                                        value={formData.name}
-                                        onCopy={e => e.preventDefault()}
-                                        onPaste={e => e.preventDefault()}
-                                        onChange={e => {
-                                            if (/^[A-Za-z\s]*$/.test(e.target.value)) {
-                                                setFormData({ ...formData, name: e.target.value });
-                                            }
-                                        }}
-                                    />
+                                {isEditing && (
+                                    <div className="col-span-1">
+                                        <label className="label">Employee ID</label>
+                                        <input
+                                            className="input bg-slate-50"
+                                            readOnly
+                                            autoComplete="off"
+                                            value={formData.employee_id || ''}
+                                        />
+                                    </div>
+                                )}
+                                <div className={isEditing ? "col-span-1" : "col-span-2"}>
+                                     <label className="label">Full Name <span className="text-red-500">*</span></label>
+                                     <input
+                                         className="input"
+                                         id="staff-name"
+                                         name="name"
+                                         placeholder="Full Name"
+                                         required
+                                         pattern="[A-Za-z\s]+"
+                                         title="Letters and spaces only"
+                                         autoComplete="off"
+                                         value={formData.name}
+                                         onChange={e => {
+                                             if (/^[A-Za-z\s]*$/.test(e.target.value)) {
+                                                 setFormData({ ...formData, name: e.target.value });
+                                             }
+                                         }}
+                                     />
                                 </div>
-                                <div>
+                                <div className={isEditing ? "col-span-2" : "col-span-1"}>
                                     <label className="label">Role <span className="text-red-500">*</span></label>
                                     <input
                                         className="input"
-                                        placeholder="Role (e.g., Clerk, Peon)"
+                                        id="staff-role"
+                                        name="role"
+                                        placeholder="Role (e.g., Clerk)"
                                         required
-                                        pattern="[A-Za-z\s]+"
-                                        title="Letters and spaces only"
                                         autoComplete="off"
                                         value={formData.role}
-                                        onCopy={e => e.preventDefault()}
-                                        onPaste={e => e.preventDefault()}
-                                        onChange={e => {
-                                            if (/^[A-Za-z\s]*$/.test(e.target.value)) {
-                                                setFormData({ ...formData, role: e.target.value });
-                                            }
-                                        }}
+                                        onChange={e => setFormData({ ...formData, role: e.target.value })}
                                     />
                                 </div>
                             </div>
@@ -233,6 +259,8 @@ const StaffManagement = () => {
                                     <label className="label">Phone <span className="text-red-500">*</span></label>
                                     <input
                                         className={`input ${fieldErrors.phone ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                        id="staff-phone"
+                                        name="phone"
                                         placeholder="Phone"
                                         required
                                         maxLength={10}
@@ -250,6 +278,8 @@ const StaffManagement = () => {
                                     <label className="label">Email</label>
                                     <input
                                         className={`input ${fieldErrors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                        id="staff-email"
+                                        name="email"
                                         placeholder="Email"
                                         type="email"
                                         autoComplete="off"
@@ -300,6 +330,26 @@ const StaffManagement = () => {
                                     />
                                     <p className="text-xs text-slate-500 mt-1">Daily rate: ₹{formData.salary_per_month ? (parseFloat(formData.salary_per_month) / 26).toFixed(2) : '0'}/day</p>
                                 </div>
+                                <div className="col-span-1 flex flex-col justify-center gap-2 mt-[1rem]">
+                                    <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-200">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-colors"
+                                            checked={formData.library_access}
+                                            onChange={e => setFormData({ ...formData, library_access: e.target.checked })}
+                                        />
+                                        <span className="text-sm font-semibold text-slate-700">Allow Library Access</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-200">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 transition-colors"
+                                            checked={formData.hostel_access}
+                                            onChange={e => setFormData({ ...formData, hostel_access: e.target.checked })}
+                                        />
+                                        <span className="text-sm font-semibold text-slate-700">Allow Hostel Access</span>
+                                    </label>
+                                </div>
                             </div>
                             <textarea
                                 className="input"
@@ -310,6 +360,32 @@ const StaffManagement = () => {
                                 onPaste={e => e.preventDefault()}
                                 onChange={e => setFormData({ ...formData, address: e.target.value })}>
                             </textarea>
+
+                            {/* Biometric Permissions */}
+                            <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 space-y-3">
+                                <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">Mobile App Biometric Access</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-4 h-4 text-indigo-600 rounded" 
+                                            checked={formData.can_enroll_face} 
+                                            onChange={e => setFormData({ ...formData, can_enroll_face: e.target.checked })} 
+                                        />
+                                        <span className="font-bold text-slate-700 text-sm group-hover:text-indigo-600 transition-colors">Can Enroll Student Face</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-4 h-4 text-indigo-600 rounded" 
+                                            checked={formData.can_take_face_attendance} 
+                                            onChange={e => setFormData({ ...formData, can_take_face_attendance: e.target.checked })} 
+                                        />
+                                        <span className="font-bold text-slate-700 text-sm group-hover:text-indigo-600 transition-colors">Can Take Attendance</span>
+                                    </label>
+                                </div>
+                                <p className="text-[10px] text-indigo-400 font-medium leading-tight">Giving these permissions allows this staff member to use biometric features on mobile.</p>
+                            </div>
 
                             <div className="flex justify-end gap-2 mt-4">
                                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" disabled={isSubmitting}>Cancel</button>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
-import { Plus, School, LogOut, ChevronDown, Check, Trash2, X, Eye, Edit2, Search, Filter, Shield, Info, MapPin, Phone, Mail, Users, Power, RotateCcw, Home, Layers } from 'lucide-react';
+import { Plus, School, LogOut, ChevronDown, Check, Trash2, X, Eye, Edit2, Search, Filter, Shield, Info, MapPin, Phone, Mail, Users, Power, RotateCcw, Home, Layers, Database, UserCheck, ScanLine } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -34,6 +34,7 @@ const SuperAdminDashboard = () => {
         adminEmail: '',
         adminPassword: '',
         confirmAdminPassword: '',
+        institutionType: 'SCHOOL',
         classes: []
     });
 
@@ -78,26 +79,22 @@ const SuperAdminDashboard = () => {
         }
     };
 
-    const handleToggleHostel = async (school) => {
-        const newStatus = !(school.has_hostel !== false); // Toggle. Default True if undefined.
+    const handleToggleFeature = async (school, field, label) => {
+        const currentStatus = school[field] !== false; // Default true if undefined, but our migration set FALSE.
+        const newStatus = !currentStatus;
         try {
-            await api.put(`/schools/${school.id}/features`, { has_hostel: newStatus });
-            toast.success(`Hostel Feature ${newStatus ? 'Enabled' : 'Disabled'}`);
+            await api.put(`/schools/${school.id}/features`, { [field]: newStatus });
+            toast.success(`${label} ${newStatus ? 'Enabled' : 'Disabled'}`);
             fetchSchools();
         } catch (error) {
             console.error(error);
-            toast.error('Failed to update feature');
+            toast.error(`Failed to update ${label}`);
         }
     };
 
     const classConfigRef = useRef(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const isSubmittingRef = useRef(false);
-
-    useEffect(() => {
-        fetchSchools();
-        fetchDeletedSchools();
-    }, []);
 
     const fetchSchools = async () => {
         try {
@@ -122,6 +119,11 @@ const SuperAdminDashboard = () => {
             toast.error(`Failed to load deleted schools: ${msg} ${detail ? `(${detail})` : ''}`);
         }
     };
+
+    useEffect(() => {
+        fetchSchools();
+        fetchDeletedSchools();
+    }, []);
 
     const handleDeleteSchool = async (school) => {
         if (!window.confirm(`Are you sure you want to delete "${school.name}"? This will move it to the dustbin.`)) return;
@@ -246,6 +248,7 @@ const SuperAdminDashboard = () => {
                 adminEmail: '',
                 adminPassword: '',
                 confirmAdminPassword: '',
+                institutionType: fullSchool.institution_type || 'SCHOOL',
                 classes: [...transformedClasses] // Use spread to ensure new array reference
             }));
             setShowModal(true);
@@ -260,7 +263,7 @@ const SuperAdminDashboard = () => {
         setEditSchoolId(null);
         setFormData({
             name: '', address: '', contactEmail: '', contactNumber: '',
-            adminEmail: '', adminPassword: '', confirmAdminPassword: '', classes: []
+            adminEmail: '', adminPassword: '', confirmAdminPassword: '', institutionType: 'SCHOOL', classes: []
         });
         setShowModal(true);
     };
@@ -333,7 +336,11 @@ const SuperAdminDashboard = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (isSubmittingRef.current) return;
+        // Prevent double submission
+        if (isSubmittingRef.current) {
+            console.log('[SUBMIT BLOCKED] Already submitting');
+            return;
+        }
         isSubmittingRef.current = true;
         setIsSubmitting(true);
 
@@ -356,23 +363,44 @@ const SuperAdminDashboard = () => {
                     address: formData.address,
                     contactEmail: formData.contactEmail,
                     contactNumber: formData.contactNumber,
-                    classes: formData.classes, // Send updated classes for expansion/deletion
-                    allowDeletions: true // Enable class/section deletion
+                    institution_type: formData.institutionType,
+                    classes: formData.classes,
+                    allowDeletions: true
                 });
                 toast.success('School updated successfully! ✏️');
             } else {
-                // Exclude confirmAdminPassword from payload
-                const { confirmAdminPassword, ...payload } = formData;
+                const { confirmAdminPassword, institutionType, ...rest } = formData;
+                const payload = { ...rest, institution_type: institutionType };
+
+                console.log('[CREATE SCHOOL] Sending request...');
                 await api.post('/schools', payload);
+                console.log('[CREATE SCHOOL] Success!');
                 toast.success('School created successfully! 🎉');
             }
 
             setShowModal(false);
-            fetchSchools();
+            await fetchSchools(); // Refresh list
             setIsEditing(false);
             setEditSchoolId(null);
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to save school');
+            console.error('[SUBMIT ERROR]', error);
+            console.error('[SUBMIT ERROR] Status:', error.response?.status);
+            console.error('[SUBMIT ERROR] Data:', error.response?.data);
+            console.error('[SUBMIT ERROR] Message:', error.message);
+
+            // Check if the error is "email already exists" - school might have been created
+            const errorMsg = error.response?.data?.message || 'Failed to save school';
+
+            if (errorMsg.includes('already exists')) {
+                // School might have been created despite the error
+                toast.error('⚠️ ' + errorMsg + '. Refreshing list...');
+                setShowModal(false);
+                await fetchSchools(); // Refresh to show the school if it was created
+                setIsEditing(false);
+                setEditSchoolId(null);
+            } else {
+                toast.error(errorMsg);
+            }
         } finally {
             isSubmittingRef.current = false;
             setIsSubmitting(false);
@@ -532,7 +560,7 @@ const SuperAdminDashboard = () => {
                                         </div>
                                         <div>
                                             <h3 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">{school.name}</h3>
-                                            <div className="flex items-center gap-2 mt-1">
+                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation(); // Prevent card hover effect interference if any
@@ -547,10 +575,10 @@ const SuperAdminDashboard = () => {
                                                     <Power size={10} className={school.is_active ? "text-emerald-500" : "text-red-500"} />
                                                     {school.is_active ? 'Service Online' : 'Service Offline'}
                                                 </button>
-                                                <button
+                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        handleToggleHostel(school);
+                                                        handleToggleFeature(school, 'has_hostel', 'Hostel');
                                                     }}
                                                     className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_hostel !== false
                                                         ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'
@@ -560,6 +588,62 @@ const SuperAdminDashboard = () => {
                                                 >
                                                     <Home size={10} />
                                                     {school.has_hostel !== false ? 'Hostel ON' : 'Hostel OFF'}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_neet_exams', 'NEET Bank');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_neet_exams
+                                                        ? 'bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_neet_exams ? "Disable NEET Bank" : "Enable NEET Bank"}
+                                                >
+                                                    <Database size={10} />
+                                                    {school.has_neet_exams ? 'NEET ON' : 'NEET OFF'}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_face_enrollment', 'Face Enroll');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_face_enrollment
+                                                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_face_enrollment ? "Disable Face Enrollment" : "Enable Face Enrollment"}
+                                                >
+                                                    <UserCheck size={10} />
+                                                    {school.has_face_enrollment ? 'ENROLL ON' : 'ENROLL OFF'}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_face_scanner', 'Face Scanner');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_face_scanner
+                                                        ? 'bg-pink-500/10 text-pink-400 border-pink-500/20 hover:bg-pink-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_face_scanner ? "Disable Face Scanner" : "Enable Face Scanner"}
+                                                >
+                                                    <ScanLine size={10} />
+                                                    {school.has_face_scanner ? 'SCANNER ON' : 'SCANNER OFF'}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_biometric', 'Biometric');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_biometric
+                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_biometric ? "Disable Biometric Access" : "Enable Biometric Access"}
+                                                >
+                                                    <Shield size={10} />
+                                                    {school.has_biometric ? 'BIOMETRIC ON' : 'BIOMETRIC OFF'}
                                                 </button>
                                             </div>
                                         </div>
@@ -723,12 +807,12 @@ const SuperAdminDashboard = () => {
                                 <section>
                                     <div className="flex items-center gap-3 mb-6">
                                         <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm">1</div>
-                                        <h3 className="text-lg font-bold text-white">School Information</h3>
+                                        <h3 className="text-lg font-bold text-white">{formData.institutionType === 'COLLEGE' ? 'College' : 'School'} Information</h3>
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="group">
-                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">School Name</label>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{formData.institutionType === 'COLLEGE' ? 'College' : 'School'} Name</label>
                                             <input
                                                 required
                                                 placeholder="e.g. Springfield High"
@@ -773,6 +857,33 @@ const SuperAdminDashboard = () => {
                                                 value={formData.address}
                                                 onChange={e => setFormData({ ...formData, address: e.target.value })}
                                             />
+                                        </div>
+                                        <div className="group col-span-1 md:col-span-2">
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Institution Type</label>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, institutionType: 'SCHOOL' })}
+                                                    className={`px-4 py-3 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${formData.institutionType === 'SCHOOL'
+                                                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+                                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
+                                                        }`}
+                                                >
+                                                    <School size={18} />
+                                                    School
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, institutionType: 'COLLEGE' })}
+                                                    className={`px-4 py-3 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${formData.institutionType === 'COLLEGE'
+                                                        ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-500/20'
+                                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
+                                                        }`}
+                                                >
+                                                    <Layers size={18} />
+                                                    College
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </section>
@@ -1178,7 +1289,7 @@ const SuperAdminDashboard = () => {
                                 disabled={isSubmitting}
                                 className={`px-8 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/25 transition-all ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98]'}`}
                             >
-                                {isSubmitting ? 'Processing...' : (isEditing ? 'Save Changes' : 'Create School')}
+                                {isSubmitting ? 'Processing...' : (isEditing ? 'Save Changes' : (formData.institutionType === 'COLLEGE' ? 'Create College' : 'Create School'))}
                             </button>
                         </div>
                     </div>
@@ -1199,7 +1310,7 @@ const SuperAdminDashboard = () => {
                         <div className="p-8 space-y-8">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">School ID</p>
+                                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">{viewSchool.institution_type === 'COLLEGE' ? 'College' : 'School'} ID</p>
                                     <p className="text-indigo-300 font-mono text-lg font-bold">{viewSchool.school_code || 'N/A'}</p>
                                 </div>
                                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">

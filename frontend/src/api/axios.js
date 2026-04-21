@@ -3,8 +3,8 @@ import toast from 'react-hot-toast';
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 
-// Production API URL
-const PROD_URL = "http://52.66.13.31/api";
+// Production API URL (HTTPS via domain - fixes Mixed Content block)
+const PROD_URL = "https://connect2campus.co.in/api";
 
 // Dynamic URL for local development (Laptop)
 const DEV_URL = `http://${window.location.hostname}:5000/api`;
@@ -17,6 +17,11 @@ if (baseURL && baseURL.includes('cloudfunctions.net')) {
     baseURL = PROD_URL;
 }
 
+// FORCE AWS URL ON MOBILE (Critical for Play Store)
+if (Capacitor.isNativePlatform()) {
+    baseURL = PROD_URL;
+}
+
 // Debug: Log the API URL being used
 console.log('🔗 API Base URL (v3):', baseURL, '| Mode:', import.meta.env.MODE);
 
@@ -24,6 +29,19 @@ const api = axios.create({
     baseURL: baseURL,
     timeout: 30000, // 30 seconds timeout
 });
+
+// In-memory token storage to avoid async race conditions
+let memoryToken = null;
+
+// Export function to set token immediately
+export const setAuthToken = (token) => {
+    memoryToken = token;
+    if (token) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+        delete api.defaults.headers.common['Authorization'];
+    }
+};
 
 // Loading state management (will be set by LoadingProvider)
 let loadingCallbacks = {
@@ -43,26 +61,32 @@ api.interceptors.request.use(
         // Start loading
         loadingCallbacks.start();
 
-        // Get token from storage (Capacitor Preferences on mobile, localStorage on web)
+        // 1. Priority: Check In-Memory Token (Fastest, fixes race condition)
+        if (memoryToken) {
+            config.headers.Authorization = `Bearer ${memoryToken}`;
+            return config;
+        }
+
+        // 2. Secondary: Check Storage (Async - fallback for page reloads)
         let token;
         try {
-            // Check if running on native platform
-            if (Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+            if (Capacitor.isNativePlatform()) {
                 const { value } = await Preferences.get({ key: 'token' });
                 token = value;
             } else {
-                // Web browser - use localStorage
                 token = localStorage.getItem('token');
             }
         } catch (error) {
-            // Fallback to localStorage if Capacitor check fails
-            console.warn('Capacitor check failed, using localStorage:', error);
+            console.warn('Storage check failed:', error);
             token = localStorage.getItem('token');
         }
 
         if (token) {
+            // Sync memory token for future requests
+            memoryToken = token;
             config.headers.Authorization = `Bearer ${token}`;
         }
+
         return config;
     },
     (error) => {
@@ -92,11 +116,13 @@ api.interceptors.response.use(
 
             const msg = error.response.data?.message;
 
-
-
             // Specific check for Service Disabled (403) or Session Invalid (401)
             if (msg === 'School Service Disabled. Contact Super Admin.' || error.response.status === 401) {
-                // Clear storage (use Capacitor Preferences on mobile, localStorage on web)
+
+                // Clear all storage
+                memoryToken = null;
+                delete api.defaults.headers.common['Authorization'];
+
                 if (Capacitor.isNativePlatform()) {
                     await Preferences.remove({ key: 'token' });
                     await Preferences.remove({ key: 'user' });
@@ -106,7 +132,6 @@ api.interceptors.response.use(
                 }
 
                 // Force reload to login if not already there
-                // Don't redirect if on super-admin-login page
                 if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/super-admin-login')) {
                     window.location.href = '/login?error=' + encodeURIComponent(msg || 'Session Expired');
                 }
@@ -114,10 +139,20 @@ api.interceptors.response.use(
             }
         }
 
-        const config = error.config;
+        // Handle Network/Offline Errors specifically
+        if (error.message === 'Network Error' || (error.code === 'ERR_NETWORK')) {
+            toast.error('Network Connection Error 📡❌', { id: 'network-error-toast' });
+            return Promise.reject(error);
+        }
 
-        // If config does not exist or the retry option is set to false, reject
+        const config = error.config;
         if (!config || !config.retry) {
+            return Promise.reject(error);
+        }
+
+        // Only retry idempotent methods (GET, HEAD, OPTIONS)
+        const idempotentMethods = ['get', 'head', 'options'];
+        if (!idempotentMethods.includes(config.method)) {
             return Promise.reject(error);
         }
 

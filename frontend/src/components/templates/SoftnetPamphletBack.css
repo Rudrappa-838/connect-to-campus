@@ -1,0 +1,329 @@
+/* Back Side - ROBUST GRAND DESIGN */
+.pamphlet-back-page {
+    width: 210mm;
+    height: 297mm;
+    margin: 0 auto;
+    background: white;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow: hidden;
+    padding: 20px;
+    /* Safe padding all around */
+}
+
+.pamphlet-back-container {
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    /* Consistent gap between sections */
+    border-radius: 10px;
+    overflow: hidden;
+    /* rounded corners for the whole page background */
+}
+
+/* Back Hero - FIXED VISIBILITY */
+.back-hero-section {
+    position: relative;
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 25%, #3b82f6 50%, #60a5fa 75%, #93c5fd 100%);
+    padding: 25px 20px 20px 20px;
+    text-align: center;
+    box-shadow: 0 6px 25px rgba(30, 64, 175, 0.3);
+    /* No margin top needed because container has padding */
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.back-hero-content {
+    position: relative;
+    z-index: 5;
+    /* High z-index to ensure visibility */
+}
+
+.back-main-title {
+    font-size: 36px;
+    font-weight: 900;
+    color: #ffffff !important;
+    /* Force white color */
+    margin: 0 0 10px 0;
+    letter-spacing: 2px;
+    text-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+    line-height: 1.2;
+    display: block;
+    /* Ensure it takes space */
+    opacity: 1;
+}
+
+.back-subtitle {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 1);
+    margin: 0 0 12px 0;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+.app-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 800;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Section Titles */
+.section-title-compact {
+    font-size: 18px;
+    font-weight: 900;
+    color: #1e40af;
+    margin: 0 0 12px 0;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    position: relative;
+    padding-bottom: 5px;
+}
+
+.section-title-compact::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 3px;
+    background: #3b82f6;
+    border-radius: 2px;
+}
+
+/* Why Choose */
+.why-choose-compact {
+    padding: 0 20px;
+    flex-shrink: 0;
+}
+
+.why-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.why-card-compact {
+    padding: 12px 8px;
+    background: white;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e7ff;
+}
+
+.why-icon-compact {
+    font-size: 28px;
+    margin-bottom: 5px;
+}
+
+.why-card-compact h3 {
+    font-size: 12px;
+    font-weight: 800;
+    color: #1e3a8a;
+    margin: 0 0 2px 0;
+}
+
+.why-card-compact p {
+    font-size: 10px;
+    color: #64748b;
+    margin: 0;
+}
+
+/* Pricing - CENTERPIECE */
+.pricing-compact {
+    padding: 0 20px;
+    flex-grow: 1;
+    /* Allow this to take available space */
+    display: flex;
+    flex-direction: column;
+}
+
+.pricing-card-compact {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 8px 25px rgba(30, 64, 175, 0.3);
+    color: white;
+    flex-grow: 1;
+    /* Expand to fill space */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.pricing-header-compact {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.pricing-header-compact h3 {
+    font-size: 22px;
+    font-weight: 900;
+    margin: 0 0 5px 0;
+}
+
+.price-compact {
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+.pricing-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.pricing-item-compact {
+    font-size: 12px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    font-weight: 600;
+    text-align: center;
+}
+
+/* Offers */
+.offers-compact {
+    padding: 0 20px;
+    flex-shrink: 0;
+}
+
+.offers-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.offer-compact {
+    padding: 10px;
+    background: #eff6ff;
+    border: 2px solid #3b82f6;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+    color: #1e40af;
+}
+
+/* Contact */
+.contact-compact {
+    padding: 0 20px;
+    flex-shrink: 0;
+}
+
+.contact-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.contact-item-compact {
+    padding: 10px;
+    background: #f8fafc;
+    border-radius: 10px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+}
+
+.contact-icon-compact {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.contact-label-compact {
+    font-size: 9px;
+    color: #64748b;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.contact-value-compact {
+    font-size: 11px;
+    font-weight: 800;
+    color: #1e3a8a;
+}
+
+/* CTA */
+.cta-compact {
+    padding: 10px 20px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.cta-btn-compact {
+    padding: 12px 30px;
+    font-size: 13px;
+    font-weight: 800;
+    border-radius: 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    border: none;
+    color: white;
+}
+
+.cta-btn-compact.primary {
+    background: #2563eb;
+}
+
+.cta-btn-compact.secondary {
+    background: #10b981;
+}
+
+/* Footer */
+.footer-compact {
+    padding: 15px;
+    background: #1e293b;
+    text-align: center;
+    margin-top: auto;
+    flex-shrink: 0;
+    border-radius: 0 0 10px 10px;
+}
+
+.footer-main-compact {
+    font-size: 11px;
+    color: white;
+    margin: 0 0 3px 0;
+}
+
+.footer-sub-compact {
+    font-size: 9px;
+    color: #cbd5e1;
+    margin: 0;
+}
+
+/* Print Styles - FORCE VISIBILITY */
+@media print {
+    .pamphlet-back-page {
+        margin: 0;
+        padding: 20px !important;
+    }
+
+    .back-hero-section {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .back-main-title {
+        color: white !important;
+        text-shadow: none !important;
+        /* sometimes shadows mess up print */
+    }
+
+    @page {
+        size: A4;
+        margin: 0;
+    }
+}

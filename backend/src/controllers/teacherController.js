@@ -7,7 +7,7 @@ exports.addTeacher = async (req, res) => {
     const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
-        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day } = req.body;
+        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day, can_enroll_face, can_take_face_attendance } = req.body;
 
         await client.query('BEGIN');
 
@@ -63,26 +63,26 @@ exports.addTeacher = async (req, res) => {
 
         // 2. Insert Teacher
         const result = await client.query(
-            `INSERT INTO teachers (school_id, name, email, phone, subject_specialization, gender, address, join_date, employee_id, salary_per_day)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-            [school_id, name, email, phone, subject_specialization, gender, address, join_date || new Date(), employee_id, salary_per_day || 0]
+            `INSERT INTO teachers (school_id, name, email, phone, subject_specialization, gender, address, join_date, employee_id, salary_per_day, can_enroll_face, can_take_face_attendance)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+            [school_id, name, email, phone, subject_specialization, gender, address, join_date || new Date(), employee_id, salary_per_day || 0, can_enroll_face || false, can_take_face_attendance || false]
         );
         const newTeacher = result.rows[0];
 
-        // 3. Create Login for Teacher
-        let loginEmail = email || `${employee_id}@teacher.school.com`;
+        // 3. Create Login for Teacher - Always Use Employee ID for Login
+        let loginEmail = employee_id.trim().toLowerCase();
         const defaultPassword = await bcrypt.hash('123456', 10);
 
-        let userCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+        let userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, 'TEACHER']);
         if (userCheck.rows.length > 0) {
             loginEmail = `${employee_id}@teacher.school.com`;
-            userCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+            userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, 'TEACHER']);
         }
 
         if (userCheck.rows.length === 0) {
             await client.query(
-                `INSERT INTO users (email, password, role, school_id, must_change_password) VALUES ($1, $2, 'TEACHER', $3, TRUE)`,
-                [loginEmail, defaultPassword, school_id]
+                `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, 'TEACHER', $3, TRUE, $4)`,
+                [loginEmail, defaultPassword, school_id, newTeacher.id]
             );
         }
 
@@ -166,7 +166,9 @@ exports.getTeachers = async (req, res) => {
                    COALESCE(c_sec.name, c_main.name) as class_name, 
                    s.name as section_name,
                    s.id as assigned_section_id,
-                   COALESCE(c_sec.id, c_main.id) as assigned_class_id
+                   COALESCE(c_sec.id, c_main.id) as assigned_class_id,
+                   COALESCE(t.can_enroll_face, TRUE) as can_enroll_face,
+                   COALESCE(t.can_take_face_attendance, TRUE) as can_take_face_attendance
             FROM teachers t
             LEFT JOIN sections s ON s.class_teacher_id = t.id
             LEFT JOIN classes c_sec ON s.class_id = c_sec.id
@@ -188,7 +190,7 @@ exports.updateTeacher = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day } = req.body;
+        const { name, email, phone, subject_specialization, gender, address, join_date, assign_class_id, assign_section_id, salary_per_day, employee_id, can_enroll_face, can_take_face_attendance } = req.body;
 
         await client.query('BEGIN');
 
@@ -219,6 +221,19 @@ exports.updateTeacher = async (req, res) => {
                 });
             }
         }
+        // Check if employee_id already exists for another teacher
+        if (employee_id) {
+            const idCheck = await client.query(
+                'SELECT id, name FROM teachers WHERE employee_id = $1 AND school_id = $2 AND id != $3',
+                [employee_id, school_id, id]
+            );
+            if (idCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    message: `Employee ID already exists for: ${idCheck.rows[0].name}`
+                });
+            }
+        }
 
         // Get Existing Teacher to check for email change
         const existingTeacher = await client.query('SELECT email, employee_id FROM teachers WHERE id = $1', [id]);
@@ -232,13 +247,19 @@ exports.updateTeacher = async (req, res) => {
             last_name = parts.slice(1).join(' ');
         }
 
+        // Sanitize
+        const safe_join_date = (join_date === '' || join_date === 'null' || join_date === undefined) ? null : join_date;
+        const safe_salary = (salary_per_day === '' || salary_per_day === 'null' || salary_per_day === undefined) ? 0 : salary_per_day;
+
         const result = await client.query(
             `UPDATE teachers SET name = $1, email = $2, phone = $3, subject_specialization = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
-             first_name = $9, last_name = $10
+             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id),
+             can_enroll_face = COALESCE($14, can_enroll_face),
+             can_take_face_attendance = COALESCE($15, can_take_face_attendance)
              WHERE id = $11 AND school_id = $12 RETURNING *`,
-            [name, email, phone, subject_specialization, gender, address, join_date, salary_per_day || 0,
+            [name, email, phone, subject_specialization, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
-                id, school_id]
+                id, school_id, employee_id, can_enroll_face, can_take_face_attendance]
         );
 
         if (result.rows.length === 0) {
@@ -269,12 +290,12 @@ exports.updateTeacher = async (req, res) => {
         // 2. Assign to new section if provided
         console.log(`[UPDATE TEACHER] Class Assignment - ClassID: ${assign_class_id}, SectionID: ${assign_section_id}`);
 
-        if (assign_class_id) {
+        if (assign_class_id && assign_class_id !== 'null' && assign_class_id !== 'undefined') {
             let targetSectionId = assign_section_id;
             const classIdInt = parseInt(assign_class_id);
 
             // A. Check if Section is Provided
-            if (targetSectionId) {
+            if (targetSectionId && targetSectionId !== 'null' && targetSectionId !== 'undefined') {
                 // Check if this SECTION is already assigned
                 const checkSec = await client.query('SELECT class_teacher_id, name FROM sections WHERE id = $1', [targetSectionId]);
                 // Ensure we don't count self (though we just cleared it above)
@@ -342,20 +363,71 @@ exports.updateTeacher = async (req, res) => {
     }
 };
 
-// Delete Teacher
+// Delete Teacher - Robust (Clears FKs first)
 exports.deleteTeacher = async (req, res) => {
+    const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const result = await pool.query(
+
+        await client.query('BEGIN');
+
+        // 0. Get Teacher Info (Email/EmpID) to delete User Login later
+        const teacherRes = await client.query('SELECT email, employee_id FROM teachers WHERE id = $1', [id]);
+        if (teacherRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Teacher not found' });
+        }
+        const teacher = teacherRes.rows[0];
+
+        // 1. Unassign from Classes (Class Teacher)
+        await client.query('UPDATE classes SET class_teacher_id = NULL WHERE class_teacher_id = $1', [id]);
+
+        // 2. Unassign from Sections (Class Teacher)
+        await client.query('UPDATE sections SET class_teacher_id = NULL WHERE class_teacher_id = $1', [id]);
+
+        // 3. Delete Attendance Records
+        await client.query('DELETE FROM teacher_attendance WHERE teacher_id = $1', [id]);
+
+        // 3.5 Delete Salary Records (Force Clean)
+        await client.query("DELETE FROM salary_payments WHERE employee_id = $1 AND employee_type = 'Teacher'", [id]);
+
+        // 3.6 Unassign from Doubts
+        await client.query('UPDATE doubts SET teacher_id = NULL WHERE teacher_id = $1', [id]);
+
+        // 4. Delete Timetable Entries
+        await client.query('DELETE FROM timetables WHERE teacher_id = $1', [id]);
+
+        // 5. Delete Teacher Record
+        const result = await client.query(
             `DELETE FROM teachers WHERE id = $1 AND school_id = $2 RETURNING *`,
             [id, school_id]
         );
-        if (result.rows.length === 0) return res.status(404).json({ message: 'Teacher not found' });
+
+        // 6. Delete User Login Account
+        // Try deleting by exact email match
+        if (teacher.email) {
+            await client.query("DELETE FROM users WHERE email = $1 AND role = 'TEACHER'", [teacher.email]);
+        }
+        // Also try deleting by generated email pattern just in case
+        if (teacher.employee_id) {
+            const genEmail = `${teacher.employee_id}@teacher.school.com`;
+            await client.query("DELETE FROM users WHERE email = $1 AND role = 'TEACHER'", [genEmail]);
+        }
+
+        await client.query('COMMIT');
         res.json({ message: 'Teacher deleted successfully' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error deleting teacher' });
+        await client.query('ROLLBACK');
+        console.error('Data Integrity Error deleting teacher:', error.message);
+        // Return 200 with warning if delete technically "failed" but practically worked, or just 500
+        // But better to show the specific error
+        if (error.code === '23503') { // Foreign Key Violation
+            return res.status(400).json({ message: 'Cannot delete teacher. They are referenced in other records (e.g. Salary, Exams). Please clear those first.' });
+        }
+        res.status(500).json({ message: 'Server error deleting teacher: ' + error.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -476,8 +548,8 @@ exports.getTeacherProfile = async (req, res) => {
         const school_id = req.user.schoolId;
         const email = req.user.email;
 
-        // Find teacher by email and link to assigned class via sections table Or Classes Table
-        const query = `
+        let teacher_id = req.user.linkedId;
+        let query = `
             SELECT t.*, 
                    COALESCE(c_sec.name, c_main.name) as class_name, 
                    COALESCE(s.name, 'Class Teacher') as section_name,
@@ -487,17 +559,28 @@ exports.getTeacherProfile = async (req, res) => {
                    tv.vehicle_number,
                    tv.driver_name,
                    tv.driver_phone,
-                   tv.current_lat,
-                   tv.current_lng
+                   COALESCE(t.can_enroll_face, TRUE) as can_enroll_face,
+                   COALESCE(t.can_take_face_attendance, TRUE) as can_take_face_attendance
             FROM teachers t
             LEFT JOIN sections s ON s.class_teacher_id = t.id
             LEFT JOIN classes c_sec ON s.class_id = c_sec.id
             LEFT JOIN classes c_main ON c_main.class_teacher_id = t.id
             LEFT JOIN transport_routes tr ON t.transport_route_id = tr.id
             LEFT JOIN transport_vehicles tv ON tr.vehicle_id = tv.id
-            WHERE t.school_id = $1 AND t.email = $2
+            WHERE t.school_id = $1
         `;
-        const result = await pool.query(query, [school_id, email]);
+        const params = [school_id];
+
+        if (teacher_id) {
+            query += ' AND t.id = $2';
+            params.push(teacher_id);
+        } else {
+            // Fallback: search by email OR employee_id
+            const potentialEmpId = email.includes('@') ? email.split('@')[0].toUpperCase() : email.toUpperCase();
+            query += ' AND (LOWER(TRIM(t.email)) = LOWER(TRIM($2)) OR t.employee_id ILIKE $3)';
+            params.push(email, potentialEmpId);
+        }
+        const result = await pool.query(query, params);
 
         if (result.rows.length === 0) {
             // If no teacher record found for this user email
@@ -518,21 +601,17 @@ exports.getMyAttendanceHistory = async (req, res) => {
         const email = req.user.email;
         const { month, year } = req.query;
 
-        // Find teacher ID from email (Robust Match)
-        let tRes = await pool.query(
-            'SELECT id FROM teachers WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
-            [email, school_id]
-        );
-
-        if (tRes.rows.length === 0) {
-            // Fallback for generated emails
-            if (email.endsWith('@teacher.school.com')) {
-                const potentialEmpId = email.split('@')[0].toUpperCase();
-                tRes = await pool.query(
-                    'SELECT id FROM teachers WHERE employee_id = $1 AND school_id = $2',
-                    [potentialEmpId, school_id]
-                );
-            }
+        // Find teacher ID from ID or email (Robust Match)
+        let tRes = [];
+        if (req.user.linkedId) {
+            tRes = await pool.query('SELECT id FROM teachers WHERE id = $1 AND school_id = $2', [req.user.linkedId, school_id]);
+        }
+        
+        if (!tRes || tRes.rows?.length === 0) {
+            tRes = await pool.query(
+                'SELECT id FROM teachers WHERE (LOWER(TRIM(email)) = LOWER(TRIM($1)) OR employee_id ILIKE $2) AND school_id = $3',
+                [email, email.includes('@') ? email.split('@')[0] : email, school_id]
+            );
         }
 
         if (tRes.rows.length === 0) return res.status(404).json({ message: 'Teacher profile not found' });
@@ -575,19 +654,17 @@ exports.updateMyProfile = async (req, res) => {
         await client.query('BEGIN');
 
         // 1. Find the teacher record
-        let tRes = await pool.query(
-            'SELECT id, email, employee_id FROM teachers WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
-            [email, school_id]
-        );
-
-        if (tRes.rows.length === 0) {
-            if (email.endsWith('@teacher.school.com')) {
-                const potentialEmpId = email.split('@')[0].toUpperCase();
-                tRes = await pool.query(
-                    'SELECT id, email, employee_id FROM teachers WHERE employee_id = $1 AND school_id = $2',
-                    [potentialEmpId, school_id]
-                );
-            }
+        let tRes = [];
+        if (req.user.linkedId) {
+            tRes = await pool.query('SELECT id, email, employee_id FROM teachers WHERE id = $1 AND school_id = $2', [req.user.linkedId, school_id]);
+        }
+        
+        if (!tRes || tRes.rows?.length === 0) {
+            const potentialEmpId = email.includes('@') ? email.split('@')[0].toUpperCase() : email.toUpperCase();
+            tRes = await pool.query(
+                'SELECT id, email, employee_id FROM teachers WHERE (LOWER(TRIM(email)) = LOWER(TRIM($1)) OR employee_id ILIKE $2) AND school_id = $3',
+                [email, potentialEmpId, school_id]
+            );
         }
 
         if (tRes.rows.length === 0) {

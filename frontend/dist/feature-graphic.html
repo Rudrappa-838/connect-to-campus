@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feature Graphic Generator</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #canvas {
+            width: 1024px;
+            height: 500px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Decorative Circles */
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .c1 {
+            width: 400px;
+            height: 400px;
+            top: -100px;
+            left: -100px;
+        }
+
+        .c2 {
+            width: 300px;
+            height: 300px;
+            bottom: -50px;
+            right: -50px;
+        }
+
+        .c3 {
+            width: 150px;
+            height: 150px;
+            top: 50px;
+            right: 100px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Text Content */
+        h1 {
+            color: white;
+            font-size: 80px;
+            margin: 0;
+            font-weight: 800;
+            text-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        h2 {
+            color: #bfdbfe;
+            font-size: 32px;
+            margin-top: 20px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            z-index: 10;
+        }
+
+        .icon {
+            font-size: 100px;
+            color: rgba(255, 255, 255, 0.2);
+            position: absolute;
+            z-index: 1;
+        }
+
+        .i1 {
+            top: 60px;
+            left: 200px;
+            transform: rotate(-15deg);
+        }
+
+        .i2 {
+            bottom: 60px;
+            right: 200px;
+            transform: rotate(15deg);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="canvas">
+        <div class="circle c1"></div>
+        <div class="circle c2"></div>
+        <div class="circle c3"></div>
+
+        <!-- Abstract School Icons/Shapes -->
+        <div class="icon i1">🎓</div>
+        <div class="icon i2">📚</div>
+
+        <h1>Connect to Campus</h1>
+        <h2>SMART SCHOOL MANAGEMENT</h2>
+    </div>
+
+</body>
+
+</html>

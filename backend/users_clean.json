@@ -1,15 +1,33 @@
 [
   {
-    "id": 9,
-    "email": "driver@demo.com",
-    "role": "DRIVER",
+    "id": 21,
+    "email": "abc@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 4
+  },
+  {
+    "id": 209,
+    "email": "das6369",
+    "role": "STUDENT",
     "school_id": 1
   },
   {
-    "id": 1,
-    "email": "admin@school.com",
-    "role": "SUPER_ADMIN",
-    "school_id": null
+    "id": 119,
+    "email": "ok@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 30
+  },
+  {
+    "id": 211,
+    "email": "das3961",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 213,
+    "email": "das5531",
+    "role": "STUDENT",
+    "school_id": 1
   },
   {
     "id": 24,
@@ -18,21 +36,9 @@
     "school_id": 4
   },
   {
-    "id": 10,
-    "email": "rudru8888@gmail.com",
-    "role": "TEACHER",
-    "school_id": 1
-  },
-  {
-    "id": 12,
-    "email": "school_admin@demo.com",
-    "role": "SCHOOL_ADMIN",
-    "school_id": 1
-  },
-  {
-    "id": 15,
-    "email": "admin@demo.com",
-    "role": "SCHOOL_ADMIN",
+    "id": 215,
+    "email": "das5276",
+    "role": "STUDENT",
     "school_id": 1
   },
   {
@@ -42,9 +48,9 @@
     "school_id": 1
   },
   {
-    "id": 6,
-    "email": "student@demo.com",
-    "role": "STUDENT",
+    "id": 140,
+    "email": "dat7487",
+    "role": "TEACHER",
     "school_id": 1
   },
   {
@@ -54,9 +60,9 @@
     "school_id": 1
   },
   {
-    "id": 33,
-    "email": "997358@staff.school.com",
-    "role": "STAFF",
+    "id": 26,
+    "email": "ab6488@student.school.com",
+    "role": "STUDENT",
     "school_id": 4
   },
   {
@@ -72,10 +78,10 @@
     "school_id": 4
   },
   {
-    "id": 26,
-    "email": "ab6488@student.school.com",
+    "id": 105,
+    "email": "uguhguygy@gmail.com",
     "role": "STUDENT",
-    "school_id": 4
+    "school_id": 1
   },
   {
     "id": 28,
@@ -96,38 +102,20 @@
     "school_id": 4
   },
   {
-    "id": 31,
-    "email": "b@gmail.com",
-    "role": "TEACHER",
-    "school_id": 4
+    "id": 124,
+    "email": "das6334@student.school.com",
+    "role": "STUDENT",
+    "school_id": 1
   },
   {
-    "id": 36,
-    "email": "ajith@gmail.com",
+    "id": 22,
+    "email": "name@gmail.com",
     "role": "STUDENT",
     "school_id": 4
   },
   {
     "id": 39,
     "email": "A@gamil.com",
-    "role": "STUDENT",
-    "school_id": 4
-  },
-  {
-    "id": 34,
-    "email": "da9040@student.school.com",
-    "role": "STUDENT",
-    "school_id": 1
-  },
-  {
-    "id": 14,
-    "email": "superadmin@example.com",
-    "role": "SUPER_ADMIN",
-    "school_id": null
-  },
-  {
-    "id": 22,
-    "email": "name@gmail.com",
     "role": "STUDENT",
     "school_id": 4
   },
@@ -156,33 +144,45 @@
     "school_id": 4
   },
   {
-    "id": 21,
-    "email": "abc@gmail.com",
-    "role": "SCHOOL_ADMIN",
+    "id": 31,
+    "email": "b@gmail.com",
+    "role": "TEACHER",
     "school_id": 4
   },
   {
-    "id": 2,
-    "email": "rudrappam789@gmail.com",
-    "role": "SCHOOL_ADMIN",
-    "school_id": 1
+    "id": 33,
+    "email": "997358@staff.school.com",
+    "role": "STAFF",
+    "school_id": 4
   },
   {
-    "id": 11,
-    "email": "rudru888@gmail.com",
+    "id": 36,
+    "email": "ajith@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 126,
+    "email": "das5070@student.school.com",
     "role": "STUDENT",
     "school_id": 1
   },
   {
-    "id": 40,
-    "email": "Sujath@ganil.com",
-    "role": "STAFF",
+    "id": 125,
+    "email": "das2539@student.school.com",
+    "role": "STUDENT",
     "school_id": 1
   },
   {
-    "id": 13,
-    "email": "mrudru7@gmail.com",
-    "role": "STAFF",
+    "id": 106,
+    "email": "abs6123@student.school.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 68,
+    "email": "karthikg9881@gmail.com",
+    "role": "STUDENT",
     "school_id": 1
   },
   {
@@ -192,20 +192,32 @@
     "school_id": 4
   },
   {
-    "id": 41,
-    "email": "ram@gmail.com",
+    "id": 63,
+    "email": "135919@staff.school.com",
+    "role": "STAFF",
+    "school_id": 5
+  },
+  {
+    "id": 62,
+    "email": "lasab@gmail.com",
+    "role": "STAFF",
+    "school_id": 5
+  },
+  {
+    "id": 13,
+    "email": "mrudru7@gmail.com",
+    "role": "STAFF",
+    "school_id": 1
+  },
+  {
+    "id": 217,
+    "email": "das1470",
     "role": "STUDENT",
-    "school_id": 4
+    "school_id": 1
   },
   {
     "id": 42,
     "email": "rada@gmail.com",
-    "role": "STUDENT",
-    "school_id": 4
-  },
-  {
-    "id": 43,
-    "email": "sachin@gmail.com",
     "role": "STUDENT",
     "school_id": 4
   },
@@ -222,15 +234,1311 @@
     "school_id": 4
   },
   {
+    "id": 218,
+    "email": "das7593",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
     "id": 46,
     "email": "aas@gmail.com",
     "role": "STUDENT",
     "school_id": 4
   },
   {
+    "id": 40,
+    "email": "Sujath@ganil.com",
+    "role": "STAFF",
+    "school_id": 1
+  },
+  {
+    "id": 48,
+    "email": "ab2652@student.school.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 49,
+    "email": "ramesg@gmail.com",
+    "role": "TEACHER",
+    "school_id": 4
+  },
+  {
+    "id": 220,
+    "email": "das3117",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 69,
+    "email": "machakanur113@gmail.com",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 127,
+    "email": "ac@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 222,
+    "email": "das4466",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 60,
+    "email": "bg1113@student.school.com",
+    "role": "STUDENT",
+    "school_id": 5
+  },
+  {
+    "id": 65,
+    "email": "1@gmail.com",
+    "role": "TEACHER",
+    "school_id": 5
+  },
+  {
+    "id": 50,
+    "email": "sachin1@gmail.com",
+    "role": "STAFF",
+    "school_id": 4
+  },
+  {
+    "id": 64,
+    "email": "shubham713@yahoo.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 61,
+    "email": "ragini@gmail.com",
+    "role": "TEACHER",
+    "school_id": 5
+  },
+  {
+    "id": 137,
+    "email": "dat3080",
+    "role": "TEACHER",
+    "school_id": 1
+  },
+  {
+    "id": 138,
+    "email": "das3907",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 67,
+    "email": "praveen@gmail.com",
+    "role": "STUDENT",
+    "school_id": 5
+  },
+  {
+    "id": 43,
+    "email": "sachin@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 146,
+    "email": "das2573",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 149,
+    "email": "dad8618",
+    "role": "STAFF",
+    "school_id": 1
+  },
+  {
+    "id": 74,
+    "email": "myadmin@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 14
+  },
+  {
+    "id": 85,
+    "email": "abc54@gmail.com",
+    "role": "STUDENT",
+    "school_id": 16
+  },
+  {
+    "id": 86,
+    "email": "lalita54@gmail.com",
+    "role": "TEACHER",
+    "school_id": 16
+  },
+  {
+    "id": 80,
+    "email": "sa@gmail.com",
+    "role": "STAFF",
+    "school_id": 14
+  },
+  {
+    "id": 82,
+    "email": "gwsgsjg@gmail.com",
+    "role": "TEACHER",
+    "school_id": 14
+  },
+  {
+    "id": 87,
+    "email": "softnetbgk@gmail.com",
+    "role": "SUPER_ADMIN",
+    "school_id": null
+  },
+  {
+    "id": 77,
+    "email": "MYT8997@teacher.school.com",
+    "role": "TEACHER",
+    "school_id": 14
+  },
+  {
+    "id": 78,
+    "email": "MYT4876@teacher.school.com",
+    "role": "TEACHER",
+    "school_id": 14
+  },
+  {
+    "id": 79,
+    "email": "ramesh@gmail.com",
+    "role": "TEACHER",
+    "school_id": 14
+  },
+  {
+    "id": 94,
+    "email": "Ram@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 81,
+    "email": "ss@gmail.com",
+    "role": "STAFF",
+    "school_id": 14
+  },
+  {
+    "id": 90,
+    "email": "GANDHAR123@GMAIL.COM",
+    "role": "STUDENT",
+    "school_id": 18
+  },
+  {
+    "id": 224,
+    "email": "das3601",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 71,
+    "email": "erdgd@gmail.com",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 88,
+    "email": "n@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 89,
+    "email": "ekalavyashikshanasamathe@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 18
+  },
+  {
+    "id": 76,
+    "email": "rudrappa@gmail.com",
+    "role": "STUDENT",
+    "school_id": 14
+  },
+  {
+    "id": 92,
+    "email": "abs3343@student.school.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 70,
+    "email": "vygygyug@gmail.com",
+    "role": "STAFF",
+    "school_id": 1
+  },
+  {
+    "id": 73,
+    "email": "dced@gmail.com",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 226,
+    "email": "das9237",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 91,
+    "email": "rohitpatilrohitpatil72@gmail.com",
+    "role": "TEACHER",
+    "school_id": 18
+  },
+  {
+    "id": 228,
+    "email": "das6069",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 93,
+    "email": "ragu@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 230,
+    "email": "das6966",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 232,
+    "email": "das4747",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 234,
+    "email": "das4643",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 236,
+    "email": "das2030",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 238,
+    "email": "das7399",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 240,
+    "email": "das4130",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 242,
+    "email": "das1943",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 244,
+    "email": "das2954",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 246,
+    "email": "das6521",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 83,
+    "email": "bgksps@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 16
+  },
+  {
+    "id": 95,
+    "email": "shantu@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 100,
+    "email": "g@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 99,
+    "email": "Praveen@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 98,
+    "email": "p@gmail.com",
+    "role": "TEACHER",
+    "school_id": 4
+  },
+  {
+    "id": 97,
+    "email": "jhih@gmail.com",
+    "role": "TEACHER",
+    "school_id": 1
+  },
+  {
+    "id": 248,
+    "email": "das2734",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
     "id": 47,
     "email": "r@gmail.com",
     "role": "TEACHER",
     "school_id": 4
+  },
+  {
+    "id": 104,
+    "email": "pa@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 102,
+    "email": "ABD9489@staff.school.com",
+    "role": "DRIVER",
+    "school_id": 4
+  },
+  {
+    "id": 101,
+    "email": "raju@gmail.com",
+    "role": "TEACHER",
+    "school_id": 4
+  },
+  {
+    "id": 318,
+    "email": "das4302",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 319,
+    "email": "das5191",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 250,
+    "email": "das6752",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 128,
+    "email": "s@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 130,
+    "email": "mrudru@gmail.com",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 131,
+    "email": "stusdent@example.com",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 135,
+    "email": "nmae@gmail.com",
+    "role": "STAFF",
+    "school_id": 1
+  },
+  {
+    "id": 129,
+    "email": "das7304@student.school.com",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 252,
+    "email": "das7954",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 108,
+    "email": "smwksm@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 19
+  },
+  {
+    "id": 254,
+    "email": "das9118",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 256,
+    "email": "das9030",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 258,
+    "email": "das6295",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 320,
+    "email": "das6837",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 148,
+    "email": "dah8303",
+    "role": "STAFF",
+    "school_id": 1
+  },
+  {
+    "id": 103,
+    "email": "ABD8600@staff.school.com",
+    "role": "DRIVER",
+    "school_id": 4
+  },
+  {
+    "id": 260,
+    "email": "das1170",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 262,
+    "email": "das2363",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 264,
+    "email": "das1294",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 266,
+    "email": "das4378",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 268,
+    "email": "das5957",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 270,
+    "email": "das4134",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 272,
+    "email": "das7761",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 285,
+    "email": "das5410",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 286,
+    "email": "das9444",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 34,
+    "email": "da9040@student.school.com",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 287,
+    "email": "das8822",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 288,
+    "email": "das7429",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 289,
+    "email": "das6712",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 290,
+    "email": "das4479",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 291,
+    "email": "das9394",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 292,
+    "email": "das2740",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 293,
+    "email": "das6027",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 294,
+    "email": "das1670",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 295,
+    "email": "das4993",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 296,
+    "email": "das6556",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 297,
+    "email": "das5880",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 298,
+    "email": "das1487",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 299,
+    "email": "das1416",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 300,
+    "email": "das4080",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 301,
+    "email": "das6226",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 302,
+    "email": "das8033",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 303,
+    "email": "das3579",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 304,
+    "email": "das7310",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 305,
+    "email": "das7644",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 306,
+    "email": "das3693",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 307,
+    "email": "das8729",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 308,
+    "email": "das3531",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 309,
+    "email": "das1248",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 310,
+    "email": "das3091",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 311,
+    "email": "das2165",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 312,
+    "email": "das7241",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 313,
+    "email": "das9152",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 314,
+    "email": "das5269",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 315,
+    "email": "das6007",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 316,
+    "email": "das4367",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 317,
+    "email": "das7483",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 321,
+    "email": "das9995",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 322,
+    "email": "das9395",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 323,
+    "email": "das6240",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 324,
+    "email": "das4668",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 325,
+    "email": "das4187",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 326,
+    "email": "das4078",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 327,
+    "email": "das7155",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 1,
+    "email": "admin@school.com",
+    "role": "SUPER_ADMIN",
+    "school_id": null
+  },
+  {
+    "id": 9,
+    "email": "driver@demo.com",
+    "role": "DRIVER",
+    "school_id": 1
+  },
+  {
+    "id": 133,
+    "email": "mrudru7@gmail.com",
+    "role": "STUDENT",
+    "school_id": 35
+  },
+  {
+    "id": 328,
+    "email": "das8041",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 329,
+    "email": "das9972",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 11,
+    "email": "rudru888@gmail.com",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 150,
+    "email": "das3062",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 123,
+    "email": "kkfkfkk@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 34
+  },
+  {
+    "id": 14,
+    "email": "superadmin@example.com",
+    "role": "SUPER_ADMIN",
+    "school_id": null
+  },
+  {
+    "id": 59,
+    "email": "rmgadmin@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 13
+  },
+  {
+    "id": 114,
+    "email": "kmiji@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 25
+  },
+  {
+    "id": 115,
+    "email": "loki@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 26
+  },
+  {
+    "id": 51,
+    "email": "bgmitadmin@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 5
+  },
+  {
+    "id": 107,
+    "email": "debug_admin@test.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 1
+  },
+  {
+    "id": 134,
+    "email": "mahadevappaajith@gmail.com",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 330,
+    "email": "das3723",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 331,
+    "email": "das7252",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 332,
+    "email": "das9558",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 333,
+    "email": "das9308",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 334,
+    "email": "das2204",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 151,
+    "email": "dal6800",
+    "role": "STAFF",
+    "school_id": 1
+  },
+  {
+    "id": 10,
+    "email": "rudru8888@gmail.com",
+    "role": "TEACHER",
+    "school_id": 1
+  },
+  {
+    "id": 110,
+    "email": "siwsjiwsoik@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 21
+  },
+  {
+    "id": 122,
+    "email": "kkfkfkfk@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 33
+  },
+  {
+    "id": 112,
+    "email": "gagga@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 23
+  },
+  {
+    "id": 117,
+    "email": "jnjnj@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 28
+  },
+  {
+    "id": 118,
+    "email": "jnjnnygu@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 29
+  },
+  {
+    "id": 15,
+    "email": "admin@demo.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 1
+  },
+  {
+    "id": 132,
+    "email": "d@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 35
+  },
+  {
+    "id": 116,
+    "email": "yyyy@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 27
+  },
+  {
+    "id": 120,
+    "email": "kokoky@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 31
+  },
+  {
+    "id": 12,
+    "email": "school_admin@demo.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 1
+  },
+  {
+    "id": 341,
+    "email": "collage@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 36
+  },
+  {
+    "id": 139,
+    "email": "das5852",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 141,
+    "email": "dal2725",
+    "role": "STAFF",
+    "school_id": 1
+  },
+  {
+    "id": 152,
+    "email": "dat4472",
+    "role": "TEACHER",
+    "school_id": 1
+  },
+  {
+    "id": 2,
+    "email": "rudrappam789@gmail.com",
+    "role": "SCHOOL_ADMIN",
+    "school_id": 1
+  },
+  {
+    "id": 153,
+    "email": "dat3583",
+    "role": "TEACHER",
+    "school_id": 1
+  },
+  {
+    "id": 335,
+    "email": "das2859",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 336,
+    "email": "das8820",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 337,
+    "email": "das1281",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 338,
+    "email": "das6002",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 339,
+    "email": "das6963",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 340,
+    "email": "das4824",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 143,
+    "email": "dat4752",
+    "role": "TEACHER",
+    "school_id": 1
+  },
+  {
+    "id": 342,
+    "email": "cos3069",
+    "role": "STUDENT",
+    "school_id": 36
+  },
+  {
+    "id": 144,
+    "email": "dad2842",
+    "role": "DRIVER",
+    "school_id": 1
+  },
+  {
+    "id": 142,
+    "email": "das5134",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 154,
+    "email": "das1151",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 155,
+    "email": "das6495",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 156,
+    "email": "das3831",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 147,
+    "email": "dat6726",
+    "role": "TEACHER",
+    "school_id": 1
+  },
+  {
+    "id": 157,
+    "email": "das8202",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 158,
+    "email": "das6824",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 159,
+    "email": "das7780",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 160,
+    "email": "das9157",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 161,
+    "email": "das8910",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 162,
+    "email": "das3979",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 163,
+    "email": "das3845",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 164,
+    "email": "das9341",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 165,
+    "email": "das3488",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 166,
+    "email": "das2527",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 167,
+    "email": "das4004",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 168,
+    "email": "das3174",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 169,
+    "email": "das8135",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 170,
+    "email": "das4143",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 171,
+    "email": "das5887",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 172,
+    "email": "das8770",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 173,
+    "email": "das7141",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 174,
+    "email": "das3850",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 175,
+    "email": "das4956",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 177,
+    "email": "das8944",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 179,
+    "email": "das9827",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 181,
+    "email": "das8163",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 183,
+    "email": "das5112",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 185,
+    "email": "das1390",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 187,
+    "email": "das3156",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 189,
+    "email": "das4642",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 191,
+    "email": "das2080",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 193,
+    "email": "das8996",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 195,
+    "email": "das6718",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 197,
+    "email": "das1255",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 199,
+    "email": "das9232",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 201,
+    "email": "das3159",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 203,
+    "email": "das5919",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 205,
+    "email": "das8239",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 207,
+    "email": "das3607",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 145,
+    "email": "das4582",
+    "role": "STUDENT",
+    "school_id": 1
+  },
+  {
+    "id": 41,
+    "email": "ram@gmail.com",
+    "role": "STUDENT",
+    "school_id": 4
+  },
+  {
+    "id": 66,
+    "email": "945242@staff.school.com",
+    "role": "DRIVER",
+    "school_id": 1
   }
 ]

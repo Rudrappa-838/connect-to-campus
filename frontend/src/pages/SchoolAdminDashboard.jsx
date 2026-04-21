@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useInstitution } from '../context/InstitutionContext';
 import { useNavigate } from 'react-router-dom';
 import {
     Users, Calendar, BarChart3, LogOut, Check, ChevronRight, ChevronDown, User, DollarSign,
-    LayoutDashboard, Settings, Search, Menu, Book, Home, Clock, Megaphone, Bus, UserPlus, Shield, ScanLine, X, IndianRupee, Navigation
+    LayoutDashboard, Settings, Search, Menu, Book, Home, Clock, Megaphone, Bus, UserPlus, Shield, ScanLine, X, IndianRupee, Navigation, Database, MessageSquare, CreditCard
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import toast from 'react-hot-toast';
@@ -15,8 +16,13 @@ import { MobileHeader, MobileFooter } from '../components/layout/MobileAppFiles'
 import Overview from '../components/dashboard/Overview';
 import StudentManagement from '../components/dashboard/students/StudentManagement';
 import StudentAttendanceMarking from '../components/dashboard/students/StudentAttendanceMarking';
-import DailyAttendanceStatus from '../components/dashboard/students/DailyAttendanceStatus';
 import StudentAttendanceReports from '../components/dashboard/students/StudentAttendanceReports';
+import StudentReviewManagement from '../components/dashboard/students/StudentReviewManagement';
+
+// Biometric & Face Recognition Components
+import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
+import FaceAttendanceScanner from '../components/dashboard/biometric/FaceAttendanceScanner';
+import DailyAttendanceStatus from '../components/dashboard/students/DailyAttendanceStatus';
 
 // Teacher Components
 import TeacherManagement from '../components/dashboard/teachers/TeacherManagement';
@@ -56,6 +62,7 @@ import TimetableManagement from '../components/dashboard/academics/TimetableMana
 import MarksManagement from '../components/dashboard/academics/MarksManagement';
 import ExamSchedule from '../components/dashboard/academics/ExamSchedule';
 import QuestionPaperGenerator from '../components/dashboard/academics/question-paper/QuestionPaperGenerator';
+import DedicatedQuestionBank from '../components/dashboard/academics/question-paper/DedicatedQuestionBank';
 import GradeManagement from '../components/dashboard/academics/GradeManagement';
 import TopperList from '../components/dashboard/academics/TopperList';
 import StudentOverallResult from '../components/dashboard/academics/StudentOverallResult';
@@ -84,6 +91,7 @@ import SchoolSettings from '../components/dashboard/admin/SchoolSettings';
 
 const SchoolAdminDashboard = () => {
     const { logout, user } = useAuth();
+    const { getLabel } = useInstitution();
     const navigate = useNavigate();
     const [academicConfig, setAcademicConfig] = useState({ classes: [] });
     const [activeTab, setActiveTab] = useState('overview'); // Default to overview
@@ -225,7 +233,7 @@ const SchoolAdminDashboard = () => {
                             </div>
                         )}
                         <div className="w-full">
-                            <h1 className="text-xl font-serif font-black italic text-white tracking-wide leading-tight drop-shadow-md">{academicConfig.name || 'School Admin'}</h1>
+                            <h1 className="text-xl font-serif font-black italic text-white tracking-wide leading-tight drop-shadow-md">{academicConfig.name || getLabel('admin_dashboard')}</h1>
                             <p className="text-[10px] font-bold uppercase tracking-wider text-yellow-400/80">Admin Portal</p>
                         </div>
                     </div>
@@ -256,8 +264,11 @@ const SchoolAdminDashboard = () => {
                         onToggle={() => toggleSection('students')}
                     >
                         <NavSubButton active={activeTab === 'student-list'} onClick={() => handleTabChange('student-list')} label="Admission List" />
+                        <NavSubButton active={activeTab === 'student-reviews-admin'} onClick={() => handleTabChange('student-reviews-admin')} label="Student Reviews" />
                         <NavSubButton active={activeTab === 'student-promotion'} onClick={() => handleTabChange('student-promotion')} label="Promote Students" />
                         <NavSubButton active={activeTab === 'student-attendance'} onClick={() => handleTabChange('student-attendance')} label="Take Attendance" />
+                        {academicConfig.has_face_enrollment && <NavSubButton active={activeTab === 'face-enrollment'} onClick={() => handleTabChange('face-enrollment')} label="Enroll Face" />}
+                        {academicConfig.has_face_scanner && <NavSubButton active={activeTab === 'face-attendance'} onClick={() => handleTabChange('face-attendance')} label="Face Scanner" />}
                         <NavSubButton active={activeTab === 'student-daily-status'} onClick={() => handleTabChange('student-daily-status')} label="Daily Status" />
                         <NavSubButton active={activeTab === 'student-report'} onClick={() => handleTabChange('student-report')} label="Reports" />
                         <NavSubButton active={activeTab === 'student-bin'} onClick={() => handleTabChange('student-bin')} label="Recycle Bin" />
@@ -346,8 +357,24 @@ const SchoolAdminDashboard = () => {
                         <NavSubButton active={activeTab === 'marks'} onClick={() => handleTabChange('marks')} label="Marks" />
                         <NavSubButton active={activeTab === 'topper-list'} onClick={() => handleTabChange('topper-list')} label="Topper List" />
                         <NavSubButton active={activeTab === 'student-overall'} onClick={() => handleTabChange('student-overall')} label="Student Overall Result" />
-                        <NavSubButton active={activeTab === 'question-generator'} onClick={() => handleTabChange('question-generator')} label="AI Question Paper" />
                     </NavGroup>
+
+                    {academicConfig.has_neet_exams && (
+                        <div className="mt-2 space-y-1 text-indigo-200">
+                            <NavButton
+                                active={activeTab === 'question-bank'}
+                                onClick={() => handleTabChange('question-bank')}
+                                icon={Database}
+                                label="NEET Question Bank"
+                            />
+                            <NavButton
+                                active={activeTab === 'question-generator'}
+                                onClick={() => handleTabChange('question-generator')}
+                                icon={Book}
+                                label="AI Question Paper"
+                            />
+                        </div>
+                    )}
 
                     {academicConfig.has_hostel !== false && (
                         <NavGroup
@@ -369,7 +396,7 @@ const SchoolAdminDashboard = () => {
                         expanded={expandedSections.calendar}
                         onToggle={() => toggleSection('calendar')}
                     >
-                        <NavSubButton active={activeTab === 'school-calendar'} onClick={() => handleTabChange('school-calendar')} label="School Calendar" />
+                        <NavSubButton active={activeTab === 'school-calendar'} onClick={() => handleTabChange('school-calendar')} label={`${getLabel('school', 'School')} Calendar`} />
                         <NavSubButton active={activeTab === 'holiday-management'} onClick={() => handleTabChange('holiday-management')} label="Holiday Management" />
                     </NavGroup>
 
@@ -420,16 +447,18 @@ const SchoolAdminDashboard = () => {
                     </div>
 
                     <p className="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 mt-6">Biometric & Access</p>
-                    <div className="mt-2">
-                        <NavGroup
-                            label="Access Control"
-                            icon={Shield}
-                            expanded={expandedSections.biometric}
-                            onToggle={() => toggleSection('biometric')}
-                        >
-                            <NavSubButton active={activeTab === 'biometric-access'} onClick={() => handleTabChange('biometric-access')} label="Manage Devices" />
-                        </NavGroup>
-                    </div>
+                    {academicConfig.has_biometric && (
+                        <div className="mt-2">
+                            <NavGroup
+                                label="Access Control"
+                                icon={Shield}
+                                expanded={expandedSections.biometric}
+                                onToggle={() => toggleSection('biometric')}
+                            >
+                                <NavSubButton active={activeTab === 'biometric-access'} onClick={() => handleTabChange('biometric-access')} label="Manage Devices" />
+                            </NavGroup>
+                        </div>
+                    )}
                 </nav>
 
                 {/* System Settings */}
@@ -439,7 +468,7 @@ const SchoolAdminDashboard = () => {
                         active={activeTab === 'settings'}
                         onClick={() => handleTabChange('settings')}
                         icon={Settings}
-                        label="School Settings"
+                        label={`${getLabel('school', 'School')} Settings`}
                     />
                 </div>
 
@@ -451,7 +480,7 @@ const SchoolAdminDashboard = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-white truncate">{user?.email}</p>
-                            <p className="text-xs text-gray-400">School Administrator</p>
+                            <p className="text-xs text-gray-400">{getLabel('admin_dashboard')}</p>
                         </div>
                         <button onClick={handleLogoutClick} className="text-gray-400 hover:text-red-400 transition-colors">
                             <LogOut size={18} />
@@ -466,7 +495,7 @@ const SchoolAdminDashboard = () => {
                 {/* Mobile Header (App Mode Only) */}
                 {isMobileApp && (
                     <MobileHeader
-                        title={getTabTitle(activeTab)}
+                        title={getTabTitle(activeTab, getLabel)}
                         schoolName={academicConfig?.name}
                         onMenuClick={() => setIsMobileMenuOpen(true)}
                     />
@@ -483,7 +512,7 @@ const SchoolAdminDashboard = () => {
                                 <Menu size={24} />
                             </button>
                             <h2 className="text-xl font-bold text-slate-800">
-                                {getTabTitle(activeTab)}
+                                {getTabTitle(activeTab, getLabel)}
                             </h2>
                         </div>
                         <div className="flex items-center gap-4 py-2">
@@ -498,10 +527,13 @@ const SchoolAdminDashboard = () => {
                     <div className="max-w-7xl mx-auto animate-in fade-in duration-300">
                         {activeTab === 'overview' && <Overview config={academicConfig} />}
                         {activeTab === 'student-list' && <StudentManagement key="student-list" config={academicConfig} prefillData={activeTabState} />}
+                        {activeTab === 'student-reviews-admin' && <StudentReviewManagement key="student-reviews" config={academicConfig} />}
                         {activeTab === 'student-promotion' && <StudentManagement key="student-promotion" config={academicConfig} isPromotionView={true} />}
                         {activeTab === 'student-bin' && <StudentManagement key="student-bin" config={academicConfig} defaultViewMode="bin" />}
                         {activeTab === 'admissions-crm' && <AdmissionCRM onNavigate={(tab, data) => { setActiveTab(tab); setActiveTabState(data); }} />}
                         {activeTab === 'student-attendance' && <StudentAttendanceMarking config={academicConfig} />}
+                        {activeTab === 'face-enrollment' && <FaceEnrollment config={academicConfig} />}
+                        {activeTab === 'face-attendance' && <FaceAttendanceScanner config={academicConfig} />}
                         {activeTab === 'student-daily-status' && <DailyAttendanceStatus config={academicConfig} />}
                         {activeTab === 'student-report' && <StudentAttendanceReports config={academicConfig} />}
 
@@ -534,6 +566,7 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'exam-schedule' && <ExamSchedule />}
                         {activeTab === 'grading' && <GradeManagement />}
                         {activeTab === 'question-generator' && <QuestionPaperGenerator config={academicConfig} />}
+                        {activeTab === 'question-bank' && <DedicatedQuestionBank config={academicConfig} />}
 
                         {activeTab === 'hostel-overview' && <HostelOverview />}
                         {activeTab === 'hostel-rooms' && <RoomManagement />}
@@ -558,6 +591,12 @@ const SchoolAdminDashboard = () => {
                         activeTab={activeTab}
                         onTabChange={setActiveTab}
                         onMenuToggle={() => setIsMobileMenuOpen(true)}
+                        tabs={[
+                            { id: 'overview', label: 'Home', icon: LayoutDashboard },
+                            { id: 'student-list', label: 'Students', icon: Users },
+                            { id: 'student-reviews-admin', label: 'Reviews', icon: MessageSquare },
+                            { id: 'fee-collection', label: 'Fees', icon: CreditCard },
+                        ]}
                     />
                 )}
             </div>
@@ -631,13 +670,16 @@ const NavSubButton = ({ active, onClick, label }) => (
 );
 
 
-const getTabTitle = (tab) => {
+const getTabTitle = (tab, getLabel = (k, d) => d) => {
+    const schoolLabel = getLabel('school', 'School');
     const titles = {
         'overview': 'Dashboard Overview',
         'student-list': 'Student Admission List',
         'student-promotion': 'Promote Students',
         'admissions-crm': 'Admissions Enquiry CRM',
         'student-attendance': 'Student Attendance',
+        'face-enrollment': 'Student Face Enrollment',
+        'face-attendance': 'Gate Face Scanner',
         'student-daily-status': 'Daily Attendance Status',
         'student-report': 'Attendance Reports',
         'teacher-list': 'Teacher Management',
@@ -661,19 +703,20 @@ const getTabTitle = (tab) => {
         'topper-list': 'Class Toppers',
         'exam-schedule': 'Exam Schedule',
         'grading': 'Grade Configuration',
+        'question-bank': 'NEET & JEE Master Bank',
         'question-generator': 'AI Question Paper Generator',
         'hostel-overview': 'Hostel Management',
         'hostel-rooms': 'Room Configuration',
         'hostel-allocation': 'Student Allocation',
         'hostel-finance': 'Hostel Fees & Mess',
-        'school-calendar': 'School Calendar',
+        'school-calendar': `${schoolLabel} Calendar`,
         'announcements': 'Announcements & Notice Board',
         'leave-management': 'Leave Management',
         'certificates-generator': 'Certificate Generator',
         'transport-management': 'Transport & Live Tracking',
         'biometric-access': 'Biometric & Access Control',
         'academic-year-settings': 'Academic Year Management',
-        'settings': 'School Settings'
+        'settings': `${schoolLabel} Settings`
     };
     return titles[tab] || 'Dashboard';
 }
@@ -692,7 +735,7 @@ const styles = `
         padding: 0.6rem 0.85rem; 
         border: 1px solid #e2e8f0; 
         border-radius: 0.75rem; 
-        font-size: 0.875rem; 
+        font-size: 16px; /* 16px prevents mobile browsers from auto-zooming! */
         outline: none; 
         transition: all 0.2s; 
         background: white; 

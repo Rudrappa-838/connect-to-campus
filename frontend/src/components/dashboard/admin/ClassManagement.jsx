@@ -112,6 +112,8 @@ const SectionManager = ({ classId }) => {
             <form onSubmit={handleAddSection} className="flex gap-2">
                 <input
                     type="text"
+                    id="section-name"
+                    name="name"
                     value={sectionName}
                     onChange={(e) => setSectionName(e.target.value)}
                     placeholder="New Section"
@@ -279,6 +281,8 @@ const SubjectManager = ({ classId }) => {
                 <div className="flex gap-2">
                     <input
                         type="text"
+                        id="subject-name"
+                        name="name"
                         value={subName}
                         onChange={(e) => setSubName(e.target.value)}
                         placeholder="Subject Name"
@@ -296,6 +300,8 @@ const SubjectManager = ({ classId }) => {
                 <div className="flex gap-2">
                     <input
                         type="text"
+                        id="subject-code"
+                        name="code"
                         value={subCode}
                         onChange={(e) => setSubCode(e.target.value)}
                         placeholder="Code (opt)"
@@ -493,6 +499,8 @@ const ClassManagement = ({ schoolId }) => {
                             <label className="block text-sm font-bold text-slate-600 mb-2">Class Name</label>
                             <input
                                 type="text"
+                                id="new-class-name"
+                                name="name"
                                 placeholder="e.g. 10, 11th JEE, 12th Commerce"
                                 value={newClassName}
                                 onChange={(e) => setNewClassName(e.target.value)}

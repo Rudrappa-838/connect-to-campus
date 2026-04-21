@@ -172,7 +172,7 @@ const StudentDoubts = () => {
                                     </div>
                                     <div>
                                         <h4 className="font-bold text-slate-800 text-sm">To: {doubt.teacher_name}</h4>
-                                        <p className="text-xs text-slate-400">{new Date(doubt.created_at).toLocaleDateString()}</p>
+                                        <p className="text-xs text-slate-400">{new Date(doubt.created_at).toLocaleDateString('en-GB')}</p>
                                     </div>
                                 </div>
                                 <div className={`text-xs px-2 py-1 rounded font-bold ${doubt.status === 'Answered' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>

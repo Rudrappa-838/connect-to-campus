@@ -15,7 +15,7 @@ exports.getEvents = async (req, res) => {
             let audienceRole = '';
             if (role === 'STUDENT') audienceRole = 'Students';
             else if (role === 'TEACHER') audienceRole = 'Teachers';
-            else if (['STAFF', 'DRIVER', 'TRANSPORT_MANAGER'].includes(role)) audienceRole = 'Staff';
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN'].includes(role)) audienceRole = 'Staff';
 
             query += ` AND (audience = 'All' OR audience = $2)`;
             params.push(audienceRole);
@@ -35,6 +35,14 @@ exports.addEvent = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { title, event_type, start_date, end_date, description, audience } = req.body;
+
+        if (!title || !start_date || !end_date) {
+            return res.status(400).json({ message: 'Title, start date, and end date are required' });
+        }
+
+        if (new Date(end_date) < new Date(start_date)) {
+            return res.status(400).json({ message: 'End date cannot be before start date' });
+        }
 
         const result = await pool.query(
             `INSERT INTO events (school_id, title, event_type, start_date, end_date, description, audience)
@@ -88,7 +96,7 @@ exports.getAnnouncements = async (req, res) => {
 
         // Base Query
         let query = `
-            SELECT a.*, c.name as class_name, s.name as section_name
+            SELECT a.*, c.name as class_name, s.name as section_name, a.attachment_url, a.attachment_type
             FROM announcements a
             LEFT JOIN classes c ON a.class_id = c.id
             LEFT JOIN sections s ON a.section_id = s.id
@@ -132,7 +140,7 @@ exports.getAnnouncements = async (req, res) => {
             } else if (role === 'TEACHER') {
                 roleConditions.push("LOWER(a.target_role) = 'teacher'");
                 // Explicitly check for Teacher-targeted only
-            } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER'].includes(role)) {
+            } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN'].includes(role)) {
                 roleConditions.push("LOWER(a.target_role) = 'staff'");
             }
 
@@ -171,7 +179,7 @@ exports.addAnnouncement = async (req, res) => {
             school_id = req.body.schoolId || null;
         }
 
-        const { title, message, target_role, priority, valid_until, class_id, section_id } = req.body;
+        const { title, message, target_role, priority, valid_until, class_id, section_id, attachment_data, attachment_type } = req.body;
 
         // Enforce Valid Until Date
         if (!valid_until || valid_until === '') {
@@ -179,14 +187,44 @@ exports.addAnnouncement = async (req, res) => {
         }
 
         const effectiveValidUntil = valid_until;
+        
+        let attachment_url = null;
+        let attachment_storage_type = null;
+
+        if (attachment_data) {
+            try {
+                // If it's a base64 string, save it
+                const matches = attachment_data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+                if (matches && matches.length === 3) {
+                    attachment_storage_type = matches[1];
+                    const buffer = Buffer.from(matches[2], 'base64');
+                    
+                    const uploadsDir = path.join(__dirname, '../../public/uploads/announcements');
+                    if (!fs.existsSync(uploadsDir)) {
+                        fs.mkdirSync(uploadsDir, { recursive: true });
+                    }
+                    
+                    const ext = attachment_storage_type.split('/')[1] || 'bin';
+                    const filename = `ann_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+                    const filepath = path.join(uploadsDir, filename);
+                    
+                    fs.writeFileSync(filepath, buffer);
+                    attachment_url = `/uploads/announcements/${filename}`;
+                }
+            } catch (err) {
+                console.error("Failed to parse and save attachment:", err);
+            }
+        }
 
         // 1. Insert Announcement
         const result = await pool.query(
-            `INSERT INTO announcements (school_id, title, message, target_role, priority, valid_until, created_by, class_id, section_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+            `INSERT INTO announcements (school_id, title, message, target_role, priority, valid_until, created_by, class_id, section_id, attachment_url, attachment_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
             [school_id, title, message, target_role, priority, effectiveValidUntil, req.user.id,
                 target_role === 'Class' ? class_id : null,
-                target_role === 'Class' ? section_id : null]
+                target_role === 'Class' ? section_id : null,
+                attachment_url,
+                attachment_storage_type || attachment_type || null]
         );
 
         const announcement = result.rows[0];
@@ -207,34 +245,29 @@ async function broadcastAnnouncement(item, school_id) {
     let targetUsers = [];
 
     try {
-        if (item.target_role === 'All') {
+        if (item.target_role === 'All' || item.target_role === 'all') {
             const res = await pool.query('SELECT id FROM users WHERE school_id = $1', [school_id]);
             targetUsers = res.rows;
-        } else if (item.target_role === 'Student') {
+        } else if (item.target_role === 'Student' || item.target_role === 'student') {
             const res = await pool.query(`
-                SELECT u.id 
-                FROM students s 
-                JOIN users u ON (LOWER(s.email) = LOWER(u.email) OR u.email = LOWER(s.admission_no) || '@student.school.com') 
-                WHERE s.school_id = $1 AND u.role = 'STUDENT'
+                SELECT id FROM users 
+                WHERE school_id = $1 AND role = 'STUDENT'
             `, [school_id]);
             targetUsers = res.rows;
-        } else if (item.target_role === 'Teacher') {
+        } else if (item.target_role === 'Teacher' || item.target_role === 'teacher') {
             const res = await pool.query(`
-                SELECT u.id 
-                FROM teachers t 
-                JOIN users u ON (LOWER(t.email) = LOWER(u.email) OR u.email = LOWER(t.employee_id) || '@teacher.school.com') 
-                WHERE t.school_id = $1 AND u.role = 'TEACHER'
+                SELECT id FROM users 
+                WHERE school_id = $1 AND role = 'TEACHER'
             `, [school_id]);
             targetUsers = res.rows;
-        } else if (item.target_role === 'Staff') {
+        } else if (item.target_role === 'Staff' || item.target_role === 'staff') {
             const res = await pool.query(`
-                SELECT u.id 
-                FROM staff s 
-                JOIN users u ON (LOWER(s.email) = LOWER(u.email) OR u.email = LOWER(s.employee_id) || '@staff.school.com') 
-                WHERE s.school_id = $1 AND u.role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER')
+                SELECT id FROM users 
+                WHERE school_id = $1 AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'WARDEN')
             `, [school_id]);
             targetUsers = res.rows;
-        } else if (item.target_role === 'Class') {
+        } else if (item.target_role === 'Class' || item.target_role === 'class') {
+            // Students in a class still need the join because class_id is in the students table
             let q = `
                 SELECT u.id 
                 FROM students s 
@@ -257,7 +290,7 @@ async function broadcastAnnouncement(item, school_id) {
         for (let i = 0; i < targetUsers.length; i += batchSize) {
             const batch = targetUsers.slice(i, i + batchSize);
             await Promise.all(batch.map(user =>
-                sendPushNotification(user.id, item.title, item.message, item.target_role)
+                sendPushNotification(user.id, item.title, item.message, item.target_role, item.attachment_url, item.attachment_type)
             ));
         }
     } catch (err) {

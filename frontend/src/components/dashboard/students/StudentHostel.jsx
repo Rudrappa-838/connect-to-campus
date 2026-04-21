@@ -116,7 +116,7 @@ const StudentHostel = () => {
                                 <div key={pay.id} className="flex justify-between items-center p-3 rounded-lg border border-slate-100 hover:bg-slate-50">
                                     <div>
                                         <p className="font-bold text-slate-800">{pay.payment_type}</p>
-                                        <p className="text-xs text-slate-500">{new Date(pay.payment_date).toLocaleDateString()}</p>
+                                        <p className="text-xs text-slate-500">{new Date(pay.payment_date).toLocaleDateString('en-GB')}</p>
                                     </div>
                                     <p className="font-bold text-emerald-600">+₹{parseFloat(pay.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
                                 </div>

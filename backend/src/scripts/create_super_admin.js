@@ -6,8 +6,9 @@ async function createSuperAdmin() {
     try {
         console.log("Creating/Updating Super Admin user...\n");
 
-        const email = 'superadmin@example.com';
-        const password = 'admin123';
+        // Get credentials from command line or use defaults
+        const email = process.argv[2] || 'superadmin@example.com';
+        const password = process.argv[3] || 'admin123';
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Super Admin doesn't need a school_id

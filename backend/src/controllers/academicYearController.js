@@ -92,6 +92,7 @@ exports.createAcademicYear = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { year_label, start_date, end_date, status } = req.body;
+        console.log('[CREATE ACADEMIC YEAR] Request Body:', JSON.stringify(req.body));
 
         // Validation
         if (!year_label || !start_date || !end_date) {
@@ -100,6 +101,10 @@ exports.createAcademicYear = async (req, res) => {
 
         const start = new Date(start_date);
         const end = new Date(end_date);
+
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            return res.status(400).json({ message: 'Invalid start or end date format' });
+        }
 
         if (end <= start) {
             return res.status(400).json({ message: 'End date must be after start date' });
@@ -119,7 +124,7 @@ exports.createAcademicYear = async (req, res) => {
 
         if (overlapCheck.rows.length > 0) {
             return res.status(400).json({
-                message: 'Academic year dates overlap with existing year: ' + overlapCheck.rows[0].year_label
+                message: `Academic year dates overlap with existing year: ${overlapCheck.rows[0].year_label} (${new Date(overlapCheck.rows[0].start_date).toLocaleDateString()} - ${new Date(overlapCheck.rows[0].end_date).toLocaleDateString()})`
             });
         }
 
@@ -167,6 +172,38 @@ exports.updateAcademicYear = async (req, res) => {
             return res.status(404).json({ message: 'Academic year not found' });
         }
 
+        // Helper to check validity if new dates are provided
+        if (start_date || end_date) {
+            const newStart = start_date ? new Date(start_date) : new Date(existingYear.rows[0].start_date);
+            const newEnd = end_date ? new Date(end_date) : new Date(existingYear.rows[0].end_date);
+
+            if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime())) {
+                return res.status(400).json({ message: 'Invalid start or end date format' });
+            }
+
+            if (newEnd <= newStart) {
+                return res.status(400).json({ message: 'End date must be after start date' });
+            }
+
+            // Check for overlapping years (excluding current)
+            const overlapCheck = await pool.query(
+                `SELECT * FROM academic_years 
+                 WHERE school_id = $1 AND id != $4
+                 AND (
+                     (start_date <= $2 AND end_date >= $2) OR
+                     (start_date <= $3 AND end_date >= $3) OR
+                     (start_date >= $2 AND end_date <= $3)
+                 )`,
+                [school_id, newStart, newEnd, id]
+            );
+
+            if (overlapCheck.rows.length > 0) {
+                return res.status(400).json({
+                    message: `Academic year dates overlap with existing year: ${overlapCheck.rows[0].year_label}`
+                });
+            }
+        }
+
         // If setting as active, deactivate other years
         if (status === 'active') {
             await pool.query(
@@ -182,8 +219,7 @@ exports.updateAcademicYear = async (req, res) => {
              SET year_label = COALESCE($1, year_label),
                  start_date = COALESCE($2, start_date),
                  end_date = COALESCE($3, end_date),
-                 status = COALESCE($4, status),
-                 updated_at = CURRENT_TIMESTAMP
+                 status = COALESCE($4, status)
              WHERE id = $5 AND school_id = $6
              RETURNING *`,
             [year_label, start_date, end_date, status, id, school_id]

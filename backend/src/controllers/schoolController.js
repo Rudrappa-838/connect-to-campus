@@ -13,6 +13,8 @@ const createSchool = async (req, res) => {
             classes // Array of { name, sections: [], subjects: [] }
         } = req.body;
 
+        console.log(`[CREATE SCHOOL REQUEST] Name: ${name}, Email: ${contactEmail}`);
+
         // Validation
         if (!name || !contactEmail || !adminEmail || !adminPassword) {
             return res.status(400).json({ message: 'Missing required fields' });
@@ -30,9 +32,13 @@ const createSchool = async (req, res) => {
             isUnique = check.rows.length === 0;
         }
 
-        // Check if contact email already exists
-        const contactEmailCheck = await client.query("SELECT id FROM schools WHERE contact_email = $1", [contactEmail]);
+        // Check if contact email already exists (Active or Inactive but not Deleted)
+        console.log(`[CREATE SCHOOL] Checking email: ${contactEmail}`);
+        const contactEmailCheck = await client.query("SELECT id, status FROM schools WHERE contact_email = $1 AND (status IS NULL OR status != 'Deleted')", [contactEmail]);
         if (contactEmailCheck.rows.length > 0) {
+            console.log(`[CREATE SCHOOL] Found conflicting school:`, contactEmailCheck.rows[0]);
+            await client.query('ROLLBACK');
+            client.release();
             return res.status(400).json({ message: 'Contact email already exists for another school' });
         }
 
@@ -40,21 +46,32 @@ const createSchool = async (req, res) => {
         if (contactNumber) {
             const contactNumberCheck = await client.query("SELECT id FROM schools WHERE contact_number = $1", [contactNumber]);
             if (contactNumberCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                client.release();
                 return res.status(400).json({ message: 'Contact number already exists for another school' });
             }
         }
 
-        // Check if admin email already exists in users table
-        const adminEmailCheck = await client.query("SELECT id FROM users WHERE email = $1", [adminEmail]);
+        // Check if admin email already exists in users table (Allow reuse if linked school is deleted)
+        const adminEmailCheck = await client.query(`
+            SELECT u.id 
+            FROM users u 
+            LEFT JOIN schools s ON u.school_id = s.id 
+            WHERE u.email = $1 
+            AND (u.school_id IS NULL OR s.status IS NULL OR s.status != 'Deleted')
+        `, [adminEmail]);
+
         if (adminEmailCheck.rows.length > 0) {
-            return res.status(400).json({ message: 'Admin email already exists' });
+            await client.query('ROLLBACK');
+            client.release();
+            return res.status(400).json({ message: 'Admin email already exists for an active school' });
         }
 
         // 1. Create School
         const schoolRes = await client.query(
-            `INSERT INTO schools (name, address, contact_email, contact_number, school_code) 
-             VALUES ($1, $2, $3, $4, $5) RETURNING id, school_code`,
-            [name, address, contactEmail, contactNumber, schoolCode]
+            `INSERT INTO schools (name, address, contact_email, contact_number, school_code, institution_type) 
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, school_code`,
+            [name, address, contactEmail, contactNumber, schoolCode, req.body.institution_type || 'SCHOOL']
         );
         const schoolId = schoolRes.rows[0].id;
         const generatedCode = schoolRes.rows[0].school_code;
@@ -63,7 +80,7 @@ const createSchool = async (req, res) => {
         const hashedPassword = await bcrypt.hash(adminPassword, 10);
         await client.query(
             `INSERT INTO users (email, password, role, school_id, must_change_password) 
-             VALUES ($1, $2, 'SCHOOL_ADMIN', $3, TRUE)`,
+             VALUES ($1, $2, 'SCHOOL_ADMIN', $3, FALSE)`,
             [adminEmail, hashedPassword, schoolId]
         );
 
@@ -100,6 +117,8 @@ const createSchool = async (req, res) => {
         }
 
         // 4. Auto-Generate Holidays for Current AND Next Year (Official Calendar + Sundays)
+        // TEMPORARILY DISABLED FOR TESTING - TODO: Move to background job
+        /*
         const currentYear = new Date().getFullYear();
         const yearsToGen = [currentYear, currentYear + 1];
 
@@ -120,6 +139,7 @@ const createSchool = async (req, res) => {
                  `, [schoolId, h.holiday_name, h.holiday_date]);
             }
         }
+        */
 
         await client.query('COMMIT');
 
@@ -284,7 +304,7 @@ const fetchSchoolDetails = async (id, res) => {
 // Update school details with class/section deletion support
 const updateSchool = async (req, res) => {
     const { id } = req.params;
-    const { name, address, contactEmail, contactNumber, classes, allowDeletions } = req.body;
+    const { name, address, contactEmail, contactNumber, classes, allowDeletions, marksheet_template } = req.body;
     console.log(`[UPDATE SCHOOL] ID: ${id}, Body:`, JSON.stringify(req.body, null, 2));
 
     const client = await pool.connect();
@@ -293,12 +313,12 @@ const updateSchool = async (req, res) => {
         await client.query('BEGIN');
         console.log('[UPDATE SCHOOL] Transaction Started');
 
-        // 1. Update Basic Info
+        // 1. Update Basic Info including API Key and Marksheet Template
         const result = await client.query(
             `UPDATE schools 
-             SET name = $1, address = $2, contact_email = $3, contact_number = $4 
-             WHERE id = $5 RETURNING *`,
-            [name, address, contactEmail, contactNumber, id]
+             SET name = $1, address = $2, contact_email = $3, contact_number = $4, institution_type = $5, gemini_api_key = COALESCE($6, gemini_api_key), marksheet_template = COALESCE($8, marksheet_template)
+             WHERE id = $7 RETURNING *`,
+            [name, address, contactEmail, contactNumber, req.body.institution_type || 'SCHOOL', req.body.geminiApiKey, id, marksheet_template]
         );
         console.log('[UPDATE SCHOOL] Basic Info Updated');
 
@@ -670,10 +690,25 @@ const permanentDeleteSchool = async (req, res) => {
 
 const updateSchoolFeatures = async (req, res) => {
     const { id } = req.params;
-    const { has_hostel } = req.body;
+    const updates = req.body; // e.g., { has_hostel: true, has_neet_exams: false }
+    
+    // Allowed feature flags to prevent arbitrary column updates
+    const allowedFeatures = ['has_hostel', 'has_neet_exams', 'has_face_enrollment', 'has_face_scanner', 'has_biometric'];
+    
     try {
-        await pool.query('UPDATE schools SET has_hostel = $1 WHERE id = $2', [has_hostel, id]);
-        res.json({ message: 'Features updated successfully' });
+        const fields = Object.keys(updates).filter(key => allowedFeatures.includes(key));
+        
+        if (fields.length === 0) {
+            return res.status(400).json({ message: 'No valid features provided' });
+        }
+
+        const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
+        const values = fields.map(field => updates[field]);
+        values.push(id);
+
+        await pool.query(`UPDATE schools SET ${setClause} WHERE id = $${values.length}`, values);
+        
+        res.json({ message: 'Features updated successfully', updatedFields: fields });
     } catch (err) {
         console.error('Update features error:', err);
         res.status(500).json({ message: 'Failed to update features' });
@@ -682,17 +717,35 @@ const updateSchoolFeatures = async (req, res) => {
 
 const updateSchoolLogo = async (req, res) => {
     const schoolId = req.user.schoolId;
-    const { logo } = req.body;
 
     if (!schoolId) {
         return res.status(403).json({ message: 'Access denied' });
     }
 
+    // Safety check for missing body (e.g. old frontend sending multipart)
+    if (!req.body || Object.keys(req.body).length === 0) {
+        console.error('[UPDATE LOGO] req.body is missing/empty. Content-Type:', req.headers['content-type']);
+        return res.status(400).json({
+            message: 'Browser cache issue detected. Please HARD REFRESH your page (Ctrl+Shift+R) and try again.',
+            details: 'Server received empty body. Expected JSON.',
+            debug: {
+                contentType: req.headers['content-type'],
+                contentLength: req.headers['content-length']
+            }
+        });
+    }
+
+    const { logo } = req.body;
+
     try {
+        console.log(`[UPDATE LOGO] School ID: ${schoolId}`);
+        console.log(`[UPDATE LOGO] Payload Type: ${typeof logo}`);
+        console.log(`[UPDATE LOGO] Payload Length: ${logo ? logo.length : 'N/A'}`);
+
         await pool.query('UPDATE schools SET logo = $1 WHERE id = $2', [logo, schoolId]);
         res.json({ message: 'School logo updated successfully', logo });
     } catch (error) {
-        console.error('Error updating school logo:', error);
+        console.error('[UPDATE LOGO] Error updating school logo:', error);
         res.status(500).json({ message: 'Error updating logo', error: error.message });
     }
 };
@@ -730,8 +783,195 @@ const getDashboardStats = async (req, res) => {
     }
 };
 
+const updateMySchoolSettings = async (req, res) => {
+    const schoolId = req.user.schoolId;
+    if (!schoolId) return res.status(403).json({ message: 'Access denied' });
+
+    const { geminiApiKey } = req.body;
+
+    try {
+        await pool.query(
+            `UPDATE schools SET gemini_api_key = COALESCE($1, gemini_api_key) WHERE id = $2`,
+            [geminiApiKey, schoolId]
+        );
+        res.json({ message: 'Settings updated successfully' });
+    } catch (error) {
+        console.error('[UPDATE MY SCHOOL] Error:', error);
+        res.status(500).json({ message: 'Error updating settings' });
+    }
+};
+
+// =====================================
+// Word Template Handlers
+// =====================================
+
+const uploadWordTemplate = async (req, res) => {
+    const schoolId = req.user.schoolId;
+    if (!schoolId) return res.status(403).json({ message: 'Access denied' });
+
+    if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const { name } = req.body;
+    if (!name) {
+        return res.status(400).json({ message: 'Template name is required' });
+    }
+
+    try {
+        // Enforce max 3 templates per school
+        const countRes = await pool.query('SELECT COUNT(*) FROM marksheet_custom_templates WHERE school_id = $1', [schoolId]);
+        if (parseInt(countRes.rows[0].count) >= 3) {
+            return res.status(400).json({ message: 'Maximum 3 custom templates allowed per school. Please delete one first.' });
+        }
+
+        // Check if it should be default (if it's the first one, make it default automatically)
+        const isDefault = parseInt(countRes.rows[0].count) === 0;
+
+        // Save binary file to base64
+        const base64Data = req.file.buffer.toString('base64');
+        const fileDataString = `data:${req.file.mimetype};base64,${base64Data}`;
+
+        const insertRes = await pool.query(
+            `INSERT INTO marksheet_custom_templates (school_id, name, file_path, is_default)
+             VALUES ($1, $2, $3, $4) RETURNING id, name, is_default, created_at`,
+            [schoolId, name, fileDataString, isDefault]
+        );
+
+        res.json({ message: 'Template uploaded successfully', template: insertRes.rows[0] });
+    } catch (error) {
+        console.error('[WORD TEMPLATE UPLOAD ERROR]:', error);
+        res.status(500).json({ message: 'Failed to upload template' });
+    }
+};
+
+const getWordTemplates = async (req, res) => {
+    const schoolId = req.user.schoolId;
+    try {
+        const result = await pool.query(
+            `SELECT id, name, is_default, created_at FROM marksheet_custom_templates WHERE school_id = $1 ORDER BY created_at ASC`,
+            [schoolId]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error('[GET WORD TEMPLATES ERROR]:', error);
+        res.status(500).json({ message: 'Failed to fetch templates' });
+    }
+};
+
+const setDefaultWordTemplate = async (req, res) => {
+    const schoolId = req.user.schoolId;
+    const { id: templateId } = req.params;
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // Remove default from all
+        await client.query('UPDATE marksheet_custom_templates SET is_default = false WHERE school_id = $1', [schoolId]);
+
+        // Set new default
+        const result = await client.query('UPDATE marksheet_custom_templates SET is_default = true WHERE school_id = $1 AND id = $2 RETURNING id', [schoolId, templateId]);
+
+        if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Template not found' });
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Default template updated successfully' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('[SET DEFAULT TEMPLATE ERROR]:', error);
+        res.status(500).json({ message: 'Failed to set default template' });
+    } finally {
+        client.release();
+    }
+};
+
+const deleteWordTemplate = async (req, res) => {
+    const schoolId = req.user.schoolId;
+    const { id: templateId } = req.params;
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const checkRes = await client.query('SELECT is_default FROM marksheet_custom_templates WHERE id = $1 AND school_id = $2', [templateId, schoolId]);
+
+        if (checkRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Template not found' });
+        }
+
+        const wasDefault = checkRes.rows[0].is_default;
+
+        await client.query('DELETE FROM marksheet_custom_templates WHERE id = $1', [templateId]);
+
+        // If the deleted template was the default, assign a new default if possible
+        if (wasDefault) {
+            const nextTemp = await client.query('SELECT id FROM marksheet_custom_templates WHERE school_id = $1 LIMIT 1', [schoolId]);
+            if (nextTemp.rows.length > 0) {
+                await client.query('UPDATE marksheet_custom_templates SET is_default = true WHERE id = $1', [nextTemp.rows[0].id]);
+            }
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Template deleted successfully' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('[DELETE TEMPLATE ERROR]:', error);
+        res.status(500).json({ message: 'Failed to delete template' });
+    } finally {
+        client.release();
+    }
+};
+
+const updateWordTemplate = async (req, res) => {
+    const schoolId = req.user.schoolId;
+    const { id: templateId } = req.params;
+    const { name } = req.body;
+
+    try {
+        let updateQuery = 'UPDATE marksheet_custom_templates SET ';
+        const params = [];
+        const updates = [];
+
+        if (name) {
+            params.push(name);
+            updates.push(`name = $${params.length}`);
+        }
+
+        if (req.file) {
+            const base64Data = req.file.buffer.toString('base64');
+            const fileDataString = `data:${req.file.mimetype};base64,${base64Data}`;
+            params.push(fileDataString);
+            updates.push(`file_path = $${params.length}`);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ message: 'No changes provided' });
+        }
+
+        params.push(templateId, schoolId);
+        updateQuery += updates.join(', ') + ` WHERE id = $${params.length - 1} AND school_id = $${params.length} RETURNING id, name`;
+
+        const result = await pool.query(updateQuery, params);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Template not found' });
+        }
+
+        res.json({ message: 'Template updated successfully', template: result.rows[0] });
+    } catch (error) {
+        console.error('[UPDATE TEMPLATE ERROR]:', error);
+        res.status(500).json({ message: 'Failed to update template' });
+    }
+};
+
 module.exports = {
     createSchool, getSchools, getSchoolDetails, updateSchool, getMySchool,
     toggleSchoolStatus, deleteSchool, restoreSchool, getDeletedSchools,
-    permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, getDashboardStats
+    permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, getDashboardStats,
+    updateMySchoolSettings, uploadWordTemplate, getWordTemplates, setDefaultWordTemplate, deleteWordTemplate, updateWordTemplate
 };

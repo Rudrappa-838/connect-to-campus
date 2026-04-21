@@ -5,7 +5,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import {
     LayoutDashboard, CheckSquare, Bus, Calendar,
-    FileText, LogOut, Bell, Briefcase, Navigation, Radio, MapPin, Menu, X
+    FileText, LogOut, Bell, Briefcase, Navigation, Radio, MapPin, Menu, X, ChevronDown, ChevronRight
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
@@ -19,6 +19,17 @@ import AdminLiveMap from '../components/dashboard/admin/AdminLiveMap';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
 import { MobileHeader, MobileFooter } from '../components/layout/MobileAppFiles';
+import { BookOpen, Home as HomeIcon } from 'lucide-react';
+import LibraryOverview from '../components/dashboard/library/LibraryOverview';
+import BookManagement from '../components/dashboard/library/BookManagement';
+import IssueReturn from '../components/dashboard/library/IssueReturn';
+import HostelOverview from '../components/dashboard/hostel/HostelOverview';
+import RoomManagement from '../components/dashboard/hostel/RoomManagement';
+import RoomAllocation from '../components/dashboard/hostel/RoomAllocation';
+import HostelFinance from '../components/dashboard/hostel/HostelFinance';
+import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
+import FaceAttendanceScanner from '../components/dashboard/biometric/FaceAttendanceScanner';
+import { Users } from 'lucide-react';
 
 const StaffDashboard = () => {
     const { user, logout } = useAuth();
@@ -26,6 +37,10 @@ const StaffDashboard = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
     const [isMobileApp, setIsMobileApp] = useState(false);
+    const [expandedSections, setExpandedSections] = useState({ library: false, hostel: false });
+    const toggleSection = (section) => {
+        setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    };
 
     // Detect Mobile App context
     useEffect(() => {
@@ -255,6 +270,41 @@ const StaffDashboard = () => {
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Work</p>
                     <NavButton active={activeTab === 'attendance'} onClick={() => handleTabChange('attendance')} icon={Calendar} label="My Attendance" />
 
+                    {(profileLoading || staffProfile?.can_enroll_face || staffProfile?.can_take_face_attendance) && (
+                        <div className="mt-6">
+                            <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2">Biometrics</p>
+                            {(profileLoading || staffProfile?.can_enroll_face) && (
+                                <NavButton active={activeTab === 'face-enroll'} onClick={() => handleTabChange('face-enroll')} icon={Users} label="Face Enrollment" />
+                            )}
+                            {(profileLoading || staffProfile?.can_take_face_attendance) && (
+                                <NavButton active={activeTab === 'face-scanner'} onClick={() => handleTabChange('face-scanner')} icon={CheckSquare} label="Face Scanner" />
+                            )}
+                        </div>
+                    )}
+
+                    {user?.libraryAccess && (
+                        <div className="mt-6">
+                            <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2">Library Admin</p>
+                            <NavGroup label="Library Management" icon={BookOpen} expanded={expandedSections.library} onToggle={() => toggleSection('library')}>
+                                <NavSubButton active={activeTab === 'library-overview'} onClick={() => handleTabChange('library-overview')} label="Library Overview" />
+                                <NavSubButton active={activeTab === 'library-books'} onClick={() => handleTabChange('library-books')} label="Manage Books" />
+                                <NavSubButton active={activeTab === 'library-issue'} onClick={() => handleTabChange('library-issue')} label="Issue & Return" />
+                            </NavGroup>
+                        </div>
+                    )}
+
+                    {user?.hostelAccess && (
+                        <div className="mt-6">
+                            <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2">Hostel Admin</p>
+                            <NavGroup label="Hostel Management" icon={HomeIcon} expanded={expandedSections.hostel} onToggle={() => toggleSection('hostel')}>
+                                <NavSubButton active={activeTab === 'hostel-overview'} onClick={() => handleTabChange('hostel-overview')} label="Hostel Overview" />
+                                <NavSubButton active={activeTab === 'hostel-rooms'} onClick={() => handleTabChange('hostel-rooms')} label="Room Management" />
+                                <NavSubButton active={activeTab === 'hostel-allocation'} onClick={() => handleTabChange('hostel-allocation')} label="Room Allocation" />
+                                <NavSubButton active={activeTab === 'hostel-finance'} onClick={() => handleTabChange('hostel-finance')} label="Hostel Finances" />
+                            </NavGroup>
+                        </div>
+                    )}
+
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Transport</p>
                     <NavButton active={activeTab === 'fleet-map'} onClick={() => handleTabChange('fleet-map')} icon={Navigation} label="Live Fleet Map" />
 
@@ -333,6 +383,9 @@ const StaffDashboard = () => {
                         {activeTab === 'overview' && <StaffOverview isDriver={isDriver} schoolName={schoolName} profile={staffProfile} user={user} />}
                         {activeTab === 'attendance' && <StaffMyAttendance />}
 
+                        {activeTab === 'face-enroll' && <FaceEnrollment config={{ classes: [] }} preferredFacingMode="environment" />}
+                        {activeTab === 'face-scanner' && <FaceAttendanceScanner config={{ classes: [] }} preferredFacingMode="user" />}
+
                         {/* Unified Transport View */}
                         {activeTab === 'transport' && isDriver && (
                             <DriverTrackingView
@@ -351,6 +404,23 @@ const StaffDashboard = () => {
                         {activeTab === 'salary' && <StaffSalarySlips />}
                         {activeTab === 'announcements' && <ViewAnnouncements />}
                         {activeTab === 'calendar' && <SchoolCalendar />}
+                        
+                        {user?.libraryAccess && (
+                            <>
+                                {activeTab === 'library-overview' && <LibraryOverview />}
+                                {activeTab === 'library-books' && <BookManagement />}
+                                {activeTab === 'library-issue' && <IssueReturn />}
+                            </>
+                        )}
+                        
+                        {user?.hostelAccess && (
+                            <>
+                                {activeTab === 'hostel-overview' && <HostelOverview />}
+                                {activeTab === 'hostel-rooms' && <RoomManagement />}
+                                {activeTab === 'hostel-allocation' && <RoomAllocation />}
+                                {activeTab === 'hostel-finance' && <HostelFinance />}
+                            </>
+                        )}
                     </div>
                 </div>
             </main>
@@ -364,7 +434,9 @@ const StaffDashboard = () => {
                     tabs={[
                         { id: 'overview', label: 'Home', icon: LayoutDashboard },
                         { id: 'attendance', label: 'Attendance', icon: Calendar },
-                        ...(isDriver ? [{ id: 'transport', label: 'Trip', icon: Bus }] : [{ id: 'salary', label: 'Salary', icon: FileText }]),
+                        ...(user?.libraryAccess ? [{ id: 'library-issue', label: 'Library', icon: BookOpen }] : []),
+                        ...(user?.hostelAccess ? [{ id: 'hostel-overview', label: 'Hostel', icon: HomeIcon }] : []),
+                        ...(isDriver ? [{ id: 'transport', label: 'Trip', icon: Bus }] : (!(user?.libraryAccess || user?.hostelAccess) ? [{ id: 'salary', label: 'Salary', icon: FileText }] : [])),
                         { id: 'announcements', label: 'Notices', icon: Bell },
                     ]}
                 />
@@ -573,6 +645,41 @@ const NavButton = ({ active, onClick, icon: Icon, label, id }) => (
     </button>
 );
 
+const NavGroup = ({ label, icon: Icon, expanded, onToggle, children }) => (
+    <div className="space-y-1">
+        <button
+            onClick={onToggle}
+            className={`w-full flex items-center justify-between px-4 py-3 text-sm font-bold rounded-xl transition-all duration-200 group ${expanded ? 'text-white shadow-md bg-white/10' : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                }`}
+        >
+            <div className="flex items-center gap-3">
+                <Icon size={18} className={`${expanded ? 'text-white' : 'text-blue-200 group-hover:text-white'}`} />
+                {label}
+            </div>
+            <ChevronDown size={14} className={`transition-transform duration-200 ${expanded ? 'rotate-180 text-white' : 'text-blue-200'}`} />
+        </button>
+        {expanded && (
+            <div className="pl-4 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                {children}
+            </div>
+        )}
+    </div>
+);
+
+const NavSubButton = ({ active, onClick, label }) => (
+    <button
+        onClick={onClick}
+        className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${active
+            ? 'text-white bg-white/10 shadow-sm'
+            : 'text-blue-200 hover:text-white hover:bg-white/5'
+            }`}
+    >
+        <span className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${active ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]' : 'bg-blue-300/50'
+            }`}></span>
+        {label}
+    </button>
+);
+
 const getTabTitle = (tab, isDriver) => {
     switch (tab) {
         case 'overview': return isDriver ? 'Driver Dashboard' : 'Staff Dashboard';
@@ -583,6 +690,15 @@ const getTabTitle = (tab, isDriver) => {
         case 'salary': return 'Salary & Payslips';
         case 'calendar': return 'Academic Calendar';
         case 'announcements': return 'Announcements';
+        case 'library-overview': return 'Library Information';
+        case 'library-books': return 'Book Management';
+        case 'library-issue': return 'Circulation Desk';
+        case 'hostel-overview': return 'Hostel Management';
+        case 'hostel-rooms': return 'Room Configurations';
+        case 'hostel-allocation': return 'Room Allocations';
+        case 'hostel-finance': return 'Hostel Finances';
+        case 'face-enroll': return 'Student Face Enrollment';
+        case 'face-scanner': return 'Biometric Face Scanner';
         default: return 'Dashboard';
     }
 };

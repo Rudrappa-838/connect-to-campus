@@ -1,4 +1,33 @@
 const { pool } = require('../config/db');
+const path = require('path');
+const fs = require('fs');
+const PizZip = require('pizzip');
+const Docxtemplater = require('docxtemplater');
+
+// Startup Migration: Ensure SATS column exists to prevent 500 errors
+let columnChecked = false;
+async function ensureSatsColumn() {
+    if (columnChecked) return;
+    try {
+        await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS sats_number VARCHAR(50)');
+        columnChecked = true;
+    } catch (err) {
+        console.error('Migration Safety Check Failed:', err.message);
+    }
+}
+ensureSatsColumn();
+
+/**
+ * Converts a number or string of digits into words (Digit-by-digit as per user request e.g. 409 -> FOUR ZERO NINE)
+ * Falls back to "ZERO" if null or empty.
+ */
+const convertToDigitWords = (num) => {
+    if (num === null || num === undefined || num === '') return '-';
+    const words = ["ZERO", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE"];
+    const str = num.toString().replace(/[^0-9]/g, ''); // Keep only digits for words
+    if (!str) return num.toString();
+    return str.split('').map(digit => words[parseInt(digit)]).join(' ');
+};
 
 // Get or Create Exam Types
 exports.getExamTypes = async (req, res) => {
@@ -651,7 +680,7 @@ exports.getToppers = async (req, res) => {
 
         // Get all students in the class/section
         let studentsQuery = `
-            SELECT st.id, st.name, st.admission_no, st.roll_number, sec.name as section
+            SELECT st.id, st.name, st.admission_no, st.roll_number, st.father_name, sec.name as section
             FROM students st
             LEFT JOIN sections sec ON st.section_id = sec.id
             WHERE st.class_id = $1 AND st.school_id = $2 AND (st.status IS NULL OR st.status != 'Deleted')
@@ -725,6 +754,7 @@ exports.getToppers = async (req, res) => {
             studentsWithMarks.push({
                 student_id: student.id,
                 student_name: student.name,
+                father_name: student.father_name,
                 admission_number: student.admission_no,
                 roll_number: student.roll_number,
                 section: student.section,
@@ -781,6 +811,7 @@ exports.getStudentAllMarks = async (req, res) => {
             const marksQuery = `
                  SELECT DISTINCT ON (m.id) 
                         m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
+                        m.exam_type_id,
                         COALESCE(es.max_marks, et.max_marks, 100) as max_marks
                  FROM marks m
                  JOIN subjects sub ON m.subject_id = sub.id
@@ -803,6 +834,7 @@ exports.getStudentAllMarks = async (req, res) => {
                 const examName = mark.exam_name;
                 if (!examsMap[examName]) {
                     examsMap[examName] = {
+                        id: mark.exam_type_id,
                         exam_name: examName,
                         total_obtained: 0,
                         total_max: 0,
@@ -815,6 +847,7 @@ exports.getStudentAllMarks = async (req, res) => {
 
                 examsMap[examName].subjects.push({
                     subject: mark.subject_name,
+                    subject_code: mark.subject_code || null,
                     marks: obtained,
                     max: max
                 });
@@ -835,6 +868,9 @@ exports.getStudentAllMarks = async (req, res) => {
                     admission_no: student.admission_no,
                     roll_number: student.roll_number,
                     class_id: student.class_id,
+                    father_name: student.father_name,
+                    mother_name: student.mother_name,
+                    sats_number: student.sats_number,
                     status: 'Active'
                 },
                 exams: exams
@@ -849,6 +885,7 @@ exports.getStudentAllMarks = async (req, res) => {
                    m.marks_obtained, 
                    sub.name as subject_name, 
                    et.name as exam_name,
+                   m.exam_type_id,
                    COALESCE(es.max_marks, et.max_marks, 100) as max_marks,
                    m.deleted_student_name,
                    m.deleted_student_admission_no
@@ -887,6 +924,7 @@ exports.getStudentAllMarks = async (req, res) => {
             const examName = mark.exam_name;
             if (!examsMap[examName]) {
                 examsMap[examName] = {
+                    id: mark.exam_type_id,
                     exam_name: examName,
                     total_obtained: 0,
                     total_max: 0,
@@ -922,6 +960,266 @@ exports.getStudentAllMarks = async (req, res) => {
     } catch (error) {
         console.error('Error fetching student all marks:', error);
         res.status(500).json({ message: 'Server error fetching result', error: error.message });
+    }
+};
+
+exports.generateWordMarksheet = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const { templateId } = req.params;
+        const { admission_no, selected_exam_id, year: selectedYear } = req.query;
+
+        if (!admission_no) {
+            return res.status(400).json({ message: 'Admission number is required' });
+        }
+
+        // 1. Fetch Template
+        const templateRes = await pool.query(
+            `SELECT file_path, name FROM marksheet_custom_templates WHERE id = $1 AND school_id = $2`,
+            [templateId, school_id]
+        );
+
+        if (templateRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Template not found' });
+        }
+
+        const templateDataUri = templateRes.rows[0].file_path;
+        if (!templateDataUri.startsWith('data:')) {
+            return res.status(500).json({ message: 'Invalid template format in database' });
+        }
+
+        const base64Data = templateDataUri.split(',')[1];
+        const templateBuffer = Buffer.from(base64Data, 'base64');
+
+        console.log(`📡 [WORD GEN] Generating for: ${admission_no} | Exam ID: ${selected_exam_id}`);
+
+        // Run migration check once to prevent crash
+        await ensureSatsColumn();
+
+        // 2. Fetch Student Information (Including Parent Details & SATS)
+        const studentInfoResult = await pool.query(`
+            SELECT st.id, st.name as student_name, st.admission_no, st.roll_number, st.status,
+                   st.father_name, st.mother_name, st.sats_number,
+                   c.name as class_name, sec.name as section_name, st.class_id
+            FROM students st
+            JOIN classes c ON st.class_id = c.id
+            LEFT JOIN sections sec ON st.section_id = sec.id
+            WHERE st.school_id = $1 AND st.admission_no = $2
+        `, [school_id, admission_no]);
+
+        if (studentInfoResult.rows.length === 0) {
+            console.log(`❌ [WORD GEN] Student NOT FOUND: ${admission_no}`);
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
+        const student = studentInfoResult.rows[0];
+        console.log(`✅ [WORD GEN] Found Student: ${student.student_name} (ID: ${student.id})`);
+
+        // 3. Fetch Marks based on Exam Schedule (to ensure only scheduled subjects appear)
+        // (selected_exam_id destructured at top)
+
+        // If no exam is selected, we fallback to pulling all marks (legacy behavior)
+        let marksQuery = "";
+        let params = [];
+
+        if (selected_exam_id) {
+            console.log(`🔍 [WORD GEN] Selecting marks for exam ${selected_exam_id}...`);
+            
+            // Define params consistently
+            params = [school_id, student.id, selected_exam_id]; // $1, $2, $3
+            
+            let yearClause;
+            if (selectedYear) {
+                params.push(selectedYear); // $4
+                yearClause = `$4`;
+            } else {
+                yearClause = `(SELECT MAX(m2.year) FROM marks m2 WHERE m2.student_id = $2 AND m2.exam_type_id = $3 AND m2.school_id = $1)`;
+            }
+
+            marksQuery = `
+                SELECT 
+                    m.marks_obtained, 
+                    m.year, m.component_scores,
+                    COALESCE(es.max_marks, et.max_marks, 100) as max_marks,
+                    sub.name as subject_name, sub.code as subject_code,
+                    et.name as exam_type_name, et.id as exam_type_id,
+                    m.id as mark_id
+                FROM marks m
+                JOIN exam_types et ON m.exam_type_id = et.id
+                JOIN subjects sub ON m.subject_id = sub.id
+                JOIN exam_schedules es ON m.subject_id = es.subject_id 
+                      AND m.exam_type_id = es.exam_type_id 
+                      AND es.school_id = m.school_id
+                      AND (es.class_id = m.class_id OR es.class_id IS NULL)
+                WHERE m.school_id = $1 
+                  AND m.student_id = $2
+                  AND m.exam_type_id = $3
+                  AND m.year = ${yearClause}
+                ORDER BY sub.name
+            `;
+        } else {
+            // Legacy fallback if no specific exam selected: Pull all available marks for student
+            marksQuery = `
+                SELECT m.marks_obtained, m.year, m.component_scores,
+                       COALESCE(es.max_marks, et.max_marks, 100) as max_marks,
+                       sub.name as subject_name, sub.code as subject_code,
+                       et.name as exam_type_name, et.id as exam_type_id
+                FROM marks m
+                JOIN exam_types et ON m.exam_type_id = et.id
+                JOIN subjects sub ON m.subject_id = sub.id
+                LEFT JOIN exam_schedules es ON m.exam_type_id = es.exam_type_id 
+                      AND m.class_id = es.class_id 
+                      AND m.subject_id = es.subject_id 
+                      AND (m.section_id = es.section_id OR es.section_id IS NULL)
+                WHERE m.school_id = $1 AND m.student_id = $2
+            `;
+            params = [school_id, student.student_id];
+            if (selectedYear) {
+                marksQuery += ` AND m.year = $3`;
+                params.push(selectedYear);
+            }
+            marksQuery += ` ORDER BY et.name, sub.name`;
+        }
+
+        let marksResult;
+        try {
+            marksResult = await pool.query(marksQuery, params);
+        } catch (queryError) {
+            console.error('❌ [WORD GEN ERROR] Database Query Failed:', queryError);
+            console.error('Query:', marksQuery);
+            console.error('Params:', params);
+            throw queryError;
+        }
+
+        // 4. Transform Data for Docxtemplater
+        const examsMap = {};
+        marksResult.rows.forEach(mark => {
+            const examName = mark.exam_type_name;
+            if (!examsMap[examName]) {
+                examsMap[examName] = {
+                    id: mark.exam_type_id,
+                    exam_name: examName,
+                    year: mark.year,
+                    subjects: [],
+                    total_obtained: 0,
+                    total_max: 0
+                };
+            }
+
+            const obtained = parseFloat(mark.marks_obtained || 0);
+            const max = parseFloat(mark.max_marks || 100);
+
+            let pass_status = "Pass";
+            if (obtained < (max * 0.35)) {
+                pass_status = "Fail";
+            }
+
+            const subjectObj = {
+                subject_name: mark.subject_name,
+                subject_code: mark.subject_code || '',
+                marks_obtained: obtained,
+                marks_words: convertToDigitWords(obtained),
+                max_marks: max,
+                status: pass_status,
+                ...mark.component_scores // Flat mapping theory, internal, practical etc.
+            };
+
+            // Normalize component keys to title case for common use in templates
+            if (mark.component_scores) {
+                Object.keys(mark.component_scores).forEach(key => {
+                    const normalizedKey = key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
+                    subjectObj[normalizedKey] = mark.component_scores[key];
+                });
+            }
+
+            examsMap[examName].subjects.push(subjectObj);
+
+            examsMap[examName].total_obtained += obtained;
+            examsMap[examName].total_max += max;
+        });
+
+        const examsList = Object.values(examsMap).map(exam => ({
+            ...exam,
+            percentage: exam.total_max > 0 ? ((exam.total_obtained / exam.total_max) * 100).toFixed(2) : "0.00"
+        }));
+
+        // Build Payload
+        // If a specific exam was selected, prioritize it for flat fields (all_subjects, total etc)
+        const selectedExam = selected_exam_id
+            ? examsList.find(e => e.id == selected_exam_id)
+            : (examsList.length > 0 ? examsList[0] : null);
+
+        const today = new Date();
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+        const templatePayload = {
+            student_name: student.student_name,
+            admission_no: student.admission_no,
+            roll_number: student.roll_number || '-',
+            father_name: student.father_name || '-',
+            mother_name: student.mother_name || '-',
+            sats_number: student.sats_number || '-',
+            class_name: student.class_name || '-',
+            section_name: student.section_name || '-',
+            exams: examsList,
+            // Meta
+            exam_year: selectedYear || today.getFullYear(),
+            exam_month: selectedYear ? "" : months[today.getMonth()], // If historical year is picked, month is ambiguous
+            result_date: today.toLocaleDateString('en-GB'), // DD/MM/YYYY
+            result_month: months[today.getMonth()],
+            
+            // Provide a flat list of subjects for the selected/primary exam
+            all_subjects: selectedExam ? selectedExam.subjects : [],
+            total_obtained: selectedExam ? selectedExam.total_obtained : 0,
+            total_max: selectedExam ? selectedExam.total_max : 0,
+            percentage: selectedExam ? selectedExam.percentage : "0.00",
+            exam_name: selectedExam ? selectedExam.exam_name : ''
+        };
+
+        // Flat mapping subjects to the main payload (e.g., {{Mathematics}}: 58)
+        if (selectedExam) {
+            selectedExam.subjects.forEach(sub => {
+                const rawName = sub.subject_name;
+                const safeName = rawName.replace(/\s+/g, '_'); // e.g. "Social Science" -> "Social_Science"
+                
+                // Add various iterations for template compatibility
+                templatePayload[rawName] = sub.marks_obtained;
+                templatePayload[safeName] = sub.marks_obtained;
+                templatePayload[rawName.toUpperCase()] = sub.marks_obtained;
+                templatePayload[rawName.toLowerCase()] = sub.marks_obtained;
+                
+                // Add "In Words" for each subject
+                templatePayload[`${safeName}_words`] = convertToDigitWords(sub.marks_obtained);
+                templatePayload[`${rawName}_words`] = convertToDigitWords(sub.marks_obtained);
+            });
+            
+            // Global words
+            templatePayload.total_obtained_words = convertToDigitWords(selectedExam.total_obtained);
+            templatePayload.percentage_words = convertToDigitWords(Math.round(selectedExam.percentage));
+        } else {
+            templatePayload.total_obtained_words = "-";
+            templatePayload.percentage_words = "-";
+        }
+
+        // 5. Generate Word Document
+        const zip = new PizZip(templateBuffer);
+        const doc = new Docxtemplater(zip, {
+            paragraphLoop: true,
+            linebreaks: true,
+        });
+
+        doc.render(templatePayload);
+
+        const generatedBuffer = doc.getZip().generate({ type: 'nodebuffer' });
+
+        // 6. Send Response
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="Marksheet_${student.admission_no}.docx"`);
+        res.send(generatedBuffer);
+
+    } catch (error) {
+        console.error('Error generating Word template:', error);
+        res.status(500).json({ message: 'Failed to generate Word template' });
     }
 };
 

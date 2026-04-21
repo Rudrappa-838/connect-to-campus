@@ -7,7 +7,7 @@ exports.addStaff = async (req, res) => {
     const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
-        const { name, email, phone, role, gender, address, join_date, salary_per_day } = req.body;
+        const { name, email, phone, role, gender, address, join_date, salary_per_day, library_access, hostel_access, can_enroll_face, can_take_face_attendance } = req.body;
 
         await client.query('BEGIN');
 
@@ -64,13 +64,13 @@ exports.addStaff = async (req, res) => {
         }
 
         const result = await client.query(
-            `INSERT INTO staff (school_id, name, email, phone, role, gender, address, join_date, employee_id, salary_per_day)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-            [school_id, name, email, phone, role, gender, address, join_date || new Date(), employee_id, salary_per_day || 0]
+            `INSERT INTO staff (school_id, name, email, phone, role, gender, address, join_date, employee_id, salary_per_day, library_access, hostel_access, can_enroll_face, can_take_face_attendance)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+            [school_id, name, email, phone, role, gender, address, join_date || new Date(), employee_id, salary_per_day || 0, library_access || false, hostel_access || false, can_enroll_face || false, can_take_face_attendance || false]
         );
 
-        // Create User Login
-        let loginEmail = email || `${employee_id}@staff.school.com`;
+        // Create User Login - Always Use Employee ID for Login
+        let loginEmail = employee_id.trim().toLowerCase();
         const defaultPassword = await bcrypt.hash('123456', 10);
 
         // Convert 'DRIVER' to 'STAFF' role for user table simplification, or keep DRIVER? 
@@ -78,19 +78,18 @@ exports.addStaff = async (req, res) => {
         // But if I create user as STAFF, it's safer. However, preserving specific role is better.
         // Let's use the provided role if it matches enum, or default to STAFF. 
         // Actually, users table 'role' column likely supports 'STAFF', 'DRIVER'.
-        // Let's just uppercase the role input.
-        const userRole = ['DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role.toUpperCase()) ? role.toUpperCase() : 'STAFF';
+        const userRole = ['DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(role.toUpperCase()) ? role.toUpperCase() : 'STAFF';
 
-        let userCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+        let userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, userRole]);
         if (userCheck.rows.length > 0) {
             loginEmail = `${employee_id}@staff.school.com`;
-            userCheck = await client.query('SELECT id FROM users WHERE email = $1', [loginEmail]);
+            userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, userRole]);
         }
 
         if (userCheck.rows.length === 0) {
             await client.query(
-                `INSERT INTO users (email, password, role, school_id, must_change_password) VALUES ($1, $2, $3, $4, TRUE)`,
-                [loginEmail, defaultPassword, userRole, school_id]
+                `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, $3, $4, TRUE, $5)`,
+                [loginEmail, defaultPassword, userRole, school_id, result.rows[0].id]
             );
         }
 
@@ -110,7 +109,10 @@ exports.getStaff = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { search } = req.query;
-        let query = `SELECT * FROM staff WHERE school_id = $1`;
+        let query = `SELECT *, 
+                           COALESCE(can_enroll_face, TRUE) as can_enroll_face,
+                           COALESCE(can_take_face_attendance, TRUE) as can_take_face_attendance 
+                    FROM staff WHERE school_id = $1`;
         const params = [school_id];
 
         if (search) {
@@ -134,7 +136,7 @@ exports.updateStaff = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { name, email, phone, role, gender, address, join_date, salary_per_day } = req.body;
+        const { name, email, phone, role, gender, address, join_date, salary_per_day, employee_id, library_access, hostel_access, can_enroll_face, can_take_face_attendance } = req.body;
 
         await client.query('BEGIN');
 
@@ -165,6 +167,19 @@ exports.updateStaff = async (req, res) => {
                 });
             }
         }
+        // Check if employee_id already exists for another staff member
+        if (employee_id) {
+            const idCheck = await client.query(
+                'SELECT id, name FROM staff WHERE employee_id = $1 AND school_id = $2 AND id != $3',
+                [employee_id, school_id, id]
+            );
+            if (idCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    message: `Employee ID already exists for staff: ${idCheck.rows[0].name}`
+                });
+            }
+        }
 
         // Get Existing Staff to check for email change
         const existingStaff = await client.query('SELECT email, employee_id FROM staff WHERE id = $1', [id]);
@@ -178,13 +193,19 @@ exports.updateStaff = async (req, res) => {
             last_name = parts.slice(1).join(' ');
         }
 
+        // Sanitize
+        const safe_join_date = (join_date === '' || join_date === 'null' || join_date === undefined) ? null : join_date;
+        const safe_salary = (salary_per_day === '' || salary_per_day === 'null' || salary_per_day === undefined) ? 0 : salary_per_day;
+
         const result = await client.query(
-            `UPDATE staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
-             first_name = $9, last_name = $10
+            `UPDATE public.staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
+             first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id), library_access = $14, hostel_access = $15,
+             can_enroll_face = COALESCE($16, can_enroll_face),
+             can_take_face_attendance = COALESCE($17, can_take_face_attendance)
              WHERE id = $11 AND school_id = $12 RETURNING *`,
-            [name, email, phone, role, gender, address, join_date, salary_per_day || 0,
+            [name, email, phone, role, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
-                id, school_id]
+                id, school_id, employee_id, library_access || false, hostel_access || false, can_enroll_face, can_take_face_attendance]
         );
 
         if (result.rows.length === 0) {
@@ -223,20 +244,59 @@ exports.updateStaff = async (req, res) => {
     }
 };
 
-// Delete Staff
+// Delete Staff - Robust
 exports.deleteStaff = async (req, res) => {
+    const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const result = await pool.query(
+
+        await client.query('BEGIN');
+
+        // 0. Get Staff Info
+        const staffRes = await client.query('SELECT email, employee_id, role FROM staff WHERE id = $1', [id]);
+        if (staffRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Staff member not found' });
+        }
+        const staff = staffRes.rows[0];
+
+        // 1. Delete Attendance Records
+        await client.query('DELETE FROM staff_attendance WHERE staff_id = $1', [id]);
+
+        // 1.5 Delete Salary Records (Force Clean)
+        await client.query("DELETE FROM salary_payments WHERE employee_id = $1 AND employee_type = 'Staff'", [id]);
+
+        // 1.6 Unassign from Transport Vehicles (If Driver)
+        await client.query('UPDATE transport_vehicles SET driver_id = NULL WHERE driver_id = $1', [id]);
+
+        // 2. Start Deletion
+        const result = await client.query(
             `DELETE FROM staff WHERE id = $1 AND school_id = $2 RETURNING *`,
             [id, school_id]
         );
-        if (result.rows.length === 0) return res.status(404).json({ message: 'Staff member not found' });
+
+        // 3. Delete User Login Account
+        if (staff.email) {
+            // Delete user where email matches AND role is one of the staff roles
+            await client.query("DELETE FROM users WHERE email = $1 AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')", [staff.email]);
+        }
+        if (staff.employee_id) {
+            const genEmail = `${staff.employee_id}@staff.school.com`;
+            await client.query("DELETE FROM users WHERE email = $1 AND role IN ('STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN')", [genEmail]);
+        }
+
+        await client.query('COMMIT');
         res.json({ message: 'Staff member deleted successfully' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error deleting staff' });
+        await client.query('ROLLBACK');
+        console.error('Data Integrity Error deleting staff:', error.message);
+        if (error.code === '23503') { // Foreign Key Violation
+            return res.status(400).json({ message: 'Cannot delete staff. They are referenced in other records (e.g. Salary, Transport). Please clear those first.' });
+        }
+        res.status(500).json({ message: 'Server error deleting staff: ' + error.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -341,34 +401,18 @@ exports.getMyAttendance = async (req, res) => {
         const user_email = req.user.email;
         const { month, year } = req.query;
 
-        // 1. Get Staff ID from User Email
-        // Robust matching: Case insensitive, trim spaces
-        const staffRes = await pool.query(
-            'SELECT id, email, name FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
-            [user_email, school_id]
-        );
+        let staff_id = req.user.linkedId;
 
-        if (staffRes.rows.length === 0) {
-            // FALLBACK: If email is auto-generated (e.g. EMPID@staff.school.com), try finding by Employee ID
-            if (user_email.endsWith('@staff.school.com')) {
-                const potentialEmpId = user_email.split('@')[0].toUpperCase();
-
-                const empIdRes = await pool.query(
-                    'SELECT id, email, name FROM staff WHERE employee_id = $1 AND school_id = $2',
-                    [potentialEmpId, school_id]
-                );
-
-                if (empIdRes.rows.length > 0) {
-                    staffRes.rows = empIdRes.rows; // Found it!
-                } else {
-                    return res.json([]); // Still not found
-                }
-            } else {
-                return res.json([]); // Not found and not auto-generated email
+        // Fallback if missing
+        if (!staff_id) {
+            let staffRes = await pool.query('SELECT id FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2', [user_email, school_id]);
+            if (staffRes.rows.length === 0) {
+                const potentialEmpId = user_email.includes('@') ? user_email.split('@')[0].toUpperCase() : user_email.toUpperCase();
+                staffRes = await pool.query('SELECT id FROM staff WHERE employee_id ILIKE $1 AND school_id = $2', [potentialEmpId, school_id]);
             }
+            if (staffRes.rows.length === 0) return res.json([]);
+            staff_id = staffRes.rows[0].id;
         }
-
-        const staff_id = staffRes.rows[0].id;
 
         // 2. Fetch Attendance
         const startDate = `${year}-${month}-01`;
@@ -404,18 +448,36 @@ exports.getProfile = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const user_email = req.user.email;
+        let staff_id = req.user.linkedId;
+
+        if (!staff_id) {
+            // Try email match first
+            let staffRes = await pool.query('SELECT id FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2', [user_email, school_id]);
+            if (staffRes.rows.length === 0) {
+                // Fallback: treat login email as employee_id (handles both DAD1234 and DAD1234@staff.school.com)
+                const potentialEmpId = user_email.includes('@') ? user_email.split('@')[0].toUpperCase() : user_email.toUpperCase();
+                staffRes = await pool.query('SELECT id FROM staff WHERE employee_id ILIKE $1 AND school_id = $2', [potentialEmpId, school_id]);
+            }
+            if (staffRes.rows.length > 0) staff_id = staffRes.rows[0].id;
+        }
+
+        if (!staff_id) {
+            return res.status(404).json({ message: 'Profile not found' });
+        }
 
         const query = `
             SELECT t.*, 
                    tr.route_name, tr.vehicle_id, 
-                   tv.vehicle_number, tv.driver_name, tv.driver_phone
+                   tv.vehicle_number, tv.driver_name, tv.driver_phone,
+                   COALESCE(t.can_enroll_face, TRUE) as can_enroll_face,
+                   COALESCE(t.can_take_face_attendance, TRUE) as can_take_face_attendance
             FROM staff t
             LEFT JOIN transport_routes tr ON t.transport_route_id = tr.id
             LEFT JOIN transport_vehicles tv ON tr.vehicle_id = tv.id
-            WHERE t.email = $1 AND t.school_id = $2
+            WHERE t.id = $1 AND t.school_id = $2
         `;
 
-        const result = await pool.query(query, [user_email, school_id]);
+        const result = await pool.query(query, [staff_id, school_id]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Profile not found' });
@@ -434,25 +496,17 @@ exports.getSalarySlips = async (req, res) => {
         const school_id = req.user.schoolId;
         const user_email = req.user.email;
 
-        // 1. Get Staff ID (Robust Match)
-        let staffRes = await pool.query(
-            'SELECT id FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2',
-            [user_email, school_id]
-        );
+        let staff_id = req.user.linkedId;
 
-        if (staffRes.rows.length === 0) {
-            if (user_email.endsWith('@staff.school.com')) {
-                const potentialEmpId = user_email.split('@')[0].toUpperCase();
-                const empIdRes = await pool.query(
-                    'SELECT id FROM staff WHERE employee_id = $1 AND school_id = $2',
-                    [potentialEmpId, school_id]
-                );
-                if (empIdRes.rows.length > 0) staffRes = empIdRes;
+        if (!staff_id) {
+            let staffRes = await pool.query('SELECT id FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2', [user_email, school_id]);
+            if (staffRes.rows.length === 0) {
+                const potentialEmpId = user_email.includes('@') ? user_email.split('@')[0].toUpperCase() : user_email.toUpperCase();
+                staffRes = await pool.query('SELECT id FROM staff WHERE employee_id ILIKE $1 AND school_id = $2', [potentialEmpId, school_id]);
             }
+            if (staffRes.rows.length === 0) return res.json([]);
+            staff_id = staffRes.rows[0].id;
         }
-
-        if (staffRes.rows.length === 0) return res.json([]);
-        const staff_id = staffRes.rows[0].id;
 
         // 2. Fetch Salary Records using the correct schema (employee_id + employee_type)
         const result = await pool.query(`

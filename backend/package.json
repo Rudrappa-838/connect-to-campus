@@ -22,7 +22,9 @@
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
+    "docxtemplater": "^3.68.3",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "express-validator": "^7.3.1",
@@ -36,7 +38,10 @@
     "nodemailer": "^7.0.11",
     "nodemon": "^3.1.11",
     "pg": "^8.16.3",
-    "twilio": "^5.11.2"
+    "pizzip": "^3.2.0",
+    "puppeteer": "^24.40.0",
+    "twilio": "^5.11.2",
+    "xlsx": "^0.18.5"
   },
   "engines": {
     "node": "20"

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Plus, SortAsc, Edit2, Trash2, X, Printer, GraduationCap, Check } from 'lucide-react';
+import { Filter, Plus, SortAsc, Edit2, Trash2, X, Printer, GraduationCap, Check, FileDown, UploadCloud } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 import StudentPromotionModal from './StudentPromotionModal';
+import StudentReviewModal from './StudentReviewModal';
+import { MessageSquare as MessageIcon } from 'lucide-react';
 
 const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMode = 'active' }) => {
     const [students, setStudents] = useState([]);
@@ -22,6 +24,10 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
 
     const [loading, setLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Review Modal States
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [studentForReview, setStudentForReview] = useState(null);
 
     // Clear selection when filters change
     useEffect(() => {
@@ -44,6 +50,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
         email: '',
         address: '',
         attendance_id: '',
+        roll_number: '',
         admission_date: new Date().toISOString().split('T')[0]
     });
 
@@ -292,7 +299,11 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             first_name: firstName,
             middle_name: middleName,
             last_name: lastName,
-            gender: student.gender || '',
+            gender: (() => {
+                const g = (student.gender || '').trim();
+                if (!g || g === 'Not Specified') return '';
+                return g.charAt(0).toUpperCase() + g.slice(1).toLowerCase();
+            })(),
             dob: student.dob ? student.dob.split('T')[0] : '',
             age: student.age || '',
             class_id: student.class_id,
@@ -303,6 +314,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             email: student.email || '',
             address: student.address || '',
             attendance_id: student.attendance_id || '',
+            roll_number: student.roll_number || '',
             admission_date: student.admission_date ? student.admission_date.split('T')[0] : ''
         });
         setShowModal(true);
@@ -330,6 +342,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             email: '',
             address: '',
             attendance_id: autoAttendanceId, // Auto preset
+            roll_number: '',
             admission_date: new Date().toISOString().split('T')[0]
         });
         setShowModal(true);
@@ -337,89 +350,136 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
 
     const handlePrint = () => {
         const className = config.classes?.find(c => c.class_id === parseInt(filterClass))?.class_name || 'All Classes';
-        const sectionName = config.classes?.find(c => c.class_id === parseInt(filterClass))?.sections?.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
+        const sectionName = availableSections?.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
 
         const printContent = `
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="UTF-8">
-                <title>Student List - ${className} ${sectionName !== 'All Sections' ? '- ' + sectionName : ''}</title>
+                <title>Student Admission List - ${className} ${sectionName !== 'All Sections' ? '- ' + sectionName : ''}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body { 
-                        font-family: Arial, sans-serif; 
-                        padding: 20px; 
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                        padding: 30px; 
                         background: white;
+                        color: #1e293b;
+                    }
+                    .header {
+                        text-align: center;
+                        margin-bottom: 30px;
+                        border-bottom: 2px solid #4f46e5;
+                        padding-bottom: 20px;
                     }
                     h1 { 
-                        text-align: center; 
-                        color: #333; 
-                        font-size: 24px; 
-                        margin-bottom: 5px; 
+                        color: #1e2a78; 
+                        font-size: 28px; 
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        margin-bottom: 5px;
                     }
                     h2 { 
-                        text-align: center; 
-                        color: #666; 
+                        color: #64748b; 
                         font-size: 18px; 
-                        margin-top: 0; 
-                        margin-bottom: 20px; 
+                        margin-bottom: 10px;
+                    }
+                    .info-bar {
+                        display: flex;
+                        justify-content: space-between;
+                        font-size: 12px;
+                        font-weight: bold;
+                        color: #475569;
+                        margin-bottom: 10px;
                     }
                     table { 
                         width: 100%; 
                         border-collapse: collapse; 
-                        margin-top: 20px; 
+                        margin-top: 10px;
+                        table-layout: fixed;
                     }
                     th, td { 
-                        border: 1px solid #ddd; 
-                        padding: 12px; 
+                        border: 1px solid #e2e8f0; 
+                        padding: 10px 8px; 
                         text-align: left; 
+                        font-size: 11px;
+                        word-wrap: break-word;
                     }
                     th { 
                         background-color: #4f46e5; 
                         color: white; 
-                        font-weight: bold; 
+                        font-weight: bold;
+                        text-transform: uppercase;
+                        font-size: 10px;
                     }
                     tr:nth-child(even) { 
-                        background-color: #f9f9f9; 
+                        background-color: #f8fafc; 
                     }
+                    .demo-cell { line-height: 1.4; }
+                    .demo-label { color: #64748b; font-weight: normal; font-size: 9px; }
                     .footer { 
                         text-align: center; 
-                        margin-top: 30px; 
-                        font-size: 12px; 
-                        color: #666; 
+                        margin-top: 40px; 
+                        font-size: 11px; 
+                        color: #94a3b8;
+                        border-top: 1px solid #e2e8f0;
+                        padding-top: 20px;
                     }
                     @media print {
-                        body { padding: 10px; }
-                        @page { margin: 1cm; }
+                        body { padding: 0; }
+                        @page { 
+                            margin: 1.5cm; 
+                            size: landscape; 
+                        }
+                        th { -webkit-print-color-adjust: exact; }
                     }
                 </style>
             </head>
             <body>
-                <h1>Student List</h1>
-                <h2>${className}${sectionName !== 'All Sections' ? ' - ' + sectionName : ''}</h2>
+                <div class="header">
+                    <h1>Student Admission List</h1>
+                    <h2>${className} ${sectionName !== 'All Sections' ? ' - ' + sectionName : ''}</h2>
+                </div>
+                <div class="info-bar">
+                    <span>Total Students: ${students.length}</span>
+                    <span>Printed on: ${new Date().toLocaleDateString('en-GB')}</span>
+                </div>
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 20%;">Roll No.</th>
-                            <th style="width: 80%;">Student Name</th>
+                            <th style="width: 60px;">Roll No</th>
+                            <th style="width: 100px;">Admission ID</th>
+                            <th style="width: 180px;">Student Full Name</th>
+                            <th style="width: 150px;">Demographics</th>
+                            <th>Parents / Contact</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${students.map(student => `
                             <tr>
-                                <td>${student.roll_number || '-'}</td>
-                                <td>${student.name}</td>
+                                <td style="text-align: center; font-weight: bold;">${student.roll_number || '-'}</td>
+                                <td style="font-family: monospace;">${student.admission_no}</td>
+                                <td style="font-weight: bold; font-size: 12px;">${student.name}</td>
+                                <td class="demo-cell">
+                                    <div><span class="demo-label">Gender:</span> ${student.gender || '-'}</div>
+                                    <div><span class="demo-label">DOB:</span> ${student.dob ? new Date(student.dob).toLocaleDateString('en-GB') : '-'}</div>
+                                    <div><span class="demo-label">Age:</span> ${student.age || '-'} Yrs</div>
+                                </td>
+                                <td class="demo-cell">
+                                    <div style="font-weight: bold;">F: ${student.father_name || '-'}</div>
+                                    <div style="color: #4f46e5; border-top: 1px solid #f1f5f9; margin-top: 4px; padding-top: 2px;">📞 ${student.contact_number || '-'}</div>
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
                 <div class="footer">
-                    <p>Printed on: ${new Date().toLocaleDateString('en-GB')} at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p>School Management System - Official Admission Record</p>
                 </div>
                 <script>
                     window.onload = function() {
                         window.print();
+                        setTimeout(() => window.close(), 500);
                     }
                 </script>
             </body>
@@ -590,7 +650,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             </div>
 
             {!isPromotionView && filterClass && (
-                <div className="flex justify-end px-2">
+                <div className="flex justify-end px-2 gap-3">
                     <button
                         onClick={async () => {
                             if (isSubmitting) return;
@@ -612,6 +672,72 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                     >
                         <SortAsc size={14} /> Re-assign Roll Numbers Alphabetically
                     </button>
+                </div>
+            )}
+
+            {/* Bulk Actions Bar */}
+            {!isPromotionView && viewMode === 'active' && (
+                <div className="flex justify-end px-2 gap-3 mb-2">
+                    <button
+                        onClick={() => {
+                            import('xlsx').then(xlsx => {
+                                const headers = [
+                                    ['First Name', 'Middle Name', 'Last Name', 'Gender', 'Date of Birth', 'Class', 'Section', 'Father\'s Name', 'Mother\'s Name', 'Mobile Number', 'Email Address', 'Address']
+                                ];
+                                const data = [
+                                    ['John', 'D', 'Doe', 'Male', '2010-05-15', 'Class 10', 'A', 'Richard Doe', 'Jane Doe', '9876543210', 'student@example.com', '123 Main St']
+                                ];
+                                const ws = xlsx.utils.aoa_to_sheet([...headers, ...data]);
+
+                                // Auto-width columns
+                                const wscols = headers[0].map(() => ({ wch: 15 }));
+                                ws['!cols'] = wscols;
+
+                                const wb = xlsx.utils.book_new();
+                                xlsx.utils.book_append_sheet(wb, ws, "Template");
+                                xlsx.writeFile(wb, "school_student_upload_template.xlsx");
+                            });
+                        }}
+                        className="text-emerald-600 text-xs font-bold hover:underline flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-colors"
+                    >
+                        <FileDown size={14} /> Download Template
+                    </button>
+
+                    <label className="text-blue-600 text-xs font-bold hover:underline flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors cursor-pointer">
+                        <UploadCloud size={14} /> Upload Students (Excel)
+                        <input
+                            type="file"
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            onChange={async (e) => {
+                                const file = e.target.files[0];
+                                if (!file) return;
+
+                                const formData = new FormData();
+                                formData.append('file', file);
+
+                                const toastId = toast.loading('Uploading students...');
+                                setIsSubmitting(true);
+                                try {
+                                    const res = await api.post('/students/bulk-upload', formData, {
+                                        headers: { 'Content-Type': 'multipart/form-data' }
+                                    });
+                                    toast.success(`Upload Complete! Success: ${res.data.summary.success}, Failed: ${res.data.summary.failed}`, { id: toastId, duration: 5000 });
+                                    if (res.data.errors.length > 0) {
+                                        console.warn("Upload Errors:", res.data.errors);
+                                        alert("Some rows failed. Check console for details.\nFirst Error: " + res.data.errors[0].error);
+                                    }
+                                    fetchStudents();
+                                } catch (err) {
+                                    console.error(err);
+                                    toast.error(err.response?.data?.message || 'Upload failed', { id: toastId });
+                                } finally {
+                                    setIsSubmitting(false);
+                                    e.target.value = ''; // Reset
+                                }
+                            }}
+                        />
+                    </label>
                 </div>
             )}
 
@@ -703,7 +829,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                             </td>
                                             {!isPromotionView && (
                                                 <td className="p-4 font-mono text-slate-500 text-xs">
-                                                    {student.admission_date ? new Date(student.admission_date).toLocaleDateString() : (student.created_at ? new Date(student.created_at).toLocaleDateString() : '-')}
+                                                    {student.admission_date ? new Date(student.admission_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) : (student.created_at ? new Date(student.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-')}
                                                 </td>
                                             )}
                                             <td className="p-4">
@@ -735,9 +861,18 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         {viewMode === 'active' ? (
                                                             <>
-                                                                {!isPromotionView && (
-                                                                    <button onClick={() => handleEdit(student)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit"><Edit2 size={18} /></button>
-                                                                )}
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setStudentForReview(student);
+                                                                        setShowReviewModal(true);
+                                                                    }}
+                                                                    title="Direct Message / Review"
+                                                                    className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                >
+                                                                    <MessageIcon size={18} />
+                                                                </button>
+                                                                <button onClick={() => handleEdit(student)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit"><Edit2 size={18} /></button>
                                                                 <button onClick={() => handleDelete(student.id)} disabled={isSubmitting} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Move to Bin"><Trash2 size={18} /></button>
                                                             </>
                                                         ) : (
@@ -832,10 +967,37 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                         </div>
                         <form onSubmit={handleSubmit} autoComplete="off" className="p-6 grid grid-cols-2 gap-4 overflow-y-auto">
 
-                            {/* Personal Details */}
                             <div className="col-span-2">
-                                <h3 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-3">Personal Details</h3>
-                                <p className="text-[11px] text-slate-400 mb-2 italic">* Student ID will be automatically generated by the system.</p>
+                                <h3 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-3">System Identifiers</h3>
+                                <div className="grid grid-cols-3 gap-4 mb-4">
+                                    <div className="col-span-1">
+                                        <label className="label">Roll Number</label>
+                                        <input
+                                            type="number"
+                                            className="input"
+                                            id="student-roll-no"
+                                            name="roll_number"
+                                            placeholder="Auto if empty"
+                                            autoComplete="off"
+                                            value={formData.roll_number || ''}
+                                            onChange={e => setFormData({ ...formData, roll_number: e.target.value })}
+                                        />
+                                    </div>
+                                    {isEditing && (
+                                        <div className="col-span-1">
+                                            <label className="label">Admission No (Student ID)</label>
+                                            <input
+                                                className="input bg-slate-50"
+                                                readOnly
+                                                id="student-id"
+                                                name="admission_no"
+                                                placeholder="Admission No"
+                                                autoComplete="off"
+                                                value={formData.admission_no || ''}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Name Fields Split */}
@@ -845,6 +1007,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     <input
                                         className="input"
                                         required
+                                        id="student-first-name"
+                                        name="first_name"
                                         placeholder="First Name"
                                         pattern="[A-Za-z]+"
                                         title="Only letters allowed"
@@ -863,6 +1027,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     <label className="label">Middle Name</label>
                                     <input
                                         className="input"
+                                        id="student-middle-name"
+                                        name="middle_name"
                                         placeholder="Middle Name"
                                         pattern="[A-Za-z]*"
                                         title="Only letters allowed"
@@ -882,6 +1048,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     <input
                                         className="input"
                                         required
+                                        id="student-last-name"
+                                        name="last_name"
                                         placeholder="Last Name"
                                         pattern="[A-Za-z]+"
                                         title="Only letters allowed"
@@ -900,7 +1068,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
 
                             <div className="col-span-1">
                                 <label className="label">Gender <span className="text-red-500">*</span></label>
-                                <select className="input" required value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })}>
+                                <select className="input" id="student-gender" name="gender" required value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })}>
                                     <option value="">Select Gender</option>
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
@@ -1000,6 +1168,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     className="input"
                                     type="tel"
                                     required
+                                    id="student-contact"
+                                    name="contact_number"
                                     maxLength="10"
                                     placeholder="10 Digits"
                                     autoComplete="off"
@@ -1020,6 +1190,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     className="input"
                                     type="email"
                                     required
+                                    id="student-email"
+                                    name="email"
                                     placeholder="example@domain.com"
                                     autoComplete="off"
                                     value={formData.email}
@@ -1069,6 +1241,11 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                     fetchStudents();
                     setSelectedStudents([]);
                 }}
+            />
+            <StudentReviewModal 
+                isOpen={showReviewModal}
+                onClose={() => setShowReviewModal(false)}
+                student={studentForReview}
             />
         </div>
     );
