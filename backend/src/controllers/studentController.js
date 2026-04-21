@@ -134,6 +134,9 @@ exports.addStudent = async (req, res) => {
             );
         }
 
+        // Auto-reorder roll numbers alphabetically for the whole class/section
+        await internalReorderRollNumbers(school_id, class_id, safe_section_id, client);
+
         await client.query('COMMIT'); // Commit Transaction
 
         res.status(201).json(newStudent);
@@ -532,8 +535,9 @@ exports.updateStudent = async (req, res) => {
             last_name = parts.slice(1).join(' ');
         }
 
-        // Get Existing Student to check for email change
-        const existingStudent = await pool.query('SELECT email, admission_no FROM students WHERE id = $1', [id]);
+        // Get Existing Student to check for changes that trigger roll reordering
+        const existingStudentRes = await pool.query('SELECT name, class_id, section_id, email, admission_no FROM students WHERE id = $1', [id]);
+        const oldData = existingStudentRes.rows[0] || {};
 
         const safe_age = (age === '' || age === 'null' || age === undefined) ? null : age;
         const safe_dob = (dob === '' || dob === 'null' || dob === undefined) ? null : dob;
@@ -556,16 +560,24 @@ exports.updateStudent = async (req, res) => {
             }
         }
 
-        // Duplicate Check for Roll Number
-        if (roll_number) {
+        // Duplicate Check for Roll Number (Auto-heal logic)
+        let final_roll_number = roll_number;
+        if (final_roll_number) {
             let rollDup;
             if (safe_section_id) {
-                rollDup = await pool.query('SELECT id FROM students WHERE class_id = $1 AND section_id = $2 AND roll_number = $3 AND school_id = $4 AND id != $5 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, safe_section_id, roll_number, req.user.schoolId, id]);
+                rollDup = await pool.query('SELECT id FROM students WHERE class_id = $1 AND section_id = $2 AND roll_number = $3 AND school_id = $4 AND id != $5 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, safe_section_id, final_roll_number, req.user.schoolId, id]);
             } else {
-                rollDup = await pool.query('SELECT id FROM students WHERE class_id = $1 AND section_id IS NULL AND roll_number = $2 AND school_id = $3 AND id != $4 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, roll_number, req.user.schoolId, id]);
+                rollDup = await pool.query('SELECT id FROM students WHERE class_id = $1 AND section_id IS NULL AND roll_number = $2 AND school_id = $3 AND id != $4 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, final_roll_number, req.user.schoolId, id]);
             }
             if (rollDup.rows.length > 0) {
-                return res.status(400).json({ message: `Roll Number ${roll_number} is already assigned to another student in this class.` });
+                // Instead of failing, auto-assign the next available roll number in the class/section
+                let rollCheck;
+                if (safe_section_id) {
+                    rollCheck = await pool.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id = $2 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, safe_section_id]);
+                } else {
+                    rollCheck = await pool.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id IS NULL AND (status IS NULL OR status != \'Deleted\')', [safe_class_id]);
+                }
+                final_roll_number = (parseInt(rollCheck.rows[0].max_roll) || 0) + 1;
             }
         }
 
@@ -579,7 +591,7 @@ exports.updateStudent = async (req, res) => {
             [name, gender, safe_dob, safe_age, safe_class_id, safe_section_id,
                 father_name, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date,
                 first_name, last_name, status,
-                id, req.user.schoolId, safe_admission_no, roll_number]
+                id, req.user.schoolId, safe_admission_no, final_roll_number]
         );
 
         if (result.rows.length === 0) {
@@ -588,13 +600,30 @@ exports.updateStudent = async (req, res) => {
 
         const updatedStudent = result.rows[0];
 
+        // Auto-reorder roll numbers alphabetically if class, section or name changed
+        const nameChanged = oldData.name !== name && name !== undefined;
+        const classChanged = oldData.class_id !== safe_class_id || oldData.section_id !== safe_section_id;
+
+        if (nameChanged || classChanged) {
+            console.log(`[Reorder] Triggering for updated student ${updatedStudent.admission_no}`);
+            
+            // 1. Reorder the NEW group
+            await internalReorderRollNumbers(req.user.schoolId, safe_class_id, safe_section_id, pool);
+
+            // 2. If class changed, also reorder the OLD group to fill the gap
+            if (classChanged && oldData.class_id) {
+                console.log(`[Reorder] Group changed. Reordering old group (Class: ${oldData.class_id}, Sec: ${oldData.section_id})`);
+                await internalReorderRollNumbers(req.user.schoolId, oldData.class_id, oldData.section_id, pool);
+            }
+        }
+
         // SYNC USER TABLE: If email changed, update the Login User record
-        if (existingStudent.rows.length > 0 && email && existingStudent.rows[0].email !== email) {
+        if (Object.keys(oldData).length > 0 && email && oldData.email !== email) {
             try {
                 // Try to find the user by OLD Email + Role
                 await pool.query(
                     `UPDATE users SET email = $1 WHERE email = $2 AND role = 'STUDENT'`,
-                    [email, existingStudent.rows[0].email]
+                    [email, oldData.email]
                 );
                 console.log(`[Sync] Updated User Login Email for Student ${updatedStudent.admission_no}`);
             } catch (uErr) {
@@ -1196,33 +1225,10 @@ exports.reorderRollNumbers = async (req, res) => {
         const school_id = req.user.schoolId;
 
         await client.query('BEGIN');
+        const success = await internalReorderRollNumbers(school_id, class_id, section_id, client);
 
-        // Handle both classes with and without sections
-        let studentsRef;
-        if (section_id && section_id !== '' && section_id !== 'null') {
-            // Fetch students for specific section, ordered by Name (then by existing roll_number as tiebreaker)
-            studentsRef = await client.query(
-                `SELECT id FROM students 
-             WHERE school_id = $1 AND class_id = $2 AND section_id = $3 AND (status IS NULL OR status != 'Deleted')
-             ORDER BY name ASC, roll_number ASC`,
-                [school_id, class_id, section_id]
-            );
-        } else {
-            // Fetch students for class without section (section_id IS NULL)
-            studentsRef = await client.query(
-                `SELECT id FROM students 
-             WHERE school_id = $1 AND class_id = $2 AND section_id IS NULL AND (status IS NULL OR status != 'Deleted')
-             ORDER BY name ASC, roll_number ASC`,
-                [school_id, class_id]
-            );
-        }
-
-        // Update each student with new roll number
-        for (let i = 0; i < studentsRef.rows.length; i++) {
-            await client.query(
-                `UPDATE students SET roll_number = $1 WHERE id = $2`,
-                [i + 1, studentsRef.rows[i].id]
-            );
+        if (!success) {
+            throw new Error('Failed to reorder roll numbers internally');
         }
 
         await client.query('COMMIT');
@@ -1480,5 +1486,42 @@ exports.getDeletedStudentCertificates = async (req, res) => {
     } catch (error) {
         console.error('Error fetching deleted student certificates:', error);
         res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// Internal Helper to Reorder Roll Numbers Alphabetically
+const internalReorderRollNumbers = async (school_id, class_id, section_id, client) => {
+    try {
+        console.log(`[ROLL REORDER] Starting for Class: ${class_id}, Section: ${section_id || 'NONE'}`);
+
+        let studentsRef;
+        if (section_id && section_id !== '' && section_id !== 'null') {
+            studentsRef = await client.query(
+                `SELECT id FROM students 
+                 WHERE school_id = $1 AND class_id = $2 AND section_id = $3 AND (status IS NULL OR status != 'Deleted')
+                 ORDER BY name ASC, roll_number ASC`,
+                [school_id, class_id, section_id]
+            );
+        } else {
+            studentsRef = await client.query(
+                `SELECT id FROM students 
+                 WHERE school_id = $1 AND class_id = $2 AND section_id IS NULL AND (status IS NULL OR status != 'Deleted')
+                 ORDER BY name ASC, roll_number ASC`,
+                [school_id, class_id]
+            );
+        }
+
+        console.log(`[ROLL REORDER] Found ${studentsRef.rows.length} students to reorder`);
+
+        for (let i = 0; i < studentsRef.rows.length; i++) {
+            await client.query(
+                `UPDATE students SET roll_number = $1 WHERE id = $2`,
+                [i + 1, studentsRef.rows[i].id]
+            );
+        }
+        return true;
+    } catch (err) {
+        console.error('[ROLL REORDER] Failed:', err.message);
+        return false;
     }
 };
