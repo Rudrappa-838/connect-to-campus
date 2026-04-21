@@ -83,7 +83,8 @@ exports.getExamCombos = async (req, res) => {
 exports.downloadTemplate = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
-        const { exam_type_id, class_id, section_id } = req.query;
+        const { exam_type_id, class_id, section_id, include_sats } = req.query;
+        const includeSats = include_sats === 'true';
 
         if (!exam_type_id || !class_id) {
             return res.status(400).json({ message: 'exam_type_id and class_id are required' });
@@ -345,6 +346,9 @@ exports.uploadMarks = async (req, res) => {
             headers[colNum] = cell.value ? String(cell.value).trim() : '';
         });
 
+        const hasSatsColumn = headers[5] === 'SATS Number';
+        const startMarksColNum = hasSatsColumn ? 6 : 5;
+
         const year = new Date().getFullYear();
         await client.query('BEGIN');
 
@@ -358,7 +362,11 @@ exports.uploadMarks = async (req, res) => {
 
             const studentId = String(row.getCell(1).value || '').trim();
             const studentName = String(row.getCell(4).value || '').trim();
-            const satsNumber = String(row.getCell(5).value || '').trim();
+            
+            let satsNumber = '';
+            if (hasSatsColumn) {
+                satsNumber = String(row.getCell(5).value || '').trim();
+            }
 
             if (!studentId) return;
 
@@ -369,12 +377,12 @@ exports.uploadMarks = async (req, res) => {
             }
 
             // Update SATS number if provided
-            if (satsNumber) {
+            if (hasSatsColumn && satsNumber) {
                 row._satsToUpdate = satsNumber;
             }
 
             // Process each mark column
-            for (let colNum = 6; colNum < headers.length + 1; colNum++) {
+            for (let colNum = startMarksColNum; colNum < headers.length + 1; colNum++) {
                 const header = headers[colNum];
                 if (!header || !subjectByHeader[header]) continue;
 
