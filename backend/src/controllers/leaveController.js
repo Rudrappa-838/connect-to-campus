@@ -146,38 +146,47 @@ const deleteLeave = async (req, res) => {
 // Get leaves for logged-in user
 const getMyLeaves = async (req, res) => {
     // const { schoolId } = req; // Remove this as we get it from req.user
-    const { email, role, schoolId } = req.user; // role from token is usually UPPERCASE (TEACHER, STUDENT)
+    const { email, role, schoolId, linkedId } = req.user; 
 
     try {
-        // Need to get the correct user_id based on role and email
-        let user_id;
-        let roleString; // The string format stored in DB (e.g. 'Teacher', 'Student')
+        let user_id = linkedId;
+        let roleString; 
 
         if (role === 'TEACHER') {
-            let tRes = await pool.query('SELECT id FROM teachers WHERE email = $1 AND school_id = $2', [email, schoolId]);
-            if (tRes.rows.length === 0) {
-                const parts = email.split('@');
-                tRes = await pool.query('SELECT id FROM teachers WHERE employee_id = $1 AND school_id = $2', [parts[0], schoolId]);
-            }
-            if (tRes.rows.length === 0) return res.status(404).json({ message: 'Teacher Profile not found' });
-            user_id = tRes.rows[0].id;
             roleString = 'Teacher';
-        } else if (role === 'STUDENT') {
-            let sRes = await pool.query('SELECT id FROM students WHERE LOWER(email) = LOWER($1) AND school_id = $2', [email, schoolId]);
-            if (sRes.rows.length === 0) {
-                const emailParts = email.split('@');
-                if (emailParts.length === 2) {
-                    sRes = await pool.query('SELECT id FROM students WHERE LOWER(admission_no) = LOWER($1) AND school_id = $2', [emailParts[0], schoolId]);
+            if (!user_id) {
+                let tRes = await pool.query('SELECT id FROM teachers WHERE email = $1 AND school_id = $2', [email, schoolId]);
+                if (tRes.rows.length === 0) {
+                    const parts = email.split('@');
+                    tRes = await pool.query('SELECT id FROM teachers WHERE employee_id ILIKE $1 AND school_id = $2', [parts[0], schoolId]);
                 }
+                if (tRes.rows.length > 0) user_id = tRes.rows[0].id;
             }
-            if (sRes.rows.length === 0) return res.status(404).json({ message: 'Profile not found' });
-            user_id = sRes.rows[0].id;
+            if (!user_id) return res.status(404).json({ message: 'Teacher Profile not found' });
+        } else if (role === 'STUDENT') {
             roleString = 'Student';
-        } else if (role === 'STAFF' || role === 'DRIVER') {
-            const stRes = await pool.query('SELECT id FROM staff WHERE email = $1 AND school_id = $2', [email, schoolId]);
-            if (stRes.rows.length === 0) return res.status(404).json({ message: 'Profile not found' });
-            user_id = stRes.rows[0].id;
+            if (!user_id) {
+                let sRes = await pool.query('SELECT id FROM students WHERE LOWER(email) = LOWER($1) AND school_id = $2', [email, schoolId]);
+                if (sRes.rows.length === 0) {
+                    const emailParts = email.split('@');
+                    if (emailParts.length === 2) {
+                        sRes = await pool.query('SELECT id FROM students WHERE LOWER(admission_no) = LOWER($1) AND school_id = $2', [emailParts[0], schoolId]);
+                    }
+                }
+                if (sRes.rows.length > 0) user_id = sRes.rows[0].id;
+            }
+            if (!user_id) return res.status(404).json({ message: 'Student Profile not found' });
+        } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(role)) {
             roleString = 'Staff';
+            if (!user_id) {
+                let stRes = await pool.query('SELECT id FROM staff WHERE email = $1 AND school_id = $2', [email, schoolId]);
+                if (stRes.rows.length === 0) {
+                    const parts = email.split('@');
+                    stRes = await pool.query('SELECT id FROM staff WHERE employee_id ILIKE $1 AND school_id = $2', [parts[0], schoolId]);
+                }
+                if (stRes.rows.length > 0) user_id = stRes.rows[0].id;
+            }
+            if (!user_id) return res.status(404).json({ message: 'Staff Profile not found' });
         } else {
             return res.status(400).json({ message: 'Invalid role for leave application' });
         }
@@ -197,38 +206,48 @@ const getMyLeaves = async (req, res) => {
 // Apply for leave (Logged-in user)
 const applyLeave = async (req, res) => {
     // const { schoolId } = req;
-    const { email, role, schoolId } = req.user;
+    const { email, role, schoolId, linkedId } = req.user;
     const { leave_type, start_date, end_date, reason } = req.body;
 
     try {
-        let user_id;
+        let user_id = linkedId;
         let roleString;
 
         if (role === 'TEACHER') {
-            let tRes = await pool.query('SELECT id FROM teachers WHERE email = $1 AND school_id = $2', [email, schoolId]);
-            if (tRes.rows.length === 0) {
-                const parts = email.split('@');
-                tRes = await pool.query('SELECT id FROM teachers WHERE employee_id = $1 AND school_id = $2', [parts[0], schoolId]);
-            }
-            if (tRes.rows.length === 0) return res.status(404).json({ message: 'Teacher Profile not found' });
-            user_id = tRes.rows[0].id;
             roleString = 'Teacher';
-        } else if (role === 'STUDENT') {
-            let sRes = await pool.query('SELECT id FROM students WHERE LOWER(email) = LOWER($1) AND school_id = $2', [email, schoolId]);
-            if (sRes.rows.length === 0) {
-                const emailParts = email.split('@');
-                if (emailParts.length === 2) {
-                    sRes = await pool.query('SELECT id FROM students WHERE LOWER(admission_no) = LOWER($1) AND school_id = $2', [emailParts[0], schoolId]);
+            if (!user_id) {
+                let tRes = await pool.query('SELECT id FROM teachers WHERE email = $1 AND school_id = $2', [email, schoolId]);
+                if (tRes.rows.length === 0) {
+                    const parts = email.split('@');
+                    tRes = await pool.query('SELECT id FROM teachers WHERE employee_id ILIKE $1 AND school_id = $2', [parts[0], schoolId]);
                 }
+                if (tRes.rows.length > 0) user_id = tRes.rows[0].id;
             }
-            if (sRes.rows.length === 0) return res.status(404).json({ message: 'Profile not found' });
-            user_id = sRes.rows[0].id;
+            if (!user_id) return res.status(404).json({ message: 'Teacher Profile not found' });
+        } else if (role === 'STUDENT') {
             roleString = 'Student';
-        } else if (role === 'STAFF' || role === 'DRIVER') {
-            const stRes = await pool.query('SELECT id FROM staff WHERE email = $1 AND school_id = $2', [email, schoolId]);
-            if (stRes.rows.length === 0) return res.status(404).json({ message: 'Profile not found' });
-            user_id = stRes.rows[0].id;
+            if (!user_id) {
+                let sRes = await pool.query('SELECT id FROM students WHERE LOWER(email) = LOWER($1) AND school_id = $2', [email, schoolId]);
+                if (sRes.rows.length === 0) {
+                    const emailParts = email.split('@');
+                    if (emailParts.length === 2) {
+                        sRes = await pool.query('SELECT id FROM students WHERE LOWER(admission_no) = LOWER($1) AND school_id = $2', [emailParts[0], schoolId]);
+                    }
+                }
+                if (sRes.rows.length > 0) user_id = sRes.rows[0].id;
+            }
+            if (!user_id) return res.status(404).json({ message: 'Student Profile not found' });
+        } else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(role)) {
             roleString = 'Staff';
+            if (!user_id) {
+                let stRes = await pool.query('SELECT id FROM staff WHERE email = $1 AND school_id = $2', [email, schoolId]);
+                if (stRes.rows.length === 0) {
+                    const parts = email.split('@');
+                    stRes = await pool.query('SELECT id FROM staff WHERE employee_id ILIKE $1 AND school_id = $2', [parts[0], schoolId]);
+                }
+                if (stRes.rows.length > 0) user_id = stRes.rows[0].id;
+            }
+            if (!user_id) return res.status(404).json({ message: 'Staff Profile not found' });
         } else {
             return res.status(400).json({ message: 'Invalid role type' });
         }

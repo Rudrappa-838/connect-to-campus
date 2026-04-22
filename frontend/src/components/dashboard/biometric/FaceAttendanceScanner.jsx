@@ -22,7 +22,7 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
     
     // Data
     const [scanHistory, setScanHistory] = useState([]);
-    const [enrolledStudents, setEnrolledStudents] = useState([]);
+    const [enrolledUsers, setEnrolledUsers] = useState([]);
     const [isMatching, setIsMatching] = useState(false);
 
     // Load Models
@@ -38,7 +38,7 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                 ]);
                 setModelsLoaded(true);
                 fetchTodayAttendance();
-                fetchEnrolledStudents();
+                fetchEnrolledUsers();
             } catch (error) {
                 console.error('Model loading failed', error);
                 toast.error('AI Engine failed to initialize');
@@ -49,17 +49,17 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
         loadModels();
     }, []);
 
-    const fetchEnrolledStudents = async () => {
+    const fetchEnrolledUsers = async () => {
         try {
             const res = await api.get('/biometric/enrolled');
             // Pre-parse the descriptors to speed up matching loop
-            const data = res.data.map(s => ({
-                ...s,
-                descriptor: typeof s.biometric_template === 'string' ? JSON.parse(s.biometric_template) : s.biometric_template
-            })).filter(s => Array.isArray(s.descriptor));
-            setEnrolledStudents(data);
+            const data = res.data.map(u => ({
+                ...u,
+                descriptor: typeof u.biometric_template === 'string' ? JSON.parse(u.biometric_template) : u.biometric_template
+            })).filter(u => Array.isArray(u.descriptor));
+            setEnrolledUsers(data);
         } catch (err) {
-            console.error('Failed to pre-fetch enrolled students');
+            console.error('Failed to pre-fetch enrolled users');
         }
     };
 
@@ -73,6 +73,7 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                 admission_no: item.user_id,
                 time: item.scan_time,
                 mode: item.marking_mode,
+                type: item.type || (item.user_id?.includes('@') ? 'teacher' : 'student'),
                 db_id: item.id
             }));
             setScanHistory(history);
@@ -132,14 +133,14 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                     .withFaceLandmarks()
                     .withFaceDescriptor();
 
-                if (detections && enrolledStudents.length > 0) {
+                if (detections && enrolledUsers.length > 0) {
                     // Local High-Speed Matching
                     const descriptor = detections.descriptor;
                     let bestMatch = null;
                     let minDistance = 0.55; // Slightly stricter for accuracy at speed
 
-                    for (const student of enrolledStudents) {
-                        const storedDescriptor = student.descriptor;
+                    for (const user of enrolledUsers) {
+                        const storedDescriptor = user.descriptor;
                         let sumSq = 0;
                         for (let i = 0; i < descriptor.length; i++) {
                             const diff = descriptor[i] - storedDescriptor[i];
@@ -159,39 +160,40 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
             }, 500); // 500ms loop for ultra-speed
         }
         return () => clearInterval(interval);
-    }, [cameraActive, scanning, status, enrolledStudents, isMatching]);
+    }, [cameraActive, scanning, status, enrolledUsers, isMatching]);
 
-    const handleRecognition = async (student) => {
+    const handleRecognition = async (user) => {
         setScanning(false); 
         setIsMatching(true);
         setStatus('recognized'); 
-        setLastRecognized(student); // Show name INSTANTLY (Optimistic)
+        setLastRecognized(user); // Show name INSTANTLY (Optimistic)
 
         try {
             const res = await api.post('/biometric/mark-face-id', {
-                studentId: student.id,
+                userId: user.id,
+                type: user.type || 'student',
                 marking_mode: 'face'
             });
 
             if (res.data.success) {
-                // Keep the student object from matching since it's already local
-                const studentData = res.data.student || student;
+                // Keep the user object from matching since it's already local
+                const userData = res.data.user || user;
                 
                 if (res.data.alreadyMarked) {
                     setStatus('already_marked');
                     
                     // Voice feedback for already marked
                     if ('speechSynthesis' in window) {
-                        const utterance = new SpeechSynthesisUtterance(`${studentData.name}, you are already present`);
+                        const utterance = new SpeechSynthesisUtterance(`${userData.name}, you are already present`);
                         window.speechSynthesis.speak(utterance);
                     }
                 } else {
                     setStatus('recognized');
-                    toast.success(`Present: ${studentData.name}`, { icon: '✅' });
+                    toast.success(`Present: ${userData.name}`, { icon: '✅' });
                     
                     // Add to local history
                     setScanHistory(prev => [{
-                        ...studentData,
+                        ...userData,
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
                         mode: 'face',
                         id: Date.now()
@@ -199,7 +201,7 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
 
                     // Voice feedback for new attendance
                     if ('speechSynthesis' in window) {
-                        const utterance = new SpeechSynthesisUtterance(`Welcome, ${studentData.name}`);
+                        const utterance = new SpeechSynthesisUtterance(`Welcome, ${userData.name}`);
                         window.speechSynthesis.speak(utterance);
                     }
                 }
@@ -324,7 +326,10 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                                         {status === 'recognized' ? <UserCheck size={64} className="text-white" /> : <Info size={64} className="text-slate-900" />}
                                     </div>
                                     <h3 className="text-4xl font-black tracking-tight mb-4 uppercase drop-shadow-sm">{lastRecognized.name}</h3>
-                                    <p className="text-md font-bold opacity-80 mb-8 font-mono tracking-widest bg-black/10 rounded-full py-1">ID: {lastRecognized.admission_no}</p>
+                                    <div className="flex items-center justify-center gap-2 mb-4">
+                                        <p className="text-md font-bold opacity-80 font-mono tracking-widest bg-black/10 rounded-full py-1 px-4 text-xs">ID: {lastRecognized.user_id}</p>
+                                        <span className="bg-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">{lastRecognized.type || 'Student'}</span>
+                                    </div>
                                     
                                     <div className="bg-black/20 py-4 px-8 rounded-2xl font-black uppercase text-lg tracking-widest shadow-xl animate-pulse">
                                         {status === 'recognized' ? '✓ PRESENT MARKED' : '⚠️ ALREADY TAKEN'}

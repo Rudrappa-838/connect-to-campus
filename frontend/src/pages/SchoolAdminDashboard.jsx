@@ -267,8 +267,6 @@ const SchoolAdminDashboard = () => {
                         <NavSubButton active={activeTab === 'student-reviews-admin'} onClick={() => handleTabChange('student-reviews-admin')} label="Student Reviews" />
                         <NavSubButton active={activeTab === 'student-promotion'} onClick={() => handleTabChange('student-promotion')} label="Promote Students" />
                         <NavSubButton active={activeTab === 'student-attendance'} onClick={() => handleTabChange('student-attendance')} label="Take Attendance" />
-                        {academicConfig.has_face_enrollment && <NavSubButton active={activeTab === 'face-enrollment'} onClick={() => handleTabChange('face-enrollment')} label="Enroll Face" />}
-                        {academicConfig.has_face_scanner && <NavSubButton active={activeTab === 'face-attendance'} onClick={() => handleTabChange('face-attendance')} label="Face Scanner" />}
                         <NavSubButton active={activeTab === 'student-daily-status'} onClick={() => handleTabChange('student-daily-status')} label="Daily Status" />
                         <NavSubButton active={activeTab === 'student-report'} onClick={() => handleTabChange('student-report')} label="Reports" />
                         <NavSubButton active={activeTab === 'student-bin'} onClick={() => handleTabChange('student-bin')} label="Recycle Bin" />
@@ -447,6 +445,16 @@ const SchoolAdminDashboard = () => {
                     </div>
 
                     <p className="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 mt-6">Biometric & Access</p>
+                    <NavGroup
+                        label="Biometric Center"
+                        icon={ScanLine}
+                        expanded={expandedSections.biometric_center}
+                        onToggle={() => toggleSection('biometric_center')}
+                    >
+                        {academicConfig.has_face_enrollment && <NavSubButton active={activeTab === 'face-enrollment'} onClick={() => handleTabChange('face-enrollment')} label="Multi-Role Enrollment" />}
+                        {academicConfig.has_face_scanner && <NavSubButton active={activeTab === 'face-attendance'} onClick={() => handleTabChange('face-attendance')} label="Multi-Role Scanner" />}
+                    </NavGroup>
+
                     {academicConfig.has_biometric && (
                         <div className="mt-2">
                             <NavGroup

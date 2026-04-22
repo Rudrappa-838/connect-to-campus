@@ -5,7 +5,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import {
     LayoutDashboard, CheckSquare, Bus, Calendar,
-    FileText, LogOut, Bell, Briefcase, Navigation, Radio, MapPin, Menu, X, ChevronDown, ChevronRight
+    FileText, LogOut, Bell, Briefcase, Navigation, Radio, MapPin, Menu, X, ChevronDown, ChevronRight, Clock
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
@@ -15,6 +15,7 @@ import RecentAnnouncements from '../components/dashboard/calendar/RecentAnnounce
 import StaffMyAttendance from '../components/dashboard/staff/StaffMyAttendance';
 import TeacherTransportMap from '../components/dashboard/teachers/TeacherTransportMap';
 import StaffSalarySlips from '../components/dashboard/staff/StaffSalarySlips';
+import StaffLeaveApplication from '../components/dashboard/staff/StaffLeaveApplication';
 import AdminLiveMap from '../components/dashboard/admin/AdminLiveMap';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
@@ -310,6 +311,7 @@ const StaffDashboard = () => {
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Finance</p>
                     <NavButton active={activeTab === 'salary'} onClick={() => handleTabChange('salary')} icon={FileText} label="Salary Slips" />
+                    <NavButton active={activeTab === 'leaves'} onClick={() => handleTabChange('leaves')} icon={Clock} label="Leave Applications" />
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">General</p>
                     <NavButton id="btn-announcements" active={activeTab === 'announcements'} onClick={() => handleTabChange('announcements')} icon={Bell} label="Notice Board" />
@@ -402,6 +404,7 @@ const StaffDashboard = () => {
                         {activeTab === 'fleet-map' && <AdminLiveMap />}
 
                         {activeTab === 'salary' && <StaffSalarySlips />}
+                        {activeTab === 'leaves' && <StaffLeaveApplication />}
                         {activeTab === 'announcements' && <ViewAnnouncements />}
                         {activeTab === 'calendar' && <SchoolCalendar />}
                         
@@ -690,6 +693,7 @@ const getTabTitle = (tab, isDriver) => {
         case 'salary': return 'Salary & Payslips';
         case 'calendar': return 'Academic Calendar';
         case 'announcements': return 'Announcements';
+        case 'leaves': return 'Leave Applications';
         case 'library-overview': return 'Library Information';
         case 'library-books': return 'Book Management';
         case 'library-issue': return 'Circulation Desk';

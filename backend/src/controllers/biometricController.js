@@ -29,11 +29,11 @@ const searchUsers = async (req, res) => {
             sql = `SELECT id, name, admission_no as user_id, 'student' as type, biometric_template, rfid_card_id 
                    FROM students WHERE school_id = $1 AND (name ILIKE $2 OR admission_no ILIKE $2)`;
         } else if (type === 'teacher') {
-            sql = `SELECT id, name, email as user_id, 'teacher' as type, biometric_template, rfid_card_id 
-                   FROM teachers WHERE school_id = $1 AND (name ILIKE $2 OR email ILIKE $2)`;
+            sql = `SELECT id, name, COALESCE(employee_id, email) as user_id, 'teacher' as type, biometric_template, rfid_card_id 
+                   FROM teachers WHERE school_id = $1 AND (name ILIKE $2 OR email ILIKE $2 OR employee_id ILIKE $2)`;
         } else if (type === 'staff') {
-            sql = `SELECT id, name, email as user_id, 'staff' as type, biometric_template, rfid_card_id 
-                   FROM staff WHERE school_id = $1 AND (name ILIKE $2 OR email ILIKE $2)`;
+            sql = `SELECT id, name, COALESCE(employee_id, email) as user_id, 'staff' as type, biometric_template, rfid_card_id 
+                   FROM staff WHERE school_id = $1 AND (name ILIKE $2 OR email ILIKE $2 OR employee_id ILIKE $2)`;
         }
 
         const result = await pool.query(sql, params);
@@ -71,16 +71,30 @@ const getEnrolledUsers = async (req, res) => {
         const schoolId = req.user.schoolId;
         console.log(`[GET ENROLLED] Fetching for School ID: ${schoolId}`);
         
-        const result = await pool.query(
+        const studentResult = await pool.query(
             `SELECT id, name, admission_no as user_id, 'student' as type, biometric_template, updated_at
              FROM students 
-             WHERE school_id = $1 AND biometric_template IS NOT NULL
-             ORDER BY name ASC`,
+             WHERE school_id = $1 AND biometric_template IS NOT NULL`,
             [schoolId]
         );
         
-        console.log(`[GET ENROLLED] Found ${result.rows.length} enrolled users`);
-        res.json(result.rows);
+        const teacherResult = await pool.query(
+            `SELECT id, name, COALESCE(employee_id, email) as user_id, 'teacher' as type, biometric_template, updated_at
+             FROM teachers 
+             WHERE school_id = $1 AND biometric_template IS NOT NULL`,
+            [schoolId]
+        );
+
+        const staffResult = await pool.query(
+            `SELECT id, name, COALESCE(employee_id, email) as user_id, 'staff' as type, biometric_template, updated_at
+             FROM staff 
+             WHERE school_id = $1 AND biometric_template IS NOT NULL`,
+            [schoolId]
+        );
+        
+        const allUsers = [...studentResult.rows, ...teacherResult.rows, ...staffResult.rows];
+        console.log(`[GET ENROLLED] Found ${allUsers.length} enrolled users`);
+        res.json(allUsers);
     } catch (error) {
         console.error('[GET ENROLLED ERROR]', error);
         res.status(500).json({ message: 'Error fetching enrolled users' });
@@ -322,25 +336,34 @@ const markFaceAttendance = async (req, res) => {
             return res.status(400).json({ message: 'No face descriptor provided' });
         }
 
-        let query = `SELECT id, name, admission_no, class_id, section_id, biometric_template, contact_number, school_id 
-                     FROM students 
-                     WHERE school_id = $1 AND biometric_template IS NOT NULL`;
-        let params = [schoolId];
+        // Search Students
+        let studentQuery = `SELECT id, name, admission_no as user_id, class_id, section_id, biometric_template, contact_number, school_id, 'student' as type 
+                             FROM students 
+                             WHERE school_id = $1 AND biometric_template IS NOT NULL`;
+        let studentParams = [schoolId];
+        if (class_id) { studentQuery += ` AND class_id = $2`; studentParams.push(class_id); }
+        if (section_id) { studentQuery += ` AND section_id = $3`; studentParams.push(section_id); }
 
-        if (class_id) { query += ` AND class_id = $2`; params.push(class_id); }
-        if (section_id) { query += ` AND section_id = $3`; params.push(section_id); }
+        const studentResult = await client.query(studentQuery, studentParams);
+        
+        // Search Teachers & Staff (only if no class/section filter is active, or if we want global search)
+        let otherUsers = [];
+        if (!class_id && !section_id) {
+            const teacehrRes = await client.query(`SELECT id, name, email as user_id, biometric_template, school_id, 'teacher' as type FROM teachers WHERE school_id = $1 AND biometric_template IS NOT NULL`, [schoolId]);
+            const staffRes = await client.query(`SELECT id, name, email as user_id, biometric_template, school_id, 'staff' as type FROM staff WHERE school_id = $1 AND biometric_template IS NOT NULL`, [schoolId]);
+            otherUsers = [...teacehrRes.rows, ...staffRes.rows];
+        }
 
-        const result = await client.query(query, params);
-        const candidates = result.rows;
+        const candidates = [...studentResult.rows, ...otherUsers];
 
-        if (candidates.length === 0) return res.status(404).json({ message: 'No enrolled students found' });
+        if (candidates.length === 0) return res.status(404).json({ message: 'No enrolled users found' });
 
         let bestMatch = null;
         let minDistance = 0.6;
 
-        for (const student of candidates) {
+        for (const user of candidates) {
             try {
-                const storedDescriptor = typeof student.biometric_template === 'string' ? JSON.parse(student.biometric_template) : student.biometric_template;
+                const storedDescriptor = typeof user.biometric_template === 'string' ? JSON.parse(user.biometric_template) : user.biometric_template;
                 if (!Array.isArray(storedDescriptor)) continue;
                 let sumSq = 0;
                 for (let i = 0; i < descriptor.length; i++) {
@@ -348,28 +371,36 @@ const markFaceAttendance = async (req, res) => {
                     sumSq += diff * diff;
                 }
                 const distance = Math.sqrt(sumSq);
-                if (distance < minDistance) { minDistance = distance; bestMatch = student; }
+                if (distance < minDistance) { minDistance = distance; bestMatch = user; }
             } catch (e) { continue; }
         }
 
         if (!bestMatch) return res.status(404).json({ message: 'Face not recognized' });
 
-        const existingRef = await client.query(`SELECT status FROM attendance WHERE student_id = $1 AND date = $2`, [bestMatch.id, date]);
+        // Update correct attendance table
+        let attendanceTable = 'attendance';
+        let idColumn = 'student_id';
+        if (bestMatch.type === 'teacher') { attendanceTable = 'teacher_attendance'; idColumn = 'teacher_id'; }
+        else if (bestMatch.type === 'staff') { attendanceTable = 'staff_attendance'; idColumn = 'staff_id'; }
+
+        const existingRef = await client.query(`SELECT status FROM ${attendanceTable} WHERE ${idColumn} = $1 AND date = $2`, [bestMatch.id, date]);
         const existingStatus = existingRef.rows.length > 0 ? existingRef.rows[0].status : null;
 
         if (existingStatus === 'Present') {
-            return res.json({ success: true, alreadyMarked: true, message: `Already marked for ${bestMatch.name}`, student: bestMatch });
+            return res.json({ success: true, alreadyMarked: true, message: `Already marked for ${bestMatch.name}`, user: bestMatch });
         }
 
         await client.query(
-            `INSERT INTO attendance (school_id, student_id, date, status, marking_mode) VALUES ($1, $2, $3, 'Present', 'face')
-             ON CONFLICT (student_id, date) DO UPDATE SET status = 'Present', marking_mode = 'face'`,
+            `INSERT INTO ${attendanceTable} (school_id, ${idColumn}, date, status, marking_mode) VALUES ($1, $2, $3, 'Present', 'face')
+             ON CONFLICT (${idColumn}, date) DO UPDATE SET status = 'Present', marking_mode = 'face'`,
             [schoolId, bestMatch.id, date]
         );
 
-        if (existingStatus !== 'Present') await sendAttendanceNotification(bestMatch, 'Present');
+        if (existingStatus !== 'Present' && bestMatch.type === 'student') {
+            await sendAttendanceNotification(bestMatch, 'Present');
+        }
 
-        res.json({ success: true, message: `Recognized: ${bestMatch.name}`, student: bestMatch, distance: minDistance });
+        res.json({ success: true, message: `Recognized: ${bestMatch.name}`, user: bestMatch, distance: minDistance });
     } catch (error) {
         console.error('Face Recognition Error:', error);
         res.status(500).json({ message: 'Server error' });
@@ -382,7 +413,7 @@ const markFaceAttendance = async (req, res) => {
 const markFaceAttendanceById = async (req, res) => {
     const client = await pool.connect();
     try {
-        const { studentId, marking_mode = 'face' } = req.body;
+        const { userId, type = 'student', marking_mode = 'face' } = req.body;
         const schoolId = req.user.schoolId;
         const { role, linkedId } = req.user;
         const date = new Date().toISOString().split('T')[0];
@@ -397,30 +428,41 @@ const markFaceAttendanceById = async (req, res) => {
             }
         }
 
-        const studentRes = await client.query(
-            `SELECT id, name, admission_no, school_id, contact_number FROM students WHERE id = $1 AND school_id = $2`,
-            [studentId, schoolId]
+        let table = '';
+        let attendanceTable = '';
+        let idColumn = '';
+
+        if (type === 'student') { table = 'students'; attendanceTable = 'attendance'; idColumn = 'student_id'; }
+        else if (type === 'teacher') { table = 'teachers'; attendanceTable = 'teacher_attendance'; idColumn = 'teacher_id'; }
+        else if (type === 'staff') { table = 'staff'; attendanceTable = 'staff_attendance'; idColumn = 'staff_id'; }
+        else return res.status(400).json({ message: 'Invalid user type' });
+
+        const userRes = await client.query(
+            `SELECT id, name, school_id FROM ${table} WHERE id = $1 AND school_id = $2`,
+            [userId, schoolId]
         );
 
-        if (studentRes.rows.length === 0) return res.status(404).json({ message: 'Student not found' });
-        const student = studentRes.rows[0];
+        if (userRes.rows.length === 0) return res.status(404).json({ message: 'User not found' });
+        const user = userRes.rows[0];
 
-        const existingRef = await client.query(`SELECT status FROM attendance WHERE student_id = $1 AND date = $2`, [studentId, date]);
+        const existingRef = await client.query(`SELECT status FROM ${attendanceTable} WHERE ${idColumn} = $1 AND date = $2`, [userId, date]);
         const existingStatus = existingRef.rows.length > 0 ? existingRef.rows[0].status : null;
 
         if (existingStatus === 'Present') {
-            return res.json({ success: true, alreadyMarked: true, message: `Already marked for ${student.name}`, student });
+            return res.json({ success: true, alreadyMarked: true, message: `Already marked for ${user.name}`, user });
         }
 
         await client.query(
-            `INSERT INTO attendance (school_id, student_id, date, status, marking_mode) VALUES ($1, $2, $3, 'Present', $4)
-             ON CONFLICT (student_id, date) DO UPDATE SET status = 'Present', marking_mode = $4`,
-            [schoolId, studentId, date, marking_mode]
+            `INSERT INTO ${attendanceTable} (school_id, ${idColumn}, date, status, marking_mode) VALUES ($1, $2, $3, 'Present', $4)
+             ON CONFLICT (${idColumn}, date) DO UPDATE SET status = 'Present', marking_mode = $4`,
+            [schoolId, userId, date, marking_mode]
         );
 
-        if (existingStatus !== 'Present') await sendAttendanceNotification(student, 'Present');
+        if (existingStatus !== 'Present' && type === 'student') {
+            await sendAttendanceNotification(user, 'Present');
+        }
 
-        res.json({ success: true, message: `Attendance marked for ${student.name}`, student });
+        res.json({ success: true, message: `Attendance marked for ${user.name}`, user });
     } catch (error) {
         console.error('Fast Attendance Error:', error);
         res.status(500).json({ message: 'Server error' });

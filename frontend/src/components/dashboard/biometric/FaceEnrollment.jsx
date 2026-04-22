@@ -8,6 +8,7 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
     const [loading, setLoading] = useState(true);
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [userRole, setUserRole] = useState('student'); // 'student', 'teacher', 'staff'
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [step, setStep] = useState(0); // 0: search, 1: capture 1, 2: capture 2, 3: confirm
@@ -51,7 +52,7 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
     const handleSearch = async (e) => {
         if (e) e.preventDefault();
         try {
-            const res = await api.get('/biometric/search', { params: { type: 'student', query: searchQuery } });
+            const res = await api.get('/biometric/search', { params: { type: userRole, query: searchQuery } });
             setUsers(res.data);
         } catch (error) {
             toast.error('Search failed');
@@ -178,7 +179,7 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
         const loadingToast = toast.loading('Saving face enrollment...');
         try {
             await api.post('/biometric/enroll-face', {
-                type: 'student',
+                type: selectedUser.type || userRole,
                 id: selectedUser.id,
                 biometric_template: descriptor2
             });
@@ -218,7 +219,7 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
                     <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                         <Camera className="text-indigo-600" /> Face Enrollment
                     </h2>
-                    <p className="text-slate-500 text-sm">Register student faces for entrance gate attendance</p>
+                    <p className="text-slate-500 text-sm">Register face biometric fingerprints for access control and attendance</p>
                 </div>
                 {step > 0 && (
                     <button 
@@ -233,13 +234,26 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
             {/* Step 0: Search Student */}
             {step === 0 && (
                 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
-                    <h3 className="text-lg font-bold text-slate-700 mb-6">Step 1: Find Student</h3>
+                    <div className="flex justify-between items-end mb-6">
+                        <h3 className="text-lg font-bold text-slate-700">Step 1: Find User</h3>
+                        <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                            {['student', 'teacher', 'staff'].map(role => (
+                                <button
+                                    key={role}
+                                    onClick={() => { setUserRole(role); setUsers([]); }}
+                                    className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${userRole === role ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    {role}s
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <form onSubmit={handleSearch} className="flex gap-4 mb-8">
                         <div className="relative flex-1">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                             <input 
                                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-semibold"
-                                placeholder="Search by Admission ID, Name, Class or Section..."
+                                placeholder={`Search ${userRole}s by ID, Name or Email...`}
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                             />
@@ -302,7 +316,7 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
                     {users.length === 0 && searchQuery && (
                         <div className="text-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
                              <Search size={48} className="mx-auto mb-4 text-slate-300" />
-                             <p className="text-sm font-bold text-slate-400">Try searching with Admission ID or full name</p>
+                             <p className="text-sm font-bold text-slate-400">No {userRole}s found. Try searching with ID or full name</p>
                         </div>
                     )}
                 </div>
@@ -379,7 +393,7 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
                     {/* Sidebar: Progress & Profile */}
                     <div className="space-y-6">
                         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 min-h-[400px]">
-                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-2">Target Student</p>
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-2">Target {selectedUser.type || userRole}</p>
                             <div className="flex items-center gap-4 mb-8">
                                 <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black text-xl">
                                     {selectedUser.name[0]}
@@ -454,7 +468,7 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
                             </div>
                             <div className="grid grid-cols-2 gap-4 border-t border-slate-200 pt-4">
                                 <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Admission No</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">{selectedUser.type === 'student' ? 'Admission No' : 'Employee ID'}</p>
                                     <p className="font-mono font-bold text-indigo-600">{selectedUser.user_id}</p>
                                 </div>
                                 <div>
