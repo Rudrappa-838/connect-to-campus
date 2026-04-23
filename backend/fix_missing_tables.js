@@ -40,7 +40,14 @@ async function fixMissingTables() {
         // 2. Ensure students table has admission_no (standardizing for today-attendance query)
         // (Just a safety check, it should already exist)
         
-        console.log('Schema fix completed successfully.');
+        // 3. Migrate PUC specific fields
+        console.log('Migrating PUC specific fields...');
+        await pool.query(`
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS sats_number VARCHAR(50);
+            ALTER TABLE subjects ADD COLUMN IF NOT EXISTS subject_code VARCHAR(10);
+        `);
+
+        console.log('✅ All schema fixes completed successfully.');
         process.exit(0);
     } catch (err) {
         console.error('❌ Schema fix failed:', err);
