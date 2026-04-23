@@ -50,6 +50,7 @@ const getTodayFaceAttendance = async (req, res) => {
         const schoolId = req.user.schoolId;
         const date = new Date().toISOString().split('T')[0];
         
+        // Robust query using UNION and COALESCE to handle multi-role attendance and missing timestamps
         const result = await pool.query(
             `SELECT 
                 s.id, s.name, s.admission_no as user_id, 'student' as type, a.date, a.marking_mode, 
