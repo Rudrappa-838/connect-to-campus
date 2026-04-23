@@ -77,6 +77,8 @@ const NotificationRegistration = () => {
                                     smallIcon: 'ic_launcher',
                                     iconColor: '#0ea5e9',
                                     sound: 'default',
+                                    ongoing: true, // Keep in tray
+                                    autoCancel: false, // Don't dismiss automatically
                                     extra: notification.data || {}
                                 }
                             ]
