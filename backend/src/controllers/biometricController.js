@@ -53,7 +53,7 @@ const getTodayFaceAttendance = async (req, res) => {
         const result = await pool.query(
             `SELECT 
                 s.id, s.name, s.admission_no as user_id, 'student' as type, a.date, a.marking_mode, 
-                TO_CHAR(a.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata', 'HH:MI AM') as scan_time 
+                TO_CHAR(COALESCE(a.created_at, a.date::timestamp) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata', 'HH:MI AM') as scan_time 
              FROM attendance a
              JOIN students s ON a.student_id = s.id
              WHERE a.school_id = $1 AND a.date = $2
@@ -62,7 +62,7 @@ const getTodayFaceAttendance = async (req, res) => {
              
              SELECT 
                 t.id, t.name, COALESCE(t.employee_id, t.email) as user_id, 'teacher' as type, ta.date, ta.marking_mode, 
-                TO_CHAR(ta.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata', 'HH:MI AM') as scan_time 
+                TO_CHAR(COALESCE(ta.created_at, ta.date::timestamp) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata', 'HH:MI AM') as scan_time 
              FROM teacher_attendance ta
              JOIN teachers t ON ta.teacher_id = t.id
              WHERE ta.school_id = $1 AND ta.date = $2
@@ -71,7 +71,7 @@ const getTodayFaceAttendance = async (req, res) => {
              
              SELECT 
                 st.id, st.name, COALESCE(st.employee_id, st.email) as user_id, 'staff' as type, sa.date, sa.marking_mode, 
-                TO_CHAR(sa.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata', 'HH:MI AM') as scan_time 
+                TO_CHAR(COALESCE(sa.created_at, sa.date::timestamp) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata', 'HH:MI AM') as scan_time 
              FROM staff_attendance sa
              JOIN staff st ON sa.staff_id = st.id
              WHERE sa.school_id = $1 AND sa.date = $2
