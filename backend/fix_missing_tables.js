@@ -28,6 +28,15 @@ async function fixMissingTables() {
         `);
         console.log('✅ Attendance timestamps verified.');
 
+        // 3. Fix missing columns in schools table
+        console.log('Verifying school table columns...');
+        await pool.query(`
+            ALTER TABLE schools ADD COLUMN IF NOT EXISTS institution_type VARCHAR(50) DEFAULT 'SCHOOL';
+            ALTER TABLE schools ADD COLUMN IF NOT EXISTS gemini_api_key TEXT;
+            ALTER TABLE schools ADD COLUMN IF NOT EXISTS marksheet_template VARCHAR(100) DEFAULT 'default';
+        `);
+        console.log('✅ School table columns verified.');
+
         // 2. Ensure students table has admission_no (standardizing for today-attendance query)
         // (Just a safety check, it should already exist)
         
