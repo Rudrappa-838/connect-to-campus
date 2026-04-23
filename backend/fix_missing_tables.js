@@ -19,6 +19,14 @@ async function fixMissingTables() {
         `);
         console.log('✅ marksheet_custom_templates table verified/created.');
 
+        // 2. Fix missing created_at columns in attendance tables
+        console.log('Verifying attendance timestamps...');
+        await pool.query(`
+            ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+            ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+        `);
+        console.log('✅ Attendance timestamps verified.');
+
         // 2. Ensure students table has admission_no (standardizing for today-attendance query)
         // (Just a safety check, it should already exist)
         
