@@ -144,7 +144,7 @@ const StaffManagement = () => {
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
-                                                        {t.name.charAt(0)}
+                                                        {t.name?.[0]?.toUpperCase() || 'S'}
                                                     </div>
                                                     <div>
                                                         <div className="font-bold text-slate-700">{t.name}</div>

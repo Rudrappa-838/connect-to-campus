@@ -773,23 +773,6 @@ exports.permanentDeleteStudent = async (req, res) => {
         console.log('[PERMANENT DELETE STUDENT] Preserving marks and certificates...');
 
         try {
-            // Check if columns exist first (Safety Check)
-            const checkCols = await client.query(`
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name = 'marks' AND column_name = 'deleted_student_name'
-            `);
-
-            if (checkCols.rows.length === 0) {
-                // Auto-add columns if missing (Emergency Fix)
-                console.log('[PERMANENT DELETE STUDENT] Adding missing columns to marks table...');
-                await client.query(`
-                    ALTER TABLE marks 
-                    ADD COLUMN IF NOT EXISTS deleted_student_name VARCHAR(255),
-                    ADD COLUMN IF NOT EXISTS deleted_student_admission_no VARCHAR(50),
-                    ALTER COLUMN student_id DROP NOT NULL;
-                `);
-            }
-
             // Store student info in marks table before nullifying link
             const marksResult = await client.query(
                 `UPDATE marks 
@@ -802,26 +785,15 @@ exports.permanentDeleteStudent = async (req, res) => {
             console.log(`[PERMANENT DELETE STUDENT] Preserved ${marksResult.rowCount} marks records`);
 
             // Same for certificates
-            try {
-                await client.query(`
-                    ALTER TABLE student_certificates 
-                    ADD COLUMN IF NOT EXISTS deleted_student_name VARCHAR(255),
-                    ADD COLUMN IF NOT EXISTS deleted_student_admission_no VARCHAR(50),
-                    ALTER COLUMN student_id DROP NOT NULL;
-                `);
-
-                const certsResult = await client.query(
-                    `UPDATE student_certificates 
-                     SET deleted_student_name = $1,
-                         deleted_student_admission_no = $2,
-                         student_id = NULL 
-                     WHERE student_id = $3`,
-                    [name, admission_no, id]
-                );
-                console.log(`[PERMANENT DELETE STUDENT] Preserved ${certsResult.rowCount} certificate records`);
-            } catch (certError) {
-                console.warn('[PERMANENT DELETE STUDENT] Certificate preservation failed (non-critical):', certError.message);
-            }
+            const certsResult = await client.query(
+                `UPDATE student_certificates 
+                 SET deleted_student_name = $1,
+                     deleted_student_admission_no = $2,
+                     student_id = NULL 
+                 WHERE student_id = $3`,
+                [name, admission_no, id]
+            );
+            console.log(`[PERMANENT DELETE STUDENT] Preserved ${certsResult.rowCount} certificate records`);
 
         } catch (e) {
             console.error('[PERMANENT DELETE STUDENT] CRITICAL Error preserving records:', e);

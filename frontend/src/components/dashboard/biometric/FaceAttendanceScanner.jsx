@@ -9,11 +9,6 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [cameraActive, setCameraActive] = useState(false);
     
-    // Filters
-    const [filterClass, setFilterClass] = useState('');
-    const [filterSection, setFilterSection] = useState('');
-    const availableSections = config?.classes?.find(c => c.class_id === parseInt(filterClass))?.sections || [];
-
     // Scanning State
     const videoRef = useRef(null);
     const [scanning, setScanning] = useState(false);
@@ -149,7 +144,7 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                         const distance = Math.sqrt(sumSq);
                         if (distance < minDistance) {
                             minDistance = distance;
-                            bestMatch = student;
+                            bestMatch = user;
                         }
                     }
 
@@ -250,28 +245,6 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                 </div>
 
                 <div className="flex flex-wrap gap-3 items-center">
-                    <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-                        <Filter size={16} className="text-slate-400 ml-2" />
-                        <select 
-                            className="bg-transparent text-sm font-bold outline-none text-slate-700 min-w-[120px]"
-                            value={filterClass}
-                            onChange={e => { setFilterClass(e.target.value); setFilterSection(''); }}
-                        >
-                            <option value="">All Classes (Random)</option>
-                            {config?.classes?.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
-                        </select>
-                        {filterClass && (
-                            <select 
-                                className="bg-transparent text-sm font-bold outline-none text-slate-700 border-l border-slate-200 pl-2 ml-2"
-                                value={filterSection}
-                                onChange={e => setFilterSection(e.target.value)}
-                            >
-                                <option value="">Sections</option>
-                                {availableSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                        )}
-                    </div>
-                    
                     {!cameraActive ? (
                         <button 
                             onClick={startCamera}
@@ -340,14 +313,13 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                     </div>
 
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-start gap-4">
-                        <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600">
-                            <Info size={20} />
+                        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                            <Shield size={20} />
                         </div>
                         <div className="flex-1">
-                            <p className="text-sm font-bold text-slate-700">Scanner Optimization</p>
+                            <p className="text-sm font-bold text-slate-700">Entrance Mode Active</p>
                             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                                For faster matching, select a <strong>Specific Class</strong>. This reduces the search group. 
-                                "Random" mode scans the entire school database but may take an extra second on older phones.
+                                The scanner is now in <strong>Global Mode</strong>. It will recognize any student, teacher, or staff member who has enrolled their face.
                             </p>
                         </div>
                     </div>

@@ -480,7 +480,7 @@ const getTabTitle = (tab) => {
         case 'announcements': return 'Announcements';
         case 'question-bank': return 'NEET & JEE Master Bank';
         case 'question-generator': return 'AI Question Paper Generator';
-        case 'face-enroll': return 'Student Face Enrollment';
+        case 'face-enroll': return 'Biometric Face Enrollment';
         case 'face-scanner': return 'Biometric Face Scanner';
         case 'profile': return 'My Profile Settings';
         default: return 'Dashboard';

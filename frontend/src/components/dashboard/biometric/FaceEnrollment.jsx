@@ -463,7 +463,7 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
 
                         <div className="space-y-4 mb-10 bg-slate-50 p-6 rounded-3xl border border-slate-100">
                             <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Student Name</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">{selectedUser.type?.toUpperCase() || 'USER'} NAME</p>
                                 <p className="text-2xl font-black text-slate-800 tracking-tight">{selectedUser.name}</p>
                             </div>
                             <div className="grid grid-cols-2 gap-4 border-t border-slate-200 pt-4">

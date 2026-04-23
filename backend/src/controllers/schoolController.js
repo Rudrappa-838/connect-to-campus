@@ -374,7 +374,7 @@ const updateSchool = async (req, res) => {
                         const affectedStudents = await client.query(
                             `UPDATE students 
                              SET status = 'Unassigned', 
-                                 class_name = 'Unassigned - Previously: ' || class_name || ' ' || section_name,
+                                 class_name = 'Unassigned - Previously: ' || COALESCE(class_name, 'Unknown Class') || ' ' || COALESCE(section_name, 'Unknown Section'),
                                  section_name = 'N/A'
                              WHERE school_id = $1 AND class_id = $2 AND section_id = $3 AND status != 'Deleted'
                              RETURNING id, name`,
@@ -443,7 +443,7 @@ const updateSchool = async (req, res) => {
                     const affectedStudents = await client.query(
                         `UPDATE students 
                          SET status = 'Unassigned', 
-                             class_name = 'Unassigned - Previously: ' || class_name || ' ' || section_name,
+                             class_name = 'Unassigned - Previously: ' || COALESCE(class_name, 'Unknown Class') || ' ' || COALESCE(section_name, 'Unknown Section'),
                              section_name = 'N/A'
                          WHERE school_id = $1 AND class_id = $2 AND status != 'Deleted'
                          RETURNING id, name`,

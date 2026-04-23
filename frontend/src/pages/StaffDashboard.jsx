@@ -701,7 +701,7 @@ const getTabTitle = (tab, isDriver) => {
         case 'hostel-rooms': return 'Room Configurations';
         case 'hostel-allocation': return 'Room Allocations';
         case 'hostel-finance': return 'Hostel Finances';
-        case 'face-enroll': return 'Student Face Enrollment';
+        case 'face-enroll': return 'Biometric Face Enrollment';
         case 'face-scanner': return 'Biometric Face Scanner';
         default: return 'Dashboard';
     }

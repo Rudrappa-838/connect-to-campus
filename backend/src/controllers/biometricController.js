@@ -72,7 +72,7 @@ const getEnrolledUsers = async (req, res) => {
         console.log(`[GET ENROLLED] Fetching for School ID: ${schoolId}`);
         
         const studentResult = await pool.query(
-            `SELECT id, name, admission_no as user_id, 'student' as type, biometric_template, updated_at
+            `SELECT id, name, admission_no as user_id, 'student' as type, class_id, section_id, biometric_template, updated_at
              FROM students 
              WHERE school_id = $1 AND biometric_template IS NOT NULL`,
             [schoolId]

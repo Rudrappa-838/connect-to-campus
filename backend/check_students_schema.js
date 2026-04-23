@@ -1,23 +1,21 @@
 const { pool } = require('./src/config/db');
 
 async function checkStudentsSchema() {
-    try {
-        const result = await pool.query(`
-            SELECT column_name, data_type, is_nullable
-            FROM information_schema.columns 
-            WHERE table_name = 'sections' 
-            ORDER BY ordinal_position
-        `);
-
-        const cols = result.rows.map(r => r.column_name);
-        console.log('Columns in sections table:', cols.join(', '));
-
-        // Find school_id specifically
-        const hasSchoolId = cols.includes('school_id');
-        console.log('Has school_id:', hasSchoolId);
-    } finally {
-        await pool.end();
-    }
+  try {
+    const res = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'students'
+    `);
+    console.log('--- students Table Columns ---');
+    res.rows.forEach(row => {
+      console.log(`${row.column_name}: ${row.data_type}`);
+    });
+  } catch (err) {
+    console.error('Error fetching schema:', err);
+  } finally {
+    process.exit(0);
+  }
 }
 
 checkStudentsSchema();
