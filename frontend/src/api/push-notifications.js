@@ -29,6 +29,11 @@ export const registerPushNotifications = async (userId) => {
 
         // 3. Create High Importance Channel for Android (Critical for tray visibility)
         if (Capacitor.getPlatform() === 'android') {
+            // Delete old channel first to ensure fresh settings are applied
+            try {
+                await PushNotifications.deleteChannel({ id: 'school_notifications' });
+            } catch (e) {}
+
             await PushNotifications.createChannel({
                 id: 'school_notifications',
                 name: 'School Notifications',

@@ -52,13 +52,15 @@ const sendPushNotification = async (token, title, body, data = {}, badge = null)
             ttl: 86400000, // 24 hours in milliseconds
             notification: {
                 channelId: 'school_notifications', // Matches the channel created in frontend
-                color: '#0ea5e9',
+                icon: 'ic_stat_notification',
+                color: '#4f46e5',
                 sticky: false,
                 visibility: 'public',
                 notificationCount: badge ? parseInt(badge) : undefined,
                 defaultSound: true,
                 defaultVibrateTimings: true,
-                priority: 'max' // Use 'max' for Android-specific priority
+                priority: 'max',
+                tag: `notif_${Date.now()}` // Ensures each notification is unique in the tray
             }
         },
         apns: {
@@ -66,7 +68,7 @@ const sendPushNotification = async (token, title, body, data = {}, badge = null)
                 aps: {
                     badge: badge ? parseInt(badge) : undefined,
                     sound: 'default',
-                    'content-available': 1 // For background delivery
+                    'content-available': 1
                 }
             }
         },

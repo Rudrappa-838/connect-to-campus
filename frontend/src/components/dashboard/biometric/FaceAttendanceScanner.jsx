@@ -13,7 +13,7 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
     const videoRef = useRef(null);
     const [scanning, setScanning] = useState(false);
     const [lastRecognized, setLastRecognized] = useState(null);
-    const [status, setStatus] = useState('idle'); // idle, scanning, recognized, error, already_marked
+    const [status, setStatus] = useState('idle'); // idle, scanning, recognized, error, already_marked, unknown
     
     // Data
     const [scanHistory, setScanHistory] = useState([]);
@@ -101,12 +101,17 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
         }
     };
 
-    // Keep video source in sync with stream
+    // Keep video source in sync with stream & cleanup on unmount
     useEffect(() => {
         if (videoRef.current && stream) {
             videoRef.current.srcObject = stream;
         }
-    }, [stream, cameraActive]);
+        return () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [stream]);
 
     const stopCamera = () => {
         if (videoRef.current && videoRef.current.srcObject) {
@@ -150,12 +155,35 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
 
                     if (bestMatch) {
                         handleRecognition(bestMatch);
+                    } else {
+                        // Face detected but no match found in enrolled users
+                        handleUnknownMatch();
                     }
                 }
             }, 500); // 500ms loop for ultra-speed
         }
         return () => clearInterval(interval);
     }, [cameraActive, scanning, status, enrolledUsers, isMatching]);
+
+    const handleUnknownMatch = () => {
+        setScanning(false);
+        setIsMatching(true);
+        setStatus('unknown');
+        
+        // Voice feedback
+        if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance("User not found, please enroll first");
+            window.speechSynthesis.speak(utterance);
+        }
+        toast.error("User not found", { icon: '❌' });
+
+        // Resume after delay
+        setTimeout(() => {
+            setScanning(true);
+            setIsMatching(false);
+            setStatus('scanning');
+        }, 2000);
+    };
 
     const handleRecognition = async (user) => {
         setScanning(false); 
@@ -179,7 +207,7 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                     
                     // Voice feedback for already marked
                     if ('speechSynthesis' in window) {
-                        const utterance = new SpeechSynthesisUtterance(`${userData.name}, you are already present`);
+                        const utterance = new SpeechSynthesisUtterance(`${userData.name}, attendance already taken`);
                         window.speechSynthesis.speak(utterance);
                     }
                 } else {
@@ -204,7 +232,8 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
         } catch (error) {
             console.error('Recognition error:', error);
             setStatus('error');
-            toast.error('Sync Error: Please check server connection');
+            const errorMsg = error.response?.data?.message || error.message || 'Sync Error';
+            toast.error(`Sync Error: ${errorMsg}`);
         } finally {
             // Ultra-fast resume (1s for new mark, 2s for already marked so it can be read)
             const delay = 1800; // Fixed consistent delay for readability
@@ -266,7 +295,7 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Main Scanning View */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className={`relative aspect-square md:aspect-video rounded-[3rem] overflow-hidden bg-slate-900 shadow-2xl border-4 transition-all duration-500 ${status === 'recognized' ? 'border-emerald-500 ring-8 ring-emerald-500/20' : status === 'already_marked' ? 'border-amber-400 ring-8 ring-amber-400/20' : status === 'scanning' ? 'border-white' : 'border-slate-800'}`}>
+                    <div className={`relative aspect-square md:aspect-video rounded-[3rem] overflow-hidden bg-slate-900 shadow-2xl border-4 transition-all duration-500 ${status === 'recognized' ? 'border-emerald-500 ring-8 ring-emerald-500/20' : status === 'already_marked' ? 'border-amber-400 ring-8 ring-amber-400/20' : status === 'unknown' ? 'border-rose-500 ring-8 ring-rose-500/20' : status === 'scanning' ? 'border-white' : 'border-slate-800'}`}>
                         {cameraActive ? (
                             <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover mirror" />
                         ) : (
@@ -292,22 +321,35 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                         )}
 
                         {/* Result Overlay */}
-                        {(status === 'recognized' || status === 'already_marked') && lastRecognized && (
+                        {(status === 'recognized' || status === 'already_marked' || status === 'unknown') && (
                             <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center animate-in fade-in zoom-in duration-200 z-50">
-                                <div className={`p-10 rounded-[3rem] shadow-2xl text-center max-w-md w-full mx-4 transform animate-in slide-in-from-bottom-12 scale-110 ${status === 'recognized' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-slate-900 font-black'}`}>
-                                    <div className="w-24 h-24 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner">
-                                        {status === 'recognized' ? <UserCheck size={64} className="text-white" /> : <Info size={64} className="text-slate-900" />}
+                                {status === 'unknown' ? (
+                                    <div className="p-10 rounded-[3rem] shadow-2xl text-center max-w-md w-full mx-4 transform animate-in slide-in-from-bottom-12 scale-110 bg-rose-600 text-white">
+                                        <div className="w-24 h-24 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner">
+                                            <X size={64} className="text-white" />
+                                        </div>
+                                        <h3 className="text-4xl font-black tracking-tight mb-4 uppercase drop-shadow-sm">User Not Found</h3>
+                                        <p className="text-md font-bold opacity-80 mb-6">Your face is not enrolled in the system</p>
+                                        <div className="bg-black/20 py-4 px-8 rounded-2xl font-black uppercase text-lg tracking-widest shadow-xl animate-pulse">
+                                            ❌ ACCESS DENIED
+                                        </div>
                                     </div>
-                                    <h3 className="text-4xl font-black tracking-tight mb-4 uppercase drop-shadow-sm">{lastRecognized.name}</h3>
-                                    <div className="flex items-center justify-center gap-2 mb-4">
-                                        <p className="text-md font-bold opacity-80 font-mono tracking-widest bg-black/10 rounded-full py-1 px-4 text-xs">ID: {lastRecognized.user_id}</p>
-                                        <span className="bg-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">{lastRecognized.type || 'Student'}</span>
+                                ) : lastRecognized && (
+                                    <div className={`p-10 rounded-[3rem] shadow-2xl text-center max-w-md w-full mx-4 transform animate-in slide-in-from-bottom-12 scale-110 ${status === 'recognized' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-slate-900 font-black'}`}>
+                                        <div className="w-24 h-24 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner">
+                                            {status === 'recognized' ? <UserCheck size={64} className="text-white" /> : <Info size={64} className="text-slate-900" />}
+                                        </div>
+                                        <h3 className="text-4xl font-black tracking-tight mb-4 uppercase drop-shadow-sm">{lastRecognized.name}</h3>
+                                        <div className="flex items-center justify-center gap-2 mb-4">
+                                            <p className="text-md font-bold opacity-80 font-mono tracking-widest bg-black/10 rounded-full py-1 px-4 text-xs">ID: {lastRecognized.user_id}</p>
+                                            <span className="bg-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">{lastRecognized.type || 'Student'}</span>
+                                        </div>
+                                        
+                                        <div className="bg-black/20 py-4 px-8 rounded-2xl font-black uppercase text-lg tracking-widest shadow-xl animate-pulse">
+                                            {status === 'recognized' ? '✓ PRESENT MARKED' : '⚠️ ALREADY TAKEN'}
+                                        </div>
                                     </div>
-                                    
-                                    <div className="bg-black/20 py-4 px-8 rounded-2xl font-black uppercase text-lg tracking-widest shadow-xl animate-pulse">
-                                        {status === 'recognized' ? '✓ PRESENT MARKED' : '⚠️ ALREADY TAKEN'}
-                                    </div>
-                                </div>
+                                )}
                             </div>
                         )}
                     </div>

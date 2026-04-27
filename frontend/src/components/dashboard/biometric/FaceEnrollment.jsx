@@ -78,12 +78,17 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
         }
     };
 
-    // Sync stream with video element
+    // Sync stream with video element & cleanup on unmount
     useEffect(() => {
         if (videoRef.current && stream) {
             videoRef.current.srcObject = stream;
         }
-    }, [stream, cameraActive]);
+        return () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [stream]);
 
     const stopCamera = () => {
         if (stream) {
