@@ -1,55 +1,56 @@
 const { pool } = require('./src/config/db');
 const { sendPushNotification } = require('./src/services/firebaseService');
 
-async function broadcastUpdate() {
-    console.log('--- STARTING APP UPDATE BROADCAST (v35) ---');
+const sendGlobalUpdateNotification = async () => {
+    console.log('🚀 Starting Global Update Notification Script...');
+    const client = await pool.connect();
+
     try {
-        // 1. Get all unique tokens from users table
-        const result = await pool.query('SELECT DISTINCT fcm_token FROM users WHERE fcm_token IS NOT NULL');
-        const tokens = result.rows.map(r => r.fcm_token);
+        // Fetch all unique FCM tokens from the users table
+        const result = await client.query('SELECT id, fcm_token FROM users WHERE fcm_token IS NOT NULL');
+        const users = result.rows;
 
-        console.log(`Found ${tokens.length} users with push tokens.`);
+        console.log(`📡 Found ${users.length} users with active FCM tokens.`);
 
-        const title = 'New App Update: Version 35';
-        const body = 'A critical update (v35) is available with fixed notifications. Please update from Play Store now!';
+        if (users.length === 0) {
+            console.log('⚠️ No tokens found. Exiting.');
+            return;
+        }
 
         let successCount = 0;
         let failCount = 0;
 
-        for (const token of tokens) {
-            try {
-                const response = await sendPushNotification(token, title, body, {
-                    type: 'UPDATE',
-                    version: '35',
-                    link: 'https://play.google.com/store/apps/details?id=com.connect2campus.school'
-                });
-                
-                if (response === 'LOGGED' || response) {
-                    successCount++;
-                } else {
-                    failCount++;
-                }
+        const title = "🚨 App Update Required";
+        const message = "A new version (v40) of Connect to Campus is available. Please update from the Play Store to continue using the Biometric Scanner and get all the latest bug fixes!";
+        
+        // We add a custom data payload to handle the click action if needed
+        const customData = {
+            action: 'OPEN_PLAY_STORE',
+            url: 'https://play.google.com/store/apps/details?id=com.rudrappa.connect2campus'
+        };
 
+        for (let i = 0; i < users.length; i++) {
+            const user = users[i];
+            try {
+                // Send push notification directly via Firebase Service
+                await sendPushNotification(user.fcm_token, title, message, customData, 1);
+                successCount++;
+                process.stdout.write(`\r✅ Progress: ${i + 1}/${users.length} sent...`);
             } catch (err) {
-                // Silently skip common Firebase errors for invalid tokens
-                if (err.code === 'messaging/registration-token-not-registered' || err.code === 'messaging/invalid-registration-token') {
-                     // console.log(`Skipping invalid token: ${token.substring(0, 10)}...`);
-                } else {
-                    console.error(`Error with token ${token.substring(0, 10)}...:`, err.message);
-                }
                 failCount++;
             }
         }
 
-        console.log('--- BROADCAST COMPLETE ---');
-        console.log(`Sent: ${successCount}`);
-        console.log(`Failed: ${failCount}`);
-        process.exit(0);
+        console.log(`\n\n🎉 Notification Sending Complete!`);
+        console.log(`✅ Successful: ${successCount}`);
+        console.log(`❌ Failed (Invalid/Old Tokens): ${failCount}`);
 
     } catch (error) {
-        console.error('CRITICAL BROADCAST ERROR:', error);
-        process.exit(1);
+        console.error('🔥 Error running script:', error);
+    } finally {
+        client.release();
+        process.exit(0);
     }
-}
+};
 
-broadcastUpdate();
+sendGlobalUpdateNotification();
