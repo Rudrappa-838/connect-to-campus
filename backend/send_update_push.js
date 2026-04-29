@@ -20,13 +20,14 @@ const sendGlobalUpdateNotification = async () => {
         let successCount = 0;
         let failCount = 0;
 
-        const title = "🚨 App Update Required";
-        const message = "A new version (v40) of Connect to Campus is available. Please update from the Play Store to continue using the Biometric Scanner and get all the latest bug fixes!";
+        const title = "New Update Available! 🚀";
+        const message = "The latest version of Connect to Campus is now on the Play Store. Please update your app to get the latest fixes and improvements.";
         
         // We add a custom data payload to handle the click action if needed
         const customData = {
             action: 'OPEN_PLAY_STORE',
-            url: 'https://play.google.com/store/apps/details?id=com.rudrappa.connect2campus'
+            url: 'https://play.google.com/store/apps/details?id=com.rudrappa.connect2campus',
+            tag: 'app_update_2026_04' // Ensures it stays in tray and doesn't get overwritten by others
         };
 
         for (let i = 0; i < users.length; i++) {

@@ -16,9 +16,22 @@ const sendSMS = async (phoneNumber, message) => {
     }
 };
 
+// Memory-based cooldown to prevent rapid-fire notifications to the same user (60 seconds)
+const notificationCooldowns = new Map();
+
 // Real Push Notification Service (Firebase/FCM)
 // AND Save to DB for In-App Notification Center
 const sendPushNotification = async (recipientId, title, body, roleHint = null, attachment_url = null, attachment_type = null) => {
+    // 0. Check Cooldown (Optional: disable for critical alerts)
+    const cooldownKey = `${recipientId}_${title}`;
+    const lastSent = notificationCooldowns.get(cooldownKey);
+    const now = Date.now();
+    if (lastSent && (now - lastSent) < 60000) { // 1 minute cooldown
+        console.log(`[PUSH SKIP] Throttling rapid notification for ${recipientId}: ${title}`);
+        return true; 
+    }
+    notificationCooldowns.set(cooldownKey, now);
+
     const client = await pool.connect();
     try {
         console.log(`[PUSH REQUEST] Recipient: ${recipientId} | Title: ${title}`);
@@ -237,4 +250,43 @@ const checkAndSendAbsentNotifications = async () => {
     }
 };
 
-module.exports = { sendSMS, sendAttendanceNotification, checkAndSendAbsentNotifications, sendPushNotification };
+const broadcastNotification = async (title, body, data = {}) => {
+    const client = await pool.connect();
+    try {
+        console.log(`[BROADCAST] Sending to all: ${title}`);
+        
+        // Get all users with FCM tokens
+        const result = await client.query('SELECT id, fcm_token FROM users WHERE fcm_token IS NOT NULL');
+        const users = result.rows;
+        
+        console.log(`[BROADCAST] Found ${users.length} devices to notify`);
+        
+        let successCount = 0;
+        for (const user of users) {
+            // Save to DB for each user
+            await client.query(
+                'INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)',
+                [user.id, title, body, 'BROADCAST']
+            );
+            
+            // Send Push
+            const success = await sendRealPush(user.fcm_token, title, body, data);
+            if (success) successCount++;
+        }
+        
+        return { total: users.length, success: successCount };
+    } catch (error) {
+        console.error('Broadcast failed:', error);
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+module.exports = { 
+    sendSMS, 
+    sendAttendanceNotification, 
+    checkAndSendAbsentNotifications, 
+    sendPushNotification,
+    broadcastNotification 
+};

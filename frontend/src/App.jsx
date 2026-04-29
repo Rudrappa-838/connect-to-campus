@@ -31,7 +31,6 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 
 // Components
 import DriverTracking from './components/dashboard/transport/DriverTracking';
-import NotificationRegistration from './components/NotificationRegistration';
 import AppUpdateChecker from './components/AppUpdateChecker';
 import OfflineBanner from './components/OfflineBanner';
 
@@ -167,7 +166,6 @@ const AppContent = () => {
     <AuthProvider>
       <InstitutionProvider>
         <NotificationProvider>
-          <NotificationRegistration />
           <AppUpdateChecker />
           <OfflineBanner />
 

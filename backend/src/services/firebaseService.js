@@ -52,15 +52,14 @@ const sendPushNotification = async (token, title, body, data = {}, badge = null)
             ttl: 86400000, // 24 hours in milliseconds
             notification: {
                 channelId: 'school_notifications', // Matches the channel created in frontend
-                icon: 'ic_stat_notification',
                 color: '#4f46e5',
-                sticky: false,
+                sticky: false, // Allow swipe, but ensure it shows
                 visibility: 'public',
                 notificationCount: badge ? parseInt(badge) : undefined,
                 defaultSound: true,
                 defaultVibrateTimings: true,
                 priority: 'max',
-                tag: `notif_${Date.now()}` // Ensures each notification is unique in the tray
+                tag: data.tag || `notif_${Date.now()}` // Use provided tag or unique timestamp
             }
         },
         apns: {

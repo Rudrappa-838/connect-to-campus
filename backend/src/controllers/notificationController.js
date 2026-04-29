@@ -109,10 +109,35 @@ const updateToken = async (req, res) => {
     }
 };
 
+const { broadcastNotification } = require('../services/notificationService');
+
+// Broadcast to all users
+const broadcastToAll = async (req, res) => {
+    try {
+        const { title, body, data } = req.body;
+        
+        // Admin Only Check
+        if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'SCHOOL_ADMIN') {
+            return res.status(403).json({ message: 'Forbidden: Admin access required' });
+        }
+
+        if (!title || !body) {
+            return res.status(400).json({ message: 'Title and body are required' });
+        }
+
+        const result = await broadcastNotification(title, body, data || {});
+        res.json({ message: 'Broadcast initiated', result });
+    } catch (error) {
+        console.error('Broadcast controller error:', error);
+        res.status(500).json({ message: 'Server error during broadcast' });
+    }
+};
+
 module.exports = {
     getMyNotifications,
     markAsRead,
     markAllAsRead,
     createNotification,
-    updateToken
+    updateToken,
+    broadcastToAll
 };

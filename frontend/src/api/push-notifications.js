@@ -89,8 +89,6 @@ export const registerPushNotifications = async (userId) => {
         // 7. Push Notification Action Listener
         PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
             console.log('Push action performed:', notification);
-            // Close the notification from tray
-            PushNotifications.removeAllDeliveredNotifications();
         });
 
     } catch (error) {
