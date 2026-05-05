@@ -172,6 +172,28 @@ app.get('/app-launch', (req, res) => {
     res.redirect(`https://connect-to-campus-b56ac.web.app?t=${Date.now()}`);
 });
 
+// ==========================================
+// 🔄 DEPLOY WEBHOOK (Remote git pull)
+// ==========================================
+const { execSync } = require('child_process');
+const DEPLOY_SECRET = process.env.DEPLOY_SECRET || 'c2cs-deploy-2026';
+app.get('/deploy', (req, res) => {
+    if (req.query.secret !== DEPLOY_SECRET) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+    try {
+        const repoPath = require('path').join(__dirname, '../../');
+        const gitPull = execSync('git pull origin main', { cwd: repoPath, timeout: 30000 }).toString();
+        const pm2Restart = execSync('pm2 restart school-backend', { timeout: 15000 }).toString();
+        console.log('[DEPLOY] Webhook triggered:', gitPull);
+        res.json({ success: true, pull: gitPull, restart: 'PM2 restarted' });
+    } catch (err) {
+        console.error('[DEPLOY] Error:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+
 
 app.get(['/api/download-app', '/download-app'], (req, res) => {
     res.redirect('https://play.google.com/store/apps/details?id=com.rudrappa.connect2campus');
