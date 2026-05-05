@@ -212,24 +212,28 @@ const sendAttendanceNotification = async (user, status) => {
     }
 };
 
-// Scheduler for 10 AM Absenteeism
+// Scheduler for 1:00 AM Absenteeism (Checks Yesterday's Attendance)
 const checkAndSendAbsentNotifications = async () => {
-    console.log('[CRON] Running 10 AM Absentee Check...');
+    console.log('[CRON] Running Next-Day Absentee Check...');
     const client = await pool.connect();
     try {
-        const today = new Date().toISOString().split('T')[0];
+        // Calculate YESTERDAY's date correctly in IST
+        const now = new Date();
+        now.setDate(now.getDate() - 1); // Subtract 1 day
+        const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(now); // YYYY-MM-DD in IST
 
-        // 1. Get all students who do NOT have an attendance record for today
-        // (Assuming "no record" = "absent" by 10 AM)
+        console.log(`[CRON] Checking absenteeism for date: ${yesterday}`);
+
+        // 1. Get all students who do NOT have an attendance record for yesterday
         const absentStudents = await client.query(`
             SELECT s.id, s.name, s.contact_number, s.school_id 
             FROM students s
             WHERE s.id NOT IN (
                 SELECT student_id FROM attendance WHERE date = $1
             )
-        `, [today]);
+        `, [yesterday]);
 
-        console.log(`[CRON] Found ${absentStudents.rows.length} students currently absent.`);
+        console.log(`[CRON] Found ${absentStudents.rows.length} students absent yesterday.`);
 
         // 2. Mark them as 'Absent' in DB and Send SMS
         for (const student of absentStudents.rows) {
@@ -237,7 +241,7 @@ const checkAndSendAbsentNotifications = async () => {
             await client.query(`
                 INSERT INTO attendance (student_id, date, status, school_id) 
                 VALUES ($1, $2, 'Absent', $3)
-            `, [student.id, today, student.school_id]);
+            `, [student.id, yesterday, student.school_id]);
 
             // B. Send Notification
             await sendAttendanceNotification(student, 'Absent');
@@ -262,16 +266,32 @@ const broadcastNotification = async (title, body, data = {}) => {
         console.log(`[BROADCAST] Found ${users.length} devices to notify`);
         
         let successCount = 0;
-        for (const user of users) {
-            // Save to DB for each user
-            await client.query(
-                'INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)',
-                [user.id, title, body, 'BROADCAST']
+        
+        // SPEED UP: Process in batches of 50 concurrently
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < users.length; i += BATCH_SIZE) {
+            const batch = users.slice(i, i + BATCH_SIZE);
+            
+            // Execute batch concurrently
+            const results = await Promise.all(
+                batch.map(async (user) => {
+                    try {
+                        // Save to DB
+                        await client.query(
+                            'INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)',
+                            [user.id, title, body, 'BROADCAST']
+                        );
+                        // Send Push
+                        const success = await sendRealPush(user.fcm_token, title, body, data);
+                        return success ? 1 : 0;
+                    } catch (e) {
+                        return 0;
+                    }
+                })
             );
             
-            // Send Push
-            const success = await sendRealPush(user.fcm_token, title, body, data);
-            if (success) successCount++;
+            // Tally successes
+            successCount += results.reduce((a, b) => a + b, 0);
         }
         
         return { total: users.length, success: successCount };

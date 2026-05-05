@@ -108,7 +108,9 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
         }
         return () => {
             if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                });
             }
         };
     }, [stream]);
@@ -116,10 +118,13 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
     const stopCamera = () => {
         if (videoRef.current && videoRef.current.srcObject) {
             videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-            setCameraActive(false);
-            setScanning(false);
-            setStatus('idle');
         }
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        setCameraActive(false);
+        setScanning(false);
+        setStatus('idle');
     };
 
     // Main Recognition Loop

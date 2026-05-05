@@ -17,10 +17,10 @@ const { pool } = require('./config/db');
 const cron = require('node-cron');
 const { checkAndSendAbsentNotifications } = require('./services/notificationService');
 
-// Schedule Absentee Check at 10:00 AM every day
-// cron.schedule('0 10 * * *', () => {
-//     checkAndSendAbsentNotifications();
-// });
+// Schedule Absentee Check at 1:00 AM every day (Checks previous day's attendance)
+cron.schedule('0 1 * * *', () => {
+    checkAndSendAbsentNotifications();
+});
 
 const PORT = process.env.PORT || 5000;
 
