@@ -1,0 +1,45 @@
+name: 🚀 Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: SSH Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ubuntu
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          script: |
+            echo "🔄 Pulling latest code..."
+            cd ~/SchoolSoftware
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+            
+            echo "📦 Installing backend dependencies..."
+            cd backend
+            npm install --omit=dev
+            
+            echo "🏗️ Building frontend..."
+            cd ../frontend
+            npm install --omit=dev
+            npm run build
+            
+            echo "📁 Copying frontend dist to backend public..."
+            cp -r dist/* ../backend/public/
+            
+            echo "🔄 Restarting server..."
+            pm2 restart school-backend
+            
+            echo "✅ Deployment complete!"
+            pm2 status
