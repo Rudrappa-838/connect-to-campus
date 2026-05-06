@@ -414,7 +414,7 @@ const markFaceAttendance = async (req, res) => {
 
         await client.query(
             `INSERT INTO ${attendanceTable} (school_id, ${idColumn}, date, status, marking_mode) VALUES ($1, $2, $3, 'Present', 'face')
-             ON CONFLICT (${idColumn}, date) DO UPDATE SET status = 'Present', marking_mode = 'face'`,
+             ON CONFLICT (${idColumn}, date) DO UPDATE SET status = 'Present', marking_mode = 'face', created_at = CURRENT_TIMESTAMP`,
             [schoolId, bestMatch.id, date]
         );
 
@@ -476,7 +476,7 @@ const markFaceAttendanceById = async (req, res) => {
 
         await client.query(
             `INSERT INTO ${attendanceTable} (school_id, ${idColumn}, date, status, marking_mode) VALUES ($1, $2, $3, 'Present', $4)
-             ON CONFLICT (${idColumn}, date) DO UPDATE SET status = 'Present', marking_mode = $4`,
+             ON CONFLICT (${idColumn}, date) DO UPDATE SET status = 'Present', marking_mode = $4, created_at = CURRENT_TIMESTAMP`,
             [schoolId, userId, date, marking_mode]
         );
 

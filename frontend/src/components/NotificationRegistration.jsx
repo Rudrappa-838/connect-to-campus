@@ -102,7 +102,8 @@ const NotificationRegistration = () => {
         setupNotifications();
 
         return () => {
-            PushNotifications.removeAllListeners();
+            // Do not remove listeners to ensure background notifications persist
+            // PushNotifications.removeAllListeners();
         };
     }, [user]);
 
