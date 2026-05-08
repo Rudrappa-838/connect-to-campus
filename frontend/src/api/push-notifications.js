@@ -29,10 +29,7 @@ export const registerPushNotifications = async (userId) => {
 
         // 3. Create High Importance Channel for Android (Critical for tray visibility)
         if (Capacitor.getPlatform() === 'android') {
-            // Delete old channel first to ensure fresh settings are applied
-            try {
-                await PushNotifications.deleteChannel({ id: 'school_notifications' });
-            } catch (e) {}
+            // DO NOT delete channel on every launch. This causes Android system to detach background delivery from FCM if app is killed shortly after.
 
             await PushNotifications.createChannel({
                 id: 'school_notifications',
@@ -79,6 +76,7 @@ export const registerPushNotifications = async (userId) => {
                             extra: notification.data || {},
                             channelId: 'school_notifications',
                             smallIcon: 'ic_stat_notification', // Common standard icon name
+                            autoCancel: false, // Do not auto-dismiss on click
                             actionTypeId: 'OPEN_NOTIFICATIONS'
                         }
                     ]

@@ -53,13 +53,13 @@ const sendPushNotification = async (token, title, body, data = {}, badge = null)
             notification: {
                 channelId: 'school_notifications', // Matches the channel created in frontend
                 color: '#4f46e5',
-                sticky: false, // Allow swipe, but ensure it shows
+                sticky: true, // Make notification persistent until manually cleared
                 visibility: 'public',
                 notificationCount: badge ? parseInt(badge) : undefined,
                 defaultSound: true,
                 defaultVibrateTimings: true,
                 priority: 'max',
-                tag: data.tag || `notif_${Date.now()}` // Use provided tag or unique timestamp
+                tag: data.tag || 'school_notification' // Use stable tag to prevent OS spam filtering
             }
         },
         apns: {

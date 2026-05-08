@@ -142,7 +142,7 @@ const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
                     // Local High-Speed Matching
                     const descriptor = detections.descriptor;
                     let bestMatch = null;
-                    let minDistance = 0.55; // Slightly stricter for accuracy at speed
+                    let minDistance = 0.45; // EXTREMELY strict threshold to prevent matching one face to multiple/wrong names
 
                     for (const user of enrolledUsers) {
                         const storedDescriptor = user.descriptor;

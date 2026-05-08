@@ -322,6 +322,42 @@ const enrollFace = async (req, res) => {
             return res.status(400).json({ message: 'Invalid face descriptor format' });
         }
 
+        // --- FACE UNIQUENESS CHECK ---
+        const students = await pool.query(`SELECT id, name, biometric_template, 'student' as type FROM students WHERE school_id = $1 AND biometric_template IS NOT NULL`, [schoolId]);
+        const teachers = await pool.query(`SELECT id, name, biometric_template, 'teacher' as type FROM teachers WHERE school_id = $1 AND biometric_template IS NOT NULL`, [schoolId]);
+        const staffs = await pool.query(`SELECT id, name, biometric_template, 'staff' as type FROM staff WHERE school_id = $1 AND biometric_template IS NOT NULL`, [schoolId]);
+
+        const allUsers = [...students.rows, ...teachers.rows, ...staffs.rows];
+        
+        let duplicateUser = null;
+        for (const user of allUsers) {
+            if (user.type === type && user.id == id) continue; // Skip current user
+            
+            try {
+                const storedDescriptor = typeof user.biometric_template === 'string' ? JSON.parse(user.biometric_template) : user.biometric_template;
+                if (!Array.isArray(storedDescriptor)) continue;
+                
+                let sumSq = 0;
+                for (let i = 0; i < biometric_template.length; i++) {
+                    const diff = biometric_template[i] - storedDescriptor[i];
+                    sumSq += diff * diff;
+                }
+                const distance = Math.sqrt(sumSq);
+                
+                if (distance < 0.45) { // 0.45 is a strict duplicate threshold
+                    duplicateUser = user;
+                    break;
+                }
+            } catch (e) { continue; }
+        }
+
+        if (duplicateUser) {
+            return res.status(400).json({ 
+                message: `Face already registered to ${duplicateUser.name}. Cannot enroll duplicate face.`
+            });
+        }
+        // --- END CHECK ---
+
         const templateJson = JSON.stringify(biometric_template);
         await pool.query(
             `UPDATE ${table} SET biometric_template = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND school_id = $3`,
@@ -381,7 +417,7 @@ const markFaceAttendance = async (req, res) => {
         if (candidates.length === 0) return res.status(404).json({ message: 'No enrolled users found' });
 
         let bestMatch = null;
-        let minDistance = 0.6;
+        let minDistance = 0.45; // Extremely strict threshold to prevent false positives
 
         for (const user of candidates) {
             try {
