@@ -113,12 +113,46 @@ exports.deleteFeeStructure = async (req, res) => {
 
 // Update Fee Structure
 exports.updateFeeStructure = async (req, res) => {
+    const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { title, amount, due_date } = req.body;
+        const { title, amount, due_date, student_id } = req.body;
 
-        const result = await pool.query(
+        await client.query('BEGIN');
+
+        if (student_id) {
+            const feeRes = await client.query('SELECT type, class_id FROM fee_structures WHERE id = $1 AND school_id = $2', [id, school_id]);
+            if (feeRes.rows.length === 0) throw new Error('Fee structure not found');
+            const fee = feeRes.rows[0];
+
+            let isShared = fee.type === 'CLASS_DEFAULT';
+            if (!isShared) {
+                const allocRes = await client.query('SELECT COUNT(*) as count FROM student_fees WHERE fee_structure_id = $1', [id]);
+                if (parseInt(allocRes.rows[0].count) > 1) {
+                    isShared = true;
+                }
+            }
+
+            if (isShared) {
+                const newFeeRes = await client.query(
+                    `INSERT INTO fee_structures (school_id, class_id, title, amount, due_date, type, base_fee_id)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+                    [school_id, fee.class_id, title, amount, due_date, 'INDIVIDUAL', id]
+                );
+                const newFee = newFeeRes.rows[0];
+
+                await client.query(
+                    `INSERT INTO student_fees (school_id, student_id, fee_structure_id) VALUES ($1, $2, $3)`,
+                    [school_id, student_id, newFee.id]
+                );
+
+                await client.query('COMMIT');
+                return res.json(newFee);
+            }
+        }
+
+        const result = await client.query(
             `UPDATE fee_structures 
              SET title = $1, amount = $2, due_date = $3 
              WHERE id = $4 AND school_id = $5 
@@ -127,13 +161,17 @@ exports.updateFeeStructure = async (req, res) => {
         );
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'Fee structure not found' });
+            throw new Error('Fee structure not found');
         }
 
+        await client.query('COMMIT');
         res.json(result.rows[0]);
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error(error);
-        res.status(500).json({ message: 'Error updating fee structure' });
+        res.status(500).json({ message: error.message || 'Error updating fee structure' });
+    } finally {
+        client.release();
     }
 };
 
@@ -243,6 +281,11 @@ exports.getStudentFeeDetails = async (req, res) => {
                 OR 
                 (fs.id IN (SELECT fee_structure_id FROM student_fees WHERE student_id = $2))
             )
+            AND fs.id NOT IN (
+                SELECT base_fee_id FROM fee_structures 
+                WHERE base_fee_id IS NOT NULL 
+                AND id IN (SELECT fee_structure_id FROM student_fees WHERE student_id = $2)
+            )
             GROUP BY fs.id
             ORDER BY fs.due_date ASC
         `;
@@ -316,6 +359,11 @@ exports.getMyFeeStatus = async (req, res) => {
                 (fs.type = 'CLASS_DEFAULT' AND fs.class_id = $3)
                 OR 
                 (fs.id IN (SELECT fee_structure_id FROM student_fees WHERE student_id = $2))
+            )
+            AND fs.id NOT IN (
+                SELECT base_fee_id FROM fee_structures 
+                WHERE base_fee_id IS NOT NULL 
+                AND id IN (SELECT fee_structure_id FROM student_fees WHERE student_id = $2)
             )
             GROUP BY fs.id
             ORDER BY fs.due_date ASC
@@ -482,27 +530,6 @@ exports.deleteFeePayment = async (req, res) => {
     }
 };
 
-// Update Fee Structure
-exports.updateFeeStructure = async (req, res) => {
-    try {
-        const school_id = req.user.schoolId;
-        const { id } = req.params;
-        const { title, amount, due_date } = req.body;
-
-        const result = await pool.query(
-            `UPDATE fee_structures 
-             SET title = $1, amount = $2, due_date = $3
-             WHERE id = $4 AND school_id = $5 RETURNING *`,
-            [title, amount, due_date, id, school_id]
-        );
-
-        if (result.rows.length === 0) return res.status(404).json({ message: 'Fee structure not found' });
-        res.json(result.rows[0]);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error updating fee structure' });
-    }
-};
 
 // --- Dashboard / Overview ---
 
@@ -519,7 +546,14 @@ exports.getClassSectionFullOverview = async (req, res) => {
                 s.id, s.name, s.admission_no, s.class_id, s.section_id,
                 -- Calculate Total Expected Fee
                 (
-                    COALESCE((SELECT SUM(amount) FROM fee_structures WHERE school_id = $1 AND class_id = s.class_id AND type = 'CLASS_DEFAULT'), 0) 
+                    COALESCE((SELECT SUM(amount) FROM fee_structures fs_def 
+                              WHERE fs_def.school_id = $1 AND fs_def.class_id = s.class_id AND fs_def.type = 'CLASS_DEFAULT'
+                              AND fs_def.id NOT IN (
+                                  SELECT base_fee_id FROM fee_structures inner_fs
+                                  JOIN student_fees inner_sf ON inner_fs.id = inner_sf.fee_structure_id
+                                  WHERE inner_sf.student_id = s.id AND inner_fs.base_fee_id IS NOT NULL
+                              )
+                             ), 0) 
                     +
                     COALESCE((SELECT SUM(fs.amount) FROM fee_structures fs 
                               JOIN student_fees sf ON fs.id = sf.fee_structure_id 

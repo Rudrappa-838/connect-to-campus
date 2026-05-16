@@ -162,7 +162,8 @@ const FeeCollection = ({ config: initialConfig }) => {
                 await api.put(`/fees/structures/${editModal.data.fee_structure_id}`, {
                     title: editModal.data.title,
                     amount: editModal.data.total_amount,
-                    due_date: editModal.data.due_date
+                    due_date: editModal.data.due_date,
+                    student_id: selectedStudent.id
                 });
                 toast.success('Fee Structure Updated');
             } else {

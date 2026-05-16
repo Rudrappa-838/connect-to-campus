@@ -30,4 +30,4 @@ copy app\build\outputs\bundle\release\app-release.aab ..\..\release\ConnectToCam
 
 echo.
 echo 🎉 DONE! Your AAB file is ready in the 'release' folder for Play Store Upload.
-pause
+echo 🎉 DONE! Your AAB file is ready in the 'release' folder for Play Store Upload.

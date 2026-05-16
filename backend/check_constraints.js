@@ -1,25 +1,23 @@
-const { pool } = require('./src/config/db');
+const { Pool } = require('pg');
 
-async function checkConstraints() {
+const pool = new Pool({
+    connectionString: 'postgresql://postgres.rgtbslnmkuuzeauxiylv:Rudrappa%40838@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres',
+    ssl: { rejectUnauthorized: false }
+});
+
+async function run() {
     try {
-        console.log('Checking constraints on users table...');
         const res = await pool.query(`
-            SELECT
-                conname as constraint_name,
-                pg_get_constraintdef(c.oid) as constraint_definition
-            FROM
-                pg_constraint c
-            JOIN
-                pg_class t ON t.oid = c.conrelid
-            WHERE
-                t.relname = 'users';
+            SELECT conname, pg_get_constraintdef(c.oid)
+            FROM pg_constraint c
+            JOIN pg_namespace n ON n.oid = c.connamespace
+            WHERE conrelid = 'student_fees'::regclass;
         `);
-        console.table(res.rows);
-    } catch (e) {
-        console.error(e);
+        console.log(res.rows);
+    } catch (err) {
+        console.error(err);
     } finally {
-        pool.end();
+        await pool.end();
     }
 }
-
-checkConstraints();
+run();
