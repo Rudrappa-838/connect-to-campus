@@ -385,6 +385,10 @@ const updateSchool = async (req, res) => {
                             console.log(`[UPDATE SCHOOL] Moved ${affectedStudents.rows.length} students to Unassigned bin`);
                         }
 
+                        // Clean up section dependencies
+                        await client.query('DELETE FROM student_promotions WHERE from_section_id = $1 OR to_section_id = $1', [section.id]);
+                        await client.query('DELETE FROM announcements WHERE section_id = $1', [section.id]);
+
                         // Delete the section
                         await client.query('DELETE FROM sections WHERE id = $1', [section.id]);
                     }
@@ -453,6 +457,12 @@ const updateSchool = async (req, res) => {
                     if (affectedStudents.rows.length > 0) {
                         console.log(`[UPDATE SCHOOL] Moved ${affectedStudents.rows.length} students to Unassigned bin from class ${classToDelete.name}`);
                     }
+
+                    // Clean up class dependencies that block deletion
+                    await client.query('DELETE FROM student_promotions WHERE from_class_id = $1 OR to_class_id = $1', [classToDelete.id]);
+                    await client.query('DELETE FROM announcements WHERE class_id = $1', [classToDelete.id]);
+                    await client.query('DELETE FROM exam_schedules WHERE class_id = $1', [classToDelete.id]);
+                    await client.query('DELETE FROM fee_structures WHERE class_id = $1', [classToDelete.id]);
 
                     // Delete sections and subjects first (foreign key constraints)
                     await client.query('DELETE FROM sections WHERE class_id = $1', [classToDelete.id]);
