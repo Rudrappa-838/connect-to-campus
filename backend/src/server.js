@@ -202,6 +202,59 @@ const startServer = async () => {
                     END IF;
                 END $$;
             `);
+            // Fix: Add missing columns to schools table (institution_type, gemini_api_key, marksheet_template)
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'schools') THEN
+                        ALTER TABLE schools ADD COLUMN IF NOT EXISTS institution_type VARCHAR(50) DEFAULT 'SCHOOL';
+                        ALTER TABLE schools ADD COLUMN IF NOT EXISTS gemini_api_key TEXT;
+                        ALTER TABLE schools ADD COLUMN IF NOT EXISTS marksheet_template TEXT;
+                    END IF;
+                END $$;
+            `);
+
+            // Fix: Add missing columns to students table (class_name, section_name for unassign tracking)
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'students') THEN
+                        ALTER TABLE students ADD COLUMN IF NOT EXISTS class_name VARCHAR(255);
+                        ALTER TABLE students ADD COLUMN IF NOT EXISTS section_name VARCHAR(255);
+                    END IF;
+                END $$;
+            `);
+
+            // Fix: Create student_promotions table if it doesn't exist
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS student_promotions (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                    from_class_id INTEGER REFERENCES classes(id) ON DELETE SET NULL,
+                    from_section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL,
+                    to_class_id INTEGER REFERENCES classes(id) ON DELETE SET NULL,
+                    to_section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL,
+                    from_academic_year_id INTEGER,
+                    to_academic_year_id INTEGER,
+                    promoted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    promoted_by INTEGER
+                );
+            `);
+
+            // Fix: Create marksheet_custom_templates table if it doesn't exist
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS marksheet_custom_templates (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL,
+                    file_data BYTEA,
+                    file_name VARCHAR(255),
+                    is_default BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
             console.log('✅ Database schema verified.');
         } catch (migError) {
             console.warn('⚠️ Some migrations could not be applied automatically:', migError.message);
