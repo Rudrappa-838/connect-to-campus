@@ -275,6 +275,49 @@ const startServer = async () => {
                 END $$;
             `);
 
+            // Fix: Alter foreign keys on timetables, exam_schedules, and marks to ON DELETE CASCADE for cascading deletion of classes, sections, and subjects
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    -- timetables class_id, section_id, subject_id
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'timetables') THEN
+                        ALTER TABLE timetables DROP CONSTRAINT IF EXISTS timetables_class_id_fkey;
+                        ALTER TABLE timetables ADD CONSTRAINT timetables_class_id_fkey 
+                            FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE;
+                            
+                        ALTER TABLE timetables DROP CONSTRAINT IF EXISTS timetables_section_id_fkey;
+                        ALTER TABLE timetables ADD CONSTRAINT timetables_section_id_fkey 
+                            FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE;
+
+                        ALTER TABLE timetables DROP CONSTRAINT IF EXISTS timetables_subject_id_fkey;
+                        ALTER TABLE timetables ADD CONSTRAINT timetables_subject_id_fkey 
+                            FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE;
+                    END IF;
+
+                    -- exam_schedules class_id, section_id, subject_id
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'exam_schedules') THEN
+                        ALTER TABLE exam_schedules DROP CONSTRAINT IF EXISTS exam_schedules_class_id_fkey;
+                        ALTER TABLE exam_schedules ADD CONSTRAINT exam_schedules_class_id_fkey 
+                            FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE;
+                            
+                        ALTER TABLE exam_schedules DROP CONSTRAINT IF EXISTS exam_schedules_section_id_fkey;
+                        ALTER TABLE exam_schedules ADD CONSTRAINT exam_schedules_section_id_fkey 
+                            FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE;
+
+                        ALTER TABLE exam_schedules DROP CONSTRAINT IF EXISTS exam_schedules_subject_id_fkey;
+                        ALTER TABLE exam_schedules ADD CONSTRAINT exam_schedules_subject_id_fkey 
+                            FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE;
+                    END IF;
+
+                    -- marks subject_id
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'marks') THEN
+                        ALTER TABLE marks DROP CONSTRAINT IF EXISTS marks_subject_id_fkey;
+                        ALTER TABLE marks ADD CONSTRAINT marks_subject_id_fkey 
+                            FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE;
+                    END IF;
+                END $$;
+            `);
+
             console.log('✅ Database schema verified.');
         } catch (migError) {
             console.warn('⚠️ Some migrations could not be applied automatically:', migError.message);

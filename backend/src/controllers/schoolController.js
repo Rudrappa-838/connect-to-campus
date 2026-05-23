@@ -461,7 +461,11 @@ const updateSchool = async (req, res) => {
                     // Clean up class dependencies that block deletion
                     await client.query('DELETE FROM student_promotions WHERE from_class_id = $1 OR to_class_id = $1', [classToDelete.id]);
                     await client.query('DELETE FROM announcements WHERE class_id = $1', [classToDelete.id]);
+                    await client.query('DELETE FROM timetables WHERE class_id = $1', [classToDelete.id]);
                     await client.query('DELETE FROM exam_schedules WHERE class_id = $1', [classToDelete.id]);
+                    await client.query('DELETE FROM marks WHERE subject_id IN (SELECT id FROM subjects WHERE class_id = $1)', [classToDelete.id]);
+                    await client.query('DELETE FROM student_fees WHERE fee_structure_id IN (SELECT id FROM fee_structures WHERE class_id = $1)', [classToDelete.id]);
+                    await client.query('DELETE FROM fee_payments WHERE fee_structure_id IN (SELECT id FROM fee_structures WHERE class_id = $1)', [classToDelete.id]);
                     await client.query('DELETE FROM fee_structures WHERE class_id = $1', [classToDelete.id]);
 
                     // Delete sections and subjects first (foreign key constraints)
