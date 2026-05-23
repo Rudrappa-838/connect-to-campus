@@ -255,6 +255,26 @@ const startServer = async () => {
                 );
             `);
 
+            // Fix: Alter foreign keys on fee_payments and student_fees to be ON DELETE CASCADE to allow deleting classes/fee_structures
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    -- fee_payments to fee_structures
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'fee_payments') THEN
+                        ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_fee_structure_id_fkey;
+                        ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_fee_structure_id_fkey 
+                            FOREIGN KEY (fee_structure_id) REFERENCES fee_structures(id) ON DELETE CASCADE;
+                    END IF;
+
+                    -- student_fees to fee_structures
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'student_fees') THEN
+                        ALTER TABLE student_fees DROP CONSTRAINT IF EXISTS student_fees_fee_structure_id_fkey;
+                        ALTER TABLE student_fees ADD CONSTRAINT student_fees_fee_structure_id_fkey 
+                            FOREIGN KEY (fee_structure_id) REFERENCES fee_structures(id) ON DELETE CASCADE;
+                    END IF;
+                END $$;
+            `);
+
             console.log('✅ Database schema verified.');
         } catch (migError) {
             console.warn('⚠️ Some migrations could not be applied automatically:', migError.message);
