@@ -15,6 +15,9 @@ const SchoolSettings = () => {
     const [logoUrl, setLogoUrl] = useState('');
     const [logoFile, setLogoFile] = useState(null);
     const [geminiKey, setGeminiKey] = useState('');
+    const [smsProvider, setSmsProvider] = useState('');
+    const [smsApiKey, setSmsApiKey] = useState('');
+    const [smsSenderId, setSmsSenderId] = useState('');
     const [marksheetTemplate, setMarksheetTemplate] = useState('STANDARD');
     const [wordTemplates, setWordTemplates] = useState([]);
     const [wordName, setWordName] = useState('');
@@ -39,6 +42,9 @@ const SchoolSettings = () => {
                 const school = response.data.data || response.data; // Handle potential wrapping
                 setLogoUrl(school.logo || '');
                 setGeminiKey(school.gemini_api_key || '');
+                setSmsProvider(school.sms_provider || '');
+                setSmsApiKey(school.sms_api_key || '');
+                setSmsSenderId(school.sms_sender_id || '');
                 setMarksheetTemplate(school.marksheet_template || 'STANDARD');
             }
 
@@ -140,6 +146,9 @@ const SchoolSettings = () => {
             // Prepare Payload
             const updateData = {
                 geminiApiKey: geminiKey,
+                smsProvider: smsProvider,
+                smsApiKey: smsApiKey,
+                smsSenderId: smsSenderId,
                 marksheet_template: marksheetTemplate
             };
 
@@ -286,6 +295,55 @@ const SchoolSettings = () => {
                                     <br />
                                     <span className="text-amber-600 font-medium">Leave empty to use System Default (if available).</span>
                                 </p>
+                            </div>
+                        </div>
+
+                        <div className="pt-6 border-t border-slate-100">
+                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <span className="text-2xl">📱</span> SMS Configuration
+                            </h3>
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <p className="text-sm text-slate-600 mb-4">
+                                    Configure your own SMS gateway for attendance notifications and alerts.
+                                </p>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">SMS Provider</label>
+                                        <select
+                                            value={smsProvider}
+                                            onChange={(e) => setSmsProvider(e.target.value)}
+                                            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white"
+                                        >
+                                            <option value="">-- Use System Default (if available) --</option>
+                                            <option value="MSG91">MSG91</option>
+                                            <option value="FAST2SMS">Fast2SMS (Fast SMS without GST)</option>
+                                            <option value="TEXTLOCAL">TextLocal</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">API / Auth Key</label>
+                                        <input
+                                            type="password"
+                                            placeholder="Your SMS Provider API Key"
+                                            value={smsApiKey}
+                                            onChange={(e) => setSmsApiKey(e.target.value)}
+                                            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-sm"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Sender ID</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. SCHOOL (6 characters for India)"
+                                            value={smsSenderId}
+                                            onChange={(e) => setSmsSenderId(e.target.value)}
+                                            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

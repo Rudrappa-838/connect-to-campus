@@ -16,6 +16,9 @@ const createTables = async (client) => {
                 address TEXT,
                 contact_email VARCHAR(255) NOT NULL,
                 subscription_status VARCHAR(50) DEFAULT 'ACTIVE',
+                sms_provider VARCHAR(50),
+                sms_api_key VARCHAR(255),
+                sms_sender_id VARCHAR(50),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );

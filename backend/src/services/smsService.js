@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { pool } = require('../config/db');
 
 /**
  * SMS Service using Indian SMS Providers
@@ -14,10 +15,10 @@ const SMS_PROVIDER = process.env.SMS_PROVIDER || 'MSG91'; // MSG91, FAST2SMS, TE
  * Cost: ~₹0.15 per SMS
  * Sign up: https://msg91.com/
  */
-const sendViaMSG91 = async (phoneNumber, message) => {
+const sendViaMSG91 = async (phoneNumber, message, schoolConfig) => {
     try {
-        const authKey = process.env.MSG91_AUTH_KEY;
-        const senderId = process.env.MSG91_SENDER_ID || 'SCHOOL';
+        const authKey = schoolConfig.sms_api_key || process.env.MSG91_AUTH_KEY;
+        const senderId = schoolConfig.sms_sender_id || process.env.MSG91_SENDER_ID || 'SCHOOL';
         const route = process.env.MSG91_ROUTE || '4'; // 4 = Transactional
 
         if (!authKey) {
@@ -55,9 +56,9 @@ const sendViaMSG91 = async (phoneNumber, message) => {
  * Cost: ~₹0.10 per SMS (cheapest option)
  * Sign up: https://www.fast2sms.com/
  */
-const sendViaFast2SMS = async (phoneNumber, message) => {
+const sendViaFast2SMS = async (phoneNumber, message, schoolConfig) => {
     try {
-        const apiKey = process.env.FAST2SMS_API_KEY;
+        const apiKey = schoolConfig.sms_api_key || process.env.FAST2SMS_API_KEY;
 
         if (!apiKey) {
             console.warn('[SMS] Fast2SMS API key not configured');
@@ -99,10 +100,10 @@ const sendViaFast2SMS = async (phoneNumber, message) => {
  * Cost: ~₹0.20 per SMS
  * Sign up: https://www.textlocal.in/
  */
-const sendViaTextLocal = async (phoneNumber, message) => {
+const sendViaTextLocal = async (phoneNumber, message, schoolConfig) => {
     try {
-        const apiKey = process.env.TEXTLOCAL_API_KEY;
-        const sender = process.env.TEXTLOCAL_SENDER || 'SCHOOL';
+        const apiKey = schoolConfig.sms_api_key || process.env.TEXTLOCAL_API_KEY;
+        const sender = schoolConfig.sms_sender_id || process.env.TEXTLOCAL_SENDER || 'SCHOOL';
 
         if (!apiKey) {
             console.warn('[SMS] TextLocal API key not configured');
@@ -141,12 +142,23 @@ const sendViaTextLocal = async (phoneNumber, message) => {
  * @param {string} message - SMS content
  * @returns {Promise<boolean>}
  */
-const sendSMS = async (phoneNumber, message) => {
+const sendSMS = async (schoolId, phoneNumber, message) => {
     try {
         if (!phoneNumber || !message) {
             console.warn('[SMS] Missing phone number or message');
             return false;
         }
+
+        // Fetch school config if schoolId is provided
+        let schoolConfig = {};
+        if (schoolId) {
+            const configRes = await pool.query('SELECT sms_provider, sms_api_key, sms_sender_id FROM schools WHERE id = $1', [schoolId]);
+            if (configRes.rows.length > 0) {
+                schoolConfig = configRes.rows[0];
+            }
+        }
+
+        const providerToUse = schoolConfig.sms_provider || SMS_PROVIDER;
 
         // Format phone number
         let formattedNumber = phoneNumber.trim();
@@ -155,15 +167,15 @@ const sendSMS = async (phoneNumber, message) => {
         }
 
         // Route to appropriate provider
-        switch (SMS_PROVIDER.toUpperCase()) {
+        switch (providerToUse.toUpperCase()) {
             case 'MSG91':
-                return await sendViaMSG91(formattedNumber, message);
+                return await sendViaMSG91(formattedNumber, message, schoolConfig);
             case 'FAST2SMS':
-                return await sendViaFast2SMS(formattedNumber, message);
+                return await sendViaFast2SMS(formattedNumber, message, schoolConfig);
             case 'TEXTLOCAL':
-                return await sendViaTextLocal(formattedNumber, message);
+                return await sendViaTextLocal(formattedNumber, message, schoolConfig);
             default:
-                console.log(`[SMS] Provider ${SMS_PROVIDER} not configured. Message: ${message}`);
+                console.log(`[SMS] Provider ${providerToUse} not configured. Message: ${message}`);
                 return false;
         }
     } catch (error) {
@@ -202,7 +214,7 @@ const sendAttendanceSMS = async (user, status) => {
 
         if (!message) return false;
 
-        return await sendSMS(user.contact_number, message);
+        return await sendSMS(user.school_id, user.contact_number, message);
     } catch (error) {
         console.error('[SMS] Error sending attendance notification:', error);
         return false;

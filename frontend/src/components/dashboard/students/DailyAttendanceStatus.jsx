@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Printer, Camera, Edit2 } from 'lucide-react';
+import { Check, X, Printer, Camera, Edit2, MessageSquare } from 'lucide-react';
 import api from '../../../api/axios';
+import toast from 'react-hot-toast';
 
 const DailyAttendanceStatus = ({ config }) => {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -147,6 +148,33 @@ const DailyAttendanceStatus = ({ config }) => {
         win.document.close();
     };
 
+    const handleNotifyAbsentees = async () => {
+        if (!filterClass || !date) return;
+        
+        if (!window.confirm('Are you sure you want to send SMS notifications to all absent students in this list?')) {
+            return;
+        }
+
+        try {
+            const loadingToast = toast.loading('Sending SMS to absentees...');
+            const params = { date, class_id: filterClass };
+            if (filterSection) params.section_id = filterSection;
+
+            const res = await api.post('/students/attendance/notify-absentees', params);
+            
+            toast.dismiss(loadingToast);
+            if (res.data.count > 0) {
+                toast.success(res.data.message);
+            } else {
+                toast.error(res.data.message || 'No absent students found to notify.');
+            }
+        } catch (error) {
+            toast.dismiss();
+            toast.error('Failed to send SMS notifications.');
+            console.error(error);
+        }
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in">
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
@@ -171,14 +199,24 @@ const DailyAttendanceStatus = ({ config }) => {
                         </select>
                     )}
                 </div>
-                <button
-                    onClick={handlePrint}
-                    disabled={!filterClass || !filterSection}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <Printer size={18} />
-                    <span>Print Report</span>
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleNotifyAbsentees}
+                        disabled={!filterClass || absentStudents.length === 0}
+                        className="flex items-center gap-2 bg-rose-100 text-rose-700 px-4 py-2 rounded-lg font-bold hover:bg-rose-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <MessageSquare size={18} />
+                        <span>Notify Absentees</span>
+                    </button>
+                    <button
+                        onClick={handlePrint}
+                        disabled={!filterClass || !filterSection}
+                        className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Printer size={18} />
+                        <span>Print Report</span>
+                    </button>
+                </div>
             </div>
 
             {filterClass && (filterSection || availableSections.length === 0) ? (

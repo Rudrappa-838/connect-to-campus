@@ -35,6 +35,7 @@ router.get('/attendance', studentController.getAttendanceReport);
 
 router.get('/attendance/summary', studentController.getAttendanceSummary);
 router.get('/attendance/daily', studentController.getDailyAttendance);
+router.post('/attendance/notify-absentees', studentController.notifyAbsentees);
 
 // Student Promotion Routes
 const promotionController = require('../controllers/promotionController');

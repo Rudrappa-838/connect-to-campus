@@ -801,12 +801,17 @@ const updateMySchoolSettings = async (req, res) => {
     const schoolId = req.user.schoolId;
     if (!schoolId) return res.status(403).json({ message: 'Access denied' });
 
-    const { geminiApiKey } = req.body;
+    const { geminiApiKey, smsProvider, smsApiKey, smsSenderId } = req.body;
 
     try {
         await pool.query(
-            `UPDATE schools SET gemini_api_key = COALESCE($1, gemini_api_key) WHERE id = $2`,
-            [geminiApiKey, schoolId]
+            `UPDATE schools SET 
+                gemini_api_key = COALESCE($1, gemini_api_key),
+                sms_provider = COALESCE($3, sms_provider),
+                sms_api_key = COALESCE($4, sms_api_key),
+                sms_sender_id = COALESCE($5, sms_sender_id)
+             WHERE id = $2`,
+            [geminiApiKey, schoolId, smsProvider, smsApiKey, smsSenderId]
         );
         res.json({ message: 'Settings updated successfully' });
     } catch (error) {

@@ -1497,3 +1497,50 @@ const internalReorderRollNumbers = async (school_id, class_id, section_id, clien
         return false;
     }
 };
+
+// Notify Absentees (Manual Trigger from Dashboard)
+exports.notifyAbsentees = async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { date, class_id, section_id } = req.body;
+        const school_id = req.user.schoolId;
+
+        if (!date || !class_id) {
+            return res.status(400).json({ message: 'Date and Class are required' });
+        }
+
+        let query = `
+            SELECT s.id, s.name, s.contact_number, s.school_id, s.role, s.employee_id 
+            FROM students s
+            JOIN attendance a ON s.id = a.student_id AND a.date = $2
+            WHERE s.school_id = $1 AND s.class_id = $3 AND a.status = 'Absent' AND (s.status IS NULL OR s.status != 'Deleted')
+        `;
+        const params = [school_id, date, class_id];
+
+        if (section_id) {
+            params.push(section_id);
+            query += ` AND s.section_id = $${params.length}`;
+        }
+
+        const absentStudents = await client.query(query, params);
+
+        if (absentStudents.rows.length === 0) {
+            return res.json({ message: 'No absent students found for this selection to notify.', count: 0 });
+        }
+
+        const { sendAttendanceNotification } = require('../services/notificationService');
+        
+        let sentCount = 0;
+        for (const student of absentStudents.rows) {
+            await sendAttendanceNotification(student, 'Absent');
+            sentCount++;
+        }
+
+        res.json({ message: `Successfully sent SMS notifications to ${sentCount} absent students.`, count: sentCount });
+    } catch (error) {
+        console.error('Error notifying absentees:', error);
+        res.status(500).json({ message: 'Server error while sending notifications' });
+    } finally {
+        client.release();
+    }
+};
