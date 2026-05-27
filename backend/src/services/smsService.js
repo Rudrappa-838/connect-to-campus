@@ -76,7 +76,7 @@ const sendViaFast2SMS = async (phoneNumber, message, schoolConfig) => {
 
         const url = 'https://www.fast2sms.com/dev/bulkV2';
         const response = await axios.post(url, {
-            route: 'v3',          // v3 = Quick SMS (NO DLT/GST needed!)
+            route: 'q',          // q = Quick SMS (NO DLT/GST needed!)
             message: message,
             language: 'english',
             flash: 0,
