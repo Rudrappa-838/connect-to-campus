@@ -54,6 +54,7 @@ const sendViaMSG91 = async (phoneNumber, message, schoolConfig) => {
 /**
  * Send SMS via Fast2SMS
  * Cost: ~₹0.10 per SMS (cheapest option)
+ * Route 'v3' = Quick SMS (NO GST / DLT registration needed - good for testing)
  * Sign up: https://www.fast2sms.com/
  */
 const sendViaFast2SMS = async (phoneNumber, message, schoolConfig) => {
@@ -65,12 +66,17 @@ const sendViaFast2SMS = async (phoneNumber, message, schoolConfig) => {
             return false;
         }
 
-        // Remove +91 if present
-        const cleanNumber = phoneNumber.replace(/^\+91/, '').replace(/\D/g, '');
+        // Remove +91 or leading zeros, keep only 10 digits
+        const cleanNumber = phoneNumber.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
+
+        if (cleanNumber.length !== 10) {
+            console.warn(`[SMS-Fast2SMS] Invalid phone number: ${phoneNumber}`);
+            return false;
+        }
 
         const url = 'https://www.fast2sms.com/dev/bulkV2';
         const response = await axios.post(url, {
-            route: 'q',
+            route: 'v3',          // v3 = Quick SMS (NO DLT/GST needed!)
             message: message,
             language: 'english',
             flash: 0,
@@ -83,14 +89,14 @@ const sendViaFast2SMS = async (phoneNumber, message, schoolConfig) => {
         });
 
         if (response.data.return === true) {
-            console.log(`[SMS-Fast2SMS] Sent to ${phoneNumber} | Message ID: ${response.data.request_id}`);
+            console.log(`[SMS-Fast2SMS] ✅ Sent to ${cleanNumber} | Request ID: ${response.data.request_id}`);
             return true;
         } else {
-            console.error('[SMS-Fast2SMS] Failed:', response.data);
+            console.error('[SMS-Fast2SMS] ❌ Failed:', JSON.stringify(response.data));
             return false;
         }
     } catch (error) {
-        console.error('[SMS-Fast2SMS] Error:', error.message);
+        console.error('[SMS-Fast2SMS] Error:', error.response?.data || error.message);
         return false;
     }
 };
