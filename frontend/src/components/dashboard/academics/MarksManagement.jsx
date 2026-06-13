@@ -23,6 +23,10 @@ const MarksManagement = ({ config }) => {
     const [marksheetData, setMarksheetData] = useState(null);
     const [scheduledExams, setScheduledExams] = useState([]);
     const [scheduledPeriod, setScheduledPeriod] = useState(''); // Text to display e.g., "Jan 2026 - Feb 2026"
+    
+    // New states for Subject Combinations
+    const [assignments, setAssignments] = useState({});
+    const [subjectGroups, setSubjectGroups] = useState([]);
 
     // Fetch Schedule Period when Exam Type changes
     useEffect(() => {
@@ -139,6 +143,7 @@ const MarksManagement = ({ config }) => {
             // logic: If sections exist, wait for section selection. If no sections, fetch immediately.
             if (hasSections && !selectedSection) return;
             fetchStudents();
+            fetchAssignmentsAndGroups();
         }
     }, [selectedClass, selectedSection]);
 
@@ -229,6 +234,81 @@ const MarksManagement = ({ config }) => {
         } catch (error) {
             console.error('Error fetching students:', error);
         }
+    };
+
+    const fetchAssignmentsAndGroups = async () => {
+        try {
+            const currentYear = new Date().getFullYear();
+            const academicYear = `${currentYear}-${currentYear + 1}`;
+            const [asnRes, grpRes] = await Promise.all([
+                api.get('/subject-groups/assignments/class', { params: { class_id: selectedClass, academic_year: academicYear } }),
+                api.get('/subject-groups/groups', { params: { class_id: selectedClass } })
+            ]);
+            
+            const map = {};
+            (asnRes.data || []).forEach(row => {
+                let parsedSubjects = row.chosen_subjects;
+                if (typeof parsedSubjects === 'string') {
+                    try { parsedSubjects = JSON.parse(parsedSubjects); } catch (e) { parsedSubjects = []; }
+                }
+                map[row.id] = { group_id: row.group_id, chosen_subjects: parsedSubjects || [] };
+            });
+            setAssignments(map);
+            setSubjectGroups(grpRes.data || []);
+        } catch (err) {
+            console.error('Error fetching assignments and groups', err);
+        }
+    };
+
+    const isSubjectAssignedToStudent = (studentId, subjectId) => {
+        // Guard 1: Only apply combinations if enabled for this school
+        if (config?.has_subject_combinations !== true) {
+            return true;
+        }
+
+        const currentClassObj = config?.classes?.find(c => c.class_id === parseInt(selectedClass));
+        const className = (currentClassObj?.class_name || '').toLowerCase().trim();
+        const isPUC = className === 'class 1' || 
+                      className === 'class 2' || 
+                      className.includes('11') || 
+                      className.includes('12') || 
+                      className.includes('puc') || 
+                      className === '1' || 
+                      className === '2';
+        
+        if (!isPUC) return true;
+        
+        // Guard 2: If no allocations are configured for this class/section at all,
+        // fallback to normal behavior (show all scheduled subjects) instead of showing N/A.
+        const totalAssignments = Object.keys(assignments || {}).length;
+        if (totalAssignments === 0) {
+            return true;
+        }
+        
+        const assignment = assignments[studentId];
+        if (!assignment) return false;
+        
+        // Check if assigned via group
+        if (assignment.group_id) {
+            const group = subjectGroups.find(g => g.id === assignment.group_id);
+            if (group && Array.isArray(group.subjects)) {
+                const hasSubject = group.subjects.some(s => 
+                    parseInt(s.id) === parseInt(subjectId) || 
+                    parseInt(s.subject_id) === parseInt(subjectId)
+                );
+                if (hasSubject) return true;
+            }
+        }
+        
+        // Check if assigned via custom subjects
+        if (Array.isArray(assignment.chosen_subjects)) {
+            const hasSubject = assignment.chosen_subjects.some(id => 
+                parseInt(id) === parseInt(subjectId)
+            );
+            if (hasSubject) return true;
+        }
+        
+        return false;
     };
 
     const fetchMarks = async () => {
@@ -384,9 +464,12 @@ const MarksManagement = ({ config }) => {
             let totalObtained = 0;
             let totalMax = 0;
 
-            // Filter subjects for marksheet as well
+            // Filter subjects for marksheet as well, ensuring we only include subjects assigned to the student
             const scheduledSubjectIds = new Set(examSchedule?.map(s => s.subject_id) || []);
-            const subjectsToDisplay = subjects.filter(sub => scheduledSubjectIds.has(sub.id));
+            const subjectsToDisplay = subjects.filter(sub => 
+                scheduledSubjectIds.has(sub.id) && 
+                isSubjectAssignedToStudent(student.id, sub.id)
+            );
 
             subjectsToDisplay.forEach(sub => {
                 let subObtained = 0;
@@ -488,6 +571,9 @@ const MarksManagement = ({ config }) => {
 
             // Skip ONLY if completely empty (not 0, which is valid)
             if (markData === '' || markData === undefined || markData === null) return;
+
+            // Skip saving marks for subjects the student is not assigned to
+            if (!isSubjectAssignedToStudent(studentId, subjectId)) return;
 
             // For object type (with components), check if total is empty string
             if (typeof markData === 'object' && markData !== null) {
@@ -735,12 +821,15 @@ const MarksManagement = ({ config }) => {
                                             const hasComponents = Array.isArray(components) && components.length > 0;
 
                                             const markValue = marks[key];
-                                            // Handle display value
-                                            // If complex object: markValue.components[name]
+                                            
+                                            // Check Combination Logic for PUC (11/12)
+                                            const isAssigned = isSubjectAssignedToStudent(student.id, subject.id);
 
                                             return (
-                                                <td key={subject.id} className="p-2 border-l text-center">
-                                                    {hasComponents ? (
+                                                <td key={subject.id} className={`p-2 border-l text-center ${!isAssigned ? 'bg-slate-50' : ''}`}>
+                                                    {!isAssigned ? (
+                                                        <span className="text-xs text-slate-400 font-medium italic">N/A</span>
+                                                    ) : hasComponents ? (
                                                         <div className="flex flex-col gap-1">
                                                             {components.map((comp, idx) => {
                                                                 const val = markValue?.components?.[comp.name] ?? '';

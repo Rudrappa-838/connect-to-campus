@@ -123,9 +123,11 @@ const DedicatedQuestionBank = ({ config: academicConfig }) => {
                                     onChange={(e) => setPaperConfig({ ...paperConfig, subject: e.target.value })}
                                 >
                                     <option value="">Select Subject</option>
-                                    {availableSubjects.map((sub, i) => (
-                                        <option key={i} value={sub}>{sub}</option>
-                                    ))}
+                                    {availableSubjects.map((sub, i) => {
+                                        const label = typeof sub === 'object' ? (sub.name || sub.subject_name || JSON.stringify(sub)) : sub;
+                                        const val = typeof sub === 'object' ? (sub.name || sub.subject_name || '') : sub;
+                                        return <option key={i} value={val}>{label}</option>;
+                                    })}
                                 </select>
                             </div>
                             <div className="col-span-2 md:col-span-1">

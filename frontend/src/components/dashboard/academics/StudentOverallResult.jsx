@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
-import { Search, User, FileText, GraduationCap, Calendar, Award, Printer, AlertCircle, Info, CheckSquare, Square, BookOpen, X, Download } from 'lucide-react';
+import { Search, User, FileText, GraduationCap, Calendar, Award, Printer, AlertCircle, Info, CheckSquare, Square, BookOpen, X, Download, TrendingUp } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 import ProfessionalMarksheet from './ProfessionalMarksheet';
 
@@ -21,6 +21,8 @@ const StudentOverallResult = () => {
     const [school, setSchool] = useState(() => {
         try { return JSON.parse(localStorage.getItem('school') || '{}'); } catch { return {}; }
     });
+    const [hoveredPoint, setHoveredPoint] = useState(null);
+    const [printMode, setPrintMode] = useState('marksheet'); // 'marksheet' | 'graph'
 
     React.useEffect(() => {
         // Fetch fresh school configuration and custom templates
@@ -105,12 +107,15 @@ const StudentOverallResult = () => {
         }
     };
 
-    const handlePrintSelected = () => {
-        if (selectedExams.length === 0) {
+    const handlePrintMode = (mode) => {
+        if (mode === 'marksheet' && selectedExams.length === 0) {
             toast.error('Please select at least one marksheet to print');
             return;
         }
-        window.print();
+        setPrintMode(mode);
+        setTimeout(() => {
+            window.print();
+        }, 150);
     };
 
     const handlePrintPUC = useCallback(() => {
@@ -302,11 +307,20 @@ const StudentOverallResult = () => {
                 </div>
             )}
 
-            {/* Results */}
             {result ? (
-                <div className="space-y-6">
+                <div className={`space-y-6 print-mode-${printMode}`}>
+                    <style>{`
+                        @media print {
+                            .print-mode-graph .print-graph-hide {
+                                display: none !important;
+                            }
+                            .print-mode-marksheets .print-marksheet-hide {
+                                display: none !important;
+                            }
+                        }
+                    `}</style>
                     {/* Student Profile */}
-                    <div className="bg-white rounded-2xl shadow-lg p-6 flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 border-blue-500 print:shadow-none print:border-0">
+                    <div className="bg-white rounded-2xl shadow-lg p-6 flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 border-blue-500 print-graph-hide print:shadow-none print:border-0">
                         <div className="flex items-center gap-6 w-full">
                             <div className="bg-blue-50 p-4 rounded-full print:hidden">
                                 <User className="w-10 h-10 text-blue-600" />
@@ -372,19 +386,232 @@ const StudentOverallResult = () => {
                                     View Marksheet
                                 </button>
                             ) : (
-                                <button
-                                    onClick={handlePrintSelected}
-                                    className="bg-slate-700 hover:bg-slate-800 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2"
-                                >
-                                    <Printer className="w-4 h-4" />
-                                    Print Standard ({selectedExams.length})
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => handlePrintMode('marksheet')}
+                                        className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm"
+                                    >
+                                        <Printer className="w-4 h-4" />
+                                        Print Marksheets ({selectedExams.length})
+                                    </button>
+                                    <button
+                                        onClick={() => handlePrintMode('graph')}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm"
+                                    >
+                                        <TrendingUp className="w-4 h-4" />
+                                        Print Trend Graph
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>
 
+                    {/* Performance Graph Card */}
+                    {result.exams && result.exams.length > 0 && (() => {
+                        const paddingLeft = 55;
+                        const paddingRight = 30;
+                        const paddingTop = 25;
+                        const paddingBottom = 40;
+                        const chartWidth = 600 - paddingLeft - paddingRight;
+                        const chartHeight = 240 - paddingTop - paddingBottom;
+
+                        const points = result.exams.map((exam, index) => {
+                            const pct = parseFloat(exam.percentage || 0);
+                            const x = result.exams.length > 1 
+                                ? paddingLeft + (index / (result.exams.length - 1)) * chartWidth 
+                                : paddingLeft + chartWidth / 2;
+                            const y = paddingTop + chartHeight - (pct / 100) * chartHeight;
+                            return { x, y, exam, index };
+                        });
+
+                        let linePath = "";
+                        let areaPath = "";
+
+                        if (result.exams.length > 1) {
+                            linePath = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+                            areaPath = `M ${points[0].x} ${paddingTop + chartHeight} L ${points[0].x} ${points[0].y} ` + 
+                                       points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ') + 
+                                       ` L ${points[points.length - 1].x} ${paddingTop + chartHeight} Z`;
+                        }
+
+                        return (
+                            <div className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100 print:shadow-none print:border-0 print:p-0 print-marksheet-hide">
+                                <div className="hidden print:block mb-4 border-b border-slate-200 pb-3">
+                                    <h2 className="text-xl font-black uppercase text-slate-800">{result.student.name}</h2>
+                                    <p className="text-xs font-bold text-slate-500">ID: {result.student.admission_no} {result.student.class_id ? `| Class ID: ${result.student.class_id}` : ''}</p>
+                                </div>
+                                <div className="flex justify-between items-center mb-6">
+                                    <div>
+                                        <h4 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                            <TrendingUp className="w-5 h-5 text-blue-500" />
+                                            Student Performance Trend
+                                        </h4>
+                                        <p className="text-xs text-slate-500 font-medium">Overall exam percentages recorded over time</p>
+                                    </div>
+                                    <div className="text-xs text-slate-400 font-bold bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                                        Click nodes to filter exam cards below
+                                    </div>
+                                </div>
+
+                                <div className="relative w-full overflow-hidden">
+                                    <svg viewBox="0 0 600 240" className="w-full h-auto overflow-visible">
+                                        <defs>
+                                            <linearGradient id="adminChartAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                                                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                                            </linearGradient>
+                                        </defs>
+
+                                        {/* Grid Lines */}
+                                        {[0, 25, 50, 75, 100].map((val) => {
+                                            const y = paddingTop + chartHeight - (val / 100) * chartHeight;
+                                            return (
+                                                <g key={val}>
+                                                    <line 
+                                                        x1={paddingLeft} 
+                                                        y1={y} 
+                                                        x2={paddingLeft + chartWidth} 
+                                                        y2={y} 
+                                                        stroke="#f1f5f9" 
+                                                        strokeWidth="1.5" 
+                                                    />
+                                                    <text 
+                                                        x={paddingLeft - 10} 
+                                                        y={y} 
+                                                        textAnchor="end" 
+                                                        alignmentBaseline="middle" 
+                                                        fill="#94a3b8" 
+                                                        fontSize="10" 
+                                                        fontWeight="700"
+                                                    >
+                                                        {val}%
+                                                    </text>
+                                                </g>
+                                            );
+                                        })}
+
+                                        {/* Trend Area/Line */}
+                                        {result.exams.length > 1 ? (
+                                            <>
+                                                <path d={areaPath} fill="url(#adminChartAreaGradient)" />
+                                                <path 
+                                                    d={linePath} 
+                                                    fill="none" 
+                                                    stroke="#2563eb" 
+                                                    strokeWidth="3.5" 
+                                                    strokeLinecap="round" 
+                                                    strokeLinejoin="round" 
+                                                />
+                                            </>
+                                        ) : (
+                                            <line 
+                                                x1={paddingLeft} 
+                                                y1={points[0].y} 
+                                                x2={paddingLeft + chartWidth} 
+                                                y2={points[0].y} 
+                                                stroke="#3b82f6" 
+                                                strokeWidth="2.5" 
+                                                strokeDasharray="4 4" 
+                                            />
+                                        )}
+
+                                        {/* Circular Nodes */}
+                                        {points.map((p) => {
+                                            const isSelected = selectedExams.includes(p.index) && selectedExams.length === 1;
+                                            return (
+                                                <g key={p.index}>
+                                                    {isSelected && (
+                                                        <circle 
+                                                            cx={p.x} 
+                                                            cy={p.y} 
+                                                            r="12" 
+                                                            fill="#2563eb" 
+                                                            fillOpacity="0.15" 
+                                                        />
+                                                    )}
+                                                    <circle 
+                                                        cx={p.x} 
+                                                        cy={p.y} 
+                                                        r={isSelected ? 6 : 4.5} 
+                                                        fill={isSelected ? "#ffffff" : "#2563eb"} 
+                                                        stroke="#2563eb" 
+                                                        strokeWidth={isSelected ? 4 : 2}
+                                                        style={{ transition: 'all 0.15s ease-in-out' }}
+                                                    />
+                                                    {/* Percentage Label */}
+                                                    <text
+                                                        x={p.x}
+                                                        y={p.y - 12}
+                                                        textAnchor="middle"
+                                                        fill="#2563eb"
+                                                        fontSize="10"
+                                                        fontWeight="800"
+                                                        className="select-none pointer-events-none"
+                                                    >
+                                                        {parseFloat(p.exam.percentage).toFixed(1)}%
+                                                    </text>
+                                                    <circle
+                                                        cx={p.x}
+                                                        cy={p.y}
+                                                        r="18"
+                                                        fill="transparent"
+                                                        className="cursor-pointer"
+                                                        onClick={() => setSelectedExams([p.index])}
+                                                        onMouseEnter={() => setHoveredPoint(p.index)}
+                                                        onMouseLeave={() => setHoveredPoint(null)}
+                                                    />
+                                                </g>
+                                            );
+                                        })}
+
+                                        {/* X-Axis Labels */}
+                                        {points.map((p) => {
+                                            const isSelected = selectedExams.includes(p.index) && selectedExams.length === 1;
+                                            const displayName = p.exam.exam_name.length > 12 
+                                                ? `${p.exam.exam_name.slice(0, 10)}...` 
+                                                : p.exam.exam_name;
+                                            return (
+                                                <text 
+                                                    key={p.index}
+                                                    x={p.x} 
+                                                    y={paddingTop + chartHeight + 20} 
+                                                    textAnchor="middle" 
+                                                    fill={isSelected ? "#2563eb" : "#64748b"} 
+                                                    fontSize="10" 
+                                                    fontWeight={isSelected ? "700" : "600"}
+                                                    className="cursor-pointer select-none"
+                                                    onClick={() => setSelectedExams([p.index])}
+                                                >
+                                                    {displayName}
+                                                </text>
+                                            );
+                                        })}
+                                    </svg>
+
+                                    {/* Tooltip Overlay */}
+                                    {hoveredPoint !== null && (
+                                        <div 
+                                            className="absolute bg-slate-900/95 text-white text-xs rounded-xl p-3 shadow-xl pointer-events-none transform -translate-x-1/2 -translate-y-full flex flex-col gap-1 z-20 border border-slate-800 transition-all duration-150"
+                                            style={{ 
+                                                left: `${(points[hoveredPoint].x / 600) * 100}%`, 
+                                                top: `${(points[hoveredPoint].y / 240) * 100 - 6}%` 
+                                            }}
+                                        >
+                                            <span className="font-extrabold whitespace-nowrap text-slate-100">{points[hoveredPoint].exam.exam_name}</span>
+                                            <span className="text-blue-400 font-black text-sm">{parseFloat(points[hoveredPoint].exam.percentage).toFixed(2)}%</span>
+                                            <span className="text-slate-400 text-[10px] whitespace-nowrap font-medium">
+                                                {points[hoveredPoint].exam.total_obtained} / {points[hoveredPoint].exam.total_max} Marks
+                                            </span>
+                                            <div className="absolute left-1/2 bottom-0 w-2 h-2 bg-slate-900/95 border-r border-b border-slate-800 transform -translate-x-1/2 translate-y-1/2 rotate-45"></div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
                     {/* Exams List */}
-                    <div className="grid grid-cols-1 gap-6">
+                    <div className="grid grid-cols-1 gap-6 print-graph-hide">
                         {result.exams.length > 0 ? (
                             result.exams.map((exam, index) => {
                                 const isSelected = selectedExams.includes(index);

@@ -53,20 +53,20 @@ const sendViaMSG91 = async (phoneNumber, message, schoolConfig) => {
 
 /**
  * Send SMS via Fast2SMS
- * Cost: ~₹0.10 per SMS (cheapest option)
- * Route 'v3' = Quick SMS (NO GST / DLT registration needed - good for testing)
+ * Supports DLT (via template_id) and Quick route (fallback)
  * Sign up: https://www.fast2sms.com/
  */
 const sendViaFast2SMS = async (phoneNumber, message, schoolConfig) => {
     try {
         const apiKey = schoolConfig.sms_api_key || process.env.FAST2SMS_API_KEY;
+        const senderId = schoolConfig.sms_sender_id || 'FASTSM'; // Default sender ID
+        const templateId = schoolConfig.sms_template_id || null;
 
         if (!apiKey) {
             console.warn('[SMS] Fast2SMS API key not configured');
             return false;
         }
 
-        // Remove +91 or leading zeros, keep only 10 digits
         const cleanNumber = phoneNumber.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
 
         if (cleanNumber.length !== 10) {
@@ -74,18 +74,25 @@ const sendViaFast2SMS = async (phoneNumber, message, schoolConfig) => {
             return false;
         }
 
-        const url = 'https://www.fast2sms.com/dev/bulkV2';
-        const response = await axios.post(url, {
-            route: 'q',          // q = Quick SMS (NO DLT/GST needed!)
+        const payload = {
             message: message,
             language: 'english',
-            flash: 0,
             numbers: cleanNumber
-        }, {
-            headers: {
-                'authorization': apiKey,
-                'Content-Type': 'application/json'
-            }
+        };
+
+        // If template_id exists, use DLT route
+        if (templateId) {
+            payload.route = 'dlt';
+            payload.sender_id = senderId;
+            payload.entity_id = schoolConfig.sms_entity_id || process.env.FAST2SMS_ENTITY_ID;
+            payload.template_id = templateId;
+        } else {
+            payload.route = 'q'; // Quick route
+            payload.flash = 0;
+        }
+
+        const response = await axios.post('https://www.fast2sms.com/dev/bulkV2', payload, {
+            headers: { 'authorization': apiKey }
         });
 
         if (response.data.return === true) {
@@ -158,7 +165,7 @@ const sendSMS = async (schoolId, phoneNumber, message) => {
         // Fetch school config if schoolId is provided
         let schoolConfig = {};
         if (schoolId) {
-            const configRes = await pool.query('SELECT sms_provider, sms_api_key, sms_sender_id FROM schools WHERE id = $1', [schoolId]);
+            const configRes = await pool.query('SELECT sms_provider, sms_api_key, sms_sender_id, sms_template_id, sms_entity_id FROM schools WHERE id = $1', [schoolId]);
             if (configRes.rows.length > 0) {
                 schoolConfig = configRes.rows[0];
             }

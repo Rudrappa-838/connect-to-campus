@@ -694,8 +694,11 @@ const TransportManagement = ({ initialTab }) => {
                                 <div className="h-full bg-slate-100 relative">
                                     <MapContainer center={[12.9716, 77.5946]} zoom={13} style={{ height: '100%', width: '100%' }}>
                                         <TileLayer
-                                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                            attribution='Tiles &copy; Esri'
+                                            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                                        />
+                                        <TileLayer
+                                            url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
                                         />
                                         <MapController stops={stops} isEditing={isEditingRoute} />
                                         <LocationPicker onLocationSelect={handleMapClick} />

@@ -2,6 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Users, Check, X, AlertCircle } from 'lucide-react';
 import api from '../../../api/axios';
 
+const formatWorkingHoursCompact = (decimalHours) => {
+    if (decimalHours == null || isNaN(decimalHours) || decimalHours <= 0) {
+        return '0 mins';
+    }
+    const totalMinutes = Math.round(decimalHours * 60);
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    
+    if (hrs === 0) {
+        return `${mins} mins`;
+    }
+    if (mins === 0) {
+        return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+    }
+    return `${hrs}h ${mins}m`;
+};
+
 const TeacherDailyStatus = () => {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [data, setData] = useState([]);
@@ -66,17 +83,33 @@ const TeacherDailyStatus = () => {
                     <div className="overflow-y-auto custom-scrollbar flex-1 p-0">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 text-slate-500 font-bold text-xs border-b border-slate-100 sticky top-0">
-                                <tr><th className="px-5 py-3 ml-2">Name</th><th className="px-5 py-3 text-right">Contact</th></tr>
+                                <tr>
+                                    <th className="px-5 py-3">Name</th>
+                                    <th className="px-5 py-3">Check-In</th>
+                                    <th className="px-5 py-3">Check-Out</th>
+                                    <th className="px-5 py-3 text-right">Hours</th>
+                                </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {data.filter(s => s.status === 'Present').map((s, i) => (
                                     <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                                        <td className="px-5 py-3 font-medium text-slate-700">{i + 1}. {s.name}</td>
-                                        <td className="px-5 py-3 text-right text-slate-400 text-xs font-mono">{s.phone}</td>
+                                        <td className="px-5 py-3 font-medium text-slate-700">
+                                            <div className="font-bold text-slate-800">{i + 1}. {s.name}</div>
+                                            <div className="text-[10px] text-slate-400 font-mono">{s.phone}</div>
+                                        </td>
+                                        <td className="px-5 py-3 text-xs text-slate-600 font-semibold font-mono">
+                                            {s.check_in_time ? new Date(s.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                                        </td>
+                                        <td className="px-5 py-3 text-xs text-slate-600 font-semibold font-mono">
+                                            {s.check_out_time ? new Date(s.check_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (s.check_in_time ? 'Active 🟢' : '--:--')}
+                                        </td>
+                                        <td className="px-5 py-3 text-right text-xs font-bold text-slate-700 font-mono">
+                                            {formatWorkingHoursCompact(s.working_hours)}
+                                        </td>
                                     </tr>
                                 ))}
                                 {stats.present === 0 && (
-                                    <tr><td colSpan={2} className="p-8 text-center text-slate-400 text-xs">No teachers present today</td></tr>
+                                    <tr><td colSpan={4} className="p-8 text-center text-slate-400 text-xs">No teachers present today</td></tr>
                                 )}
                             </tbody>
                         </table>

@@ -18,6 +18,7 @@ import StudentManagement from '../components/dashboard/students/StudentManagemen
 import StudentAttendanceMarking from '../components/dashboard/students/StudentAttendanceMarking';
 import StudentAttendanceReports from '../components/dashboard/students/StudentAttendanceReports';
 import StudentReviewManagement from '../components/dashboard/students/StudentReviewManagement';
+import SubjectCombination from '../components/dashboard/students/SubjectCombination';
 
 // Biometric & Face Recognition Components
 import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
@@ -28,6 +29,7 @@ import DailyAttendanceStatus from '../components/dashboard/students/DailyAttenda
 import TeacherManagement from '../components/dashboard/teachers/TeacherManagement';
 import TeacherAttendanceMarking from '../components/dashboard/teachers/TeacherAttendanceMarking';
 import TeacherDailyStatus from '../components/dashboard/teachers/TeacherDailyStatus';
+import TeacherGeofenceLogs from '../components/dashboard/teachers/TeacherGeofenceLogs';
 import TeacherAttendanceReports from '../components/dashboard/teachers/TeacherAttendanceReports';
 
 // Staff Components
@@ -264,6 +266,9 @@ const SchoolAdminDashboard = () => {
                         onToggle={() => toggleSection('students')}
                     >
                         <NavSubButton active={activeTab === 'student-list'} onClick={() => handleTabChange('student-list')} label="Admission List" />
+                        {academicConfig?.has_subject_combinations === true && (
+                            <NavSubButton active={activeTab === 'subject-combination'} onClick={() => handleTabChange('subject-combination')} label="Subject Combination" />
+                        )}
                         <NavSubButton active={activeTab === 'student-reviews-admin'} onClick={() => handleTabChange('student-reviews-admin')} label="Student Reviews" />
                         <NavSubButton active={activeTab === 'student-promotion'} onClick={() => handleTabChange('student-promotion')} label="Promote Students" />
                         <NavSubButton active={activeTab === 'student-attendance'} onClick={() => handleTabChange('student-attendance')} label="Take Attendance" />
@@ -290,6 +295,7 @@ const SchoolAdminDashboard = () => {
                         <NavSubButton active={activeTab === 'teacher-list'} onClick={() => handleTabChange('teacher-list')} label="Teacher List" />
                         <NavSubButton active={activeTab === 'teacher-attendance'} onClick={() => handleTabChange('teacher-attendance')} label="Mark Attendance" />
                         <NavSubButton active={activeTab === 'teacher-daily-status'} onClick={() => handleTabChange('teacher-daily-status')} label="Daily Status" />
+                        <NavSubButton active={activeTab === 'teacher-geofence-logs'} onClick={() => handleTabChange('teacher-geofence-logs')} label="Geofence Logs" />
                         <NavSubButton active={activeTab === 'teacher-report'} onClick={() => handleTabChange('teacher-report')} label="Reports" />
                     </NavGroup>
 
@@ -535,6 +541,7 @@ const SchoolAdminDashboard = () => {
                     <div className="max-w-7xl mx-auto animate-in fade-in duration-300">
                         {activeTab === 'overview' && <Overview config={academicConfig} />}
                         {activeTab === 'student-list' && <StudentManagement key="student-list" config={academicConfig} prefillData={activeTabState} />}
+                        {activeTab === 'subject-combination' && <SubjectCombination config={academicConfig} />}
                         {activeTab === 'student-reviews-admin' && <StudentReviewManagement key="student-reviews" config={academicConfig} />}
                         {activeTab === 'student-promotion' && <StudentManagement key="student-promotion" config={academicConfig} isPromotionView={true} />}
                         {activeTab === 'student-bin' && <StudentManagement key="student-bin" config={academicConfig} defaultViewMode="bin" />}
@@ -548,6 +555,7 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'teacher-list' && <TeacherManagement config={academicConfig} />}
                         {activeTab === 'teacher-attendance' && <TeacherAttendanceMarking />}
                         {activeTab === 'teacher-daily-status' && <TeacherDailyStatus />}
+                        {activeTab === 'teacher-geofence-logs' && <TeacherGeofenceLogs />}
                         {activeTab === 'teacher-report' && <TeacherAttendanceReports />}
 
                         {activeTab === 'staff-list' && <StaffManagement />}
@@ -683,6 +691,7 @@ const getTabTitle = (tab, getLabel = (k, d) => d) => {
     const titles = {
         'overview': 'Dashboard Overview',
         'student-list': 'Student Admission List',
+        'subject-combination': 'Subject Combination Allocation',
         'student-promotion': 'Promote Students',
         'admissions-crm': 'Admissions Enquiry CRM',
         'student-attendance': 'Student Attendance',
@@ -693,6 +702,7 @@ const getTabTitle = (tab, getLabel = (k, d) => d) => {
         'teacher-list': 'Teacher Management',
         'teacher-attendance': 'Teacher Attendance',
         'teacher-daily-status': 'Teacher Status',
+        'teacher-geofence-logs': 'Teacher Geofence Logs',
         'teacher-report': 'Teacher Reports',
         'staff-list': 'Staff Management',
         'staff-attendance': 'Staff Attendance',

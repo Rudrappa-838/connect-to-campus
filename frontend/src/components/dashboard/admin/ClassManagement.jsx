@@ -160,6 +160,13 @@ const SubjectManager = ({ classId }) => {
         e.preventDefault();
         if (!subName.trim()) return;
 
+        // Prevent duplicate subject names (case-insensitive check)
+        const isDuplicate = subjects.some(s => s.name.toLowerCase() === subName.trim().toLowerCase());
+        if (isDuplicate) {
+            toast.error(`Subject "${subName.trim()}" already exists in this class`);
+            return;
+        }
+
         try {
             await api.post(`/classes/${classId}/subjects`, {
                 name: subName,

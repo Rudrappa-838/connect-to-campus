@@ -417,9 +417,10 @@ const updateSchool = async (req, res) => {
                 const currentSubjectsRes = await client.query('SELECT id, name FROM subjects WHERE class_id = $1', [classId]);
                 const currentSubjects = currentSubjectsRes.rows;
 
-                // Handle subject deletions if allowDeletions is true
+                // Handle subject deletions if allowDeletions is true (case-insensitive comparison)
                 if (allowDeletions) {
-                    const subjectsToDelete = currentSubjects.filter(curr => !targetSubjects.includes(curr.name));
+                    const targetSubjectsLower = targetSubjects.map(n => n.toLowerCase());
+                    const subjectsToDelete = currentSubjects.filter(curr => !targetSubjectsLower.includes(curr.name.toLowerCase()));
 
                     if (subjectsToDelete.length > 0) {
                         const subjectIds = subjectsToDelete.map(s => s.id);
@@ -428,8 +429,9 @@ const updateSchool = async (req, res) => {
                     }
                 }
 
-                // Add new subjects
-                const subjectsToAdd = targetSubjects.filter(name => !currentSubjects.some(curr => curr.name === name));
+                // Add new subjects (case-insensitive check to avoid duplicates)
+                const currentSubjectNamesLower = currentSubjects.map(s => s.name.toLowerCase());
+                const subjectsToAdd = targetSubjects.filter(name => !currentSubjectNamesLower.includes(name.toLowerCase()));
                 for (const subName of subjectsToAdd) {
                     console.log(`[UPDATE SCHOOL] Adding Subject: ${subName}`);
                     await client.query('INSERT INTO subjects (class_id, name) VALUES ($1, $2)', [classId, subName]);
@@ -585,13 +587,7 @@ const permanentDeleteSchool = async (req, res) => {
             const result = await client.query('DELETE FROM schools WHERE id = $1 RETURNING *', [id]);
 
             await client.query('COMMIT');
-            console.log(`[PERMANENT DELETE SCHOOL] ✅ Successfully deleted school: ${schoolName}`);
-
-            res.json({
-                message: 'School permanently deleted successfully',
-                deletedSchool: schoolName
-            });
-        } catch (deleteError) {
+                } catch (deleteError) {
             // If direct delete fails due to FK constraints, do manual cascade
             console.log('[PERMANENT DELETE SCHOOL] Direct delete failed, performing manual cascade...');
             console.log('[PERMANENT DELETE SCHOOL] Error was:', deleteError.message);
@@ -600,76 +596,91 @@ const permanentDeleteSchool = async (req, res) => {
             await client.query('ROLLBACK');
             await client.query('BEGIN');
 
+            // Define a safe query execution helper using Postgres SAVEPOINTs.
+            // If a query fails inside a transaction block, Postgres aborts the entire transaction.
+            // Wrapping it in a SAVEPOINT allows us to safely catch errors of non-existent tables/columns
+            // and rollback ONLY that failed query, keeping the main transaction fully alive!
+            const safeQuery = async (queryText, params) => {
+                try {
+                    await client.query('SAVEPOINT sp_safe');
+                    const res = await client.query(queryText, params);
+                    await client.query('RELEASE SAVEPOINT sp_safe');
+                    return res;
+                } catch (err) {
+                    console.log(`[PERMANENT DELETE SCHOOL] Safe query ignored failure on: "${queryText.substring(0, 100)}..." -> ${err.message}`);
+                    await client.query('ROLLBACK TO SAVEPOINT sp_safe');
+                    return null;
+                }
+            };
+
             // Manual cascade deletion
             console.log('[PERMANENT DELETE SCHOOL] Step 1: Deleting all related data...');
 
-            // 0. Explicit cleanup of tables with multiple dependencies
-            try { await client.query('DELETE FROM library_transactions WHERE school_id = $1', [id]); } catch (e) { }
-            try { await client.query('DELETE FROM library_books WHERE school_id = $1', [id]); } catch (e) { }
+            // 0. Explicit cleanup of library tables with school_id
+            await safeQuery('DELETE FROM library_transactions WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM library_books WHERE school_id = $1', [id]);
 
-
-            // 1. Student Related Data (Leaves)
+            // 1. Student Related Data
+            // We delete only tables where student_id column actually exists, using safeQuery.
+            // (mark_components has no student_id column and is cascade-deleted from marks).
+            // (leave_requests has no student_id column and is deleted by school_id below).
             const studentTables = [
-                'mark_components', 'marks', 'attendance', 'student_attendance',
+                'marks', 'attendance', 'student_attendance',
                 'fee_payments', 'student_fees', 'hostel_payments', 'hostel_mess_bills',
                 'hostel_allocations', 'student_promotions', 'student_certificates',
-                'doubts', 'transport_allocations', 'leave_requests', 'library_transactions'
+                'doubts'
             ];
             for (const t of studentTables) {
-                try {
-                    if (t === 'library_transactions') {
-                        await client.query('DELETE FROM library_transactions WHERE student_id IN (SELECT id FROM students WHERE school_id = $1)', [id]);
-                    } else {
-                        await client.query(`DELETE FROM ${t} WHERE student_id IN (SELECT id FROM students WHERE school_id = $1)`, [id]);
-                    }
-                } catch (e) { }
+                await safeQuery(`DELETE FROM ${t} WHERE student_id IN (SELECT id FROM students WHERE school_id = $1)`, [id]);
             }
 
             // 2. Students
-            await client.query('DELETE FROM students WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM students WHERE school_id = $1', [id]);
 
             // 3. Class/Academic Structure (Must be before Teachers due to FKs)
-            // Timetables ref Classes & Teachers
-            // Sections ref Teachers
-            // Classes ref Teachers
-            await client.query('DELETE FROM timetables WHERE school_id = $1', [id]);
-            await client.query('DELETE FROM exam_schedules WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM timetables WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM exam_schedules WHERE school_id = $1', [id]);
 
             // Explicitly delete student_fees linked to these fee_structures to prevent FK errors
-            await client.query('DELETE FROM student_fees WHERE fee_structure_id IN (SELECT id FROM fee_structures WHERE school_id = $1)', [id]);
-            await client.query('DELETE FROM fee_structures WHERE school_id = $1', [id]);
-            await client.query('DELETE FROM subjects WHERE class_id IN (SELECT id FROM classes WHERE school_id = $1)', [id]);
-            await client.query('DELETE FROM sections WHERE class_id IN (SELECT id FROM classes WHERE school_id = $1)', [id]);
-            await client.query('DELETE FROM classes WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM student_fees WHERE fee_structure_id IN (SELECT id FROM fee_structures WHERE school_id = $1)', [id]);
+            await safeQuery('DELETE FROM fee_structures WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM subjects WHERE class_id IN (SELECT id FROM classes WHERE school_id = $1)', [id]);
+            await safeQuery('DELETE FROM sections WHERE class_id IN (SELECT id FROM classes WHERE school_id = $1)', [id]);
+            await safeQuery('DELETE FROM classes WHERE school_id = $1', [id]);
 
-            // 4. Transport & Hostels (Must be before Staff/Teachers if linked)
-            try { await client.query('DELETE FROM transport_stops WHERE route_id IN (SELECT id FROM transport_routes WHERE school_id = $1)', [id]); } catch (e) { }
-            try { await client.query('DELETE FROM transport_routes WHERE school_id = $1', [id]); } catch (e) { }
-            try { await client.query('DELETE FROM transport_vehicles WHERE school_id = $1', [id]); } catch (e) { } // Frees Staff
+            // 4. Transport & Hostels
+            await safeQuery('DELETE FROM transport_stops WHERE route_id IN (SELECT id FROM transport_routes WHERE school_id = $1)', [id]);
+            await safeQuery('DELETE FROM transport_routes WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM transport_vehicles WHERE school_id = $1', [id]);
 
-            try { await client.query('DELETE FROM hostel_rooms WHERE hostel_id IN (SELECT id FROM hostels WHERE school_id = $1)', [id]); } catch (e) { }
-            try { await client.query('DELETE FROM hostel_buildings WHERE school_id = $1', [id]); } catch (e) { }
-            try { await client.query('DELETE FROM hostels WHERE school_id = $1', [id]); } catch (e) { }
+            await safeQuery('DELETE FROM hostel_rooms WHERE hostel_id IN (SELECT id FROM hostels WHERE school_id = $1)', [id]);
+            await safeQuery('DELETE FROM hostels WHERE school_id = $1', [id]);
 
             // 5. Teachers & Staff
-            await client.query('DELETE FROM teacher_attendance WHERE teacher_id IN (SELECT id FROM teachers WHERE school_id = $1)', [id]);
-            await client.query('DELETE FROM salary_payments WHERE teacher_id IN (SELECT id FROM teachers WHERE school_id = $1)', [id]);
-            await client.query('DELETE FROM teachers WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM teacher_attendance WHERE teacher_id IN (SELECT id FROM teachers WHERE school_id = $1)', [id]);
+            await safeQuery('DELETE FROM teachers WHERE school_id = $1', [id]);
 
-            await client.query('DELETE FROM staff_attendance WHERE staff_id IN (SELECT id FROM staff WHERE school_id = $1)', [id]);
-            await client.query('DELETE FROM salary_payments WHERE staff_id IN (SELECT id FROM staff WHERE school_id = $1)', [id]);
-            await client.query('DELETE FROM staff WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM staff_attendance WHERE staff_id IN (SELECT id FROM staff WHERE school_id = $1)', [id]);
+            await safeQuery('DELETE FROM staff WHERE school_id = $1', [id]);
 
-            // 6. School Misc
-            const miscTables = ['events', 'school_holidays', 'notifications', 'announcements',
-                'expenditures', 'admissions_enquiries', 'exam_types', 'grades',
-                'library_books'];
+            // 6. School Misc & Shared dependencies
+            // leave_requests and salary_payments are cleaned up cleanly by school_id
+            await safeQuery('DELETE FROM leave_requests WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM salary_payments WHERE school_id = $1', [id]);
+
+            // notifications does not have school_id, it is linked via user_id
+            await safeQuery('DELETE FROM notifications WHERE user_id IN (SELECT id FROM users WHERE school_id = $1)', [id]);
+
+            const miscTables = [
+                'events', 'school_holidays', 'announcements',
+                'expenditures', 'admissions_enquiries', 'exam_types', 'grades'
+            ];
             for (const t of miscTables) {
-                try { await client.query(`DELETE FROM ${t} WHERE school_id = $1`, [id]); } catch (e) { }
+                await safeQuery(`DELETE FROM ${t} WHERE school_id = $1`, [id]);
             }
 
             // 7. Users
-            await client.query('DELETE FROM users WHERE school_id = $1', [id]);
+            await safeQuery('DELETE FROM users WHERE school_id = $1', [id]);
 
             // 8. Schools
             const finalResult = await client.query('DELETE FROM schools WHERE id = $1 RETURNING *', [id]);
@@ -707,7 +718,7 @@ const updateSchoolFeatures = async (req, res) => {
     const updates = req.body; // e.g., { has_hostel: true, has_neet_exams: false }
     
     // Allowed feature flags to prevent arbitrary column updates
-    const allowedFeatures = ['has_hostel', 'has_neet_exams', 'has_face_enrollment', 'has_face_scanner', 'has_biometric'];
+    const allowedFeatures = ['has_hostel', 'has_neet_exams', 'has_face_enrollment', 'has_face_scanner', 'has_biometric', 'has_subject_combinations'];
     
     try {
         const fields = Object.keys(updates).filter(key => allowedFeatures.includes(key));
@@ -801,7 +812,8 @@ const updateMySchoolSettings = async (req, res) => {
     const schoolId = req.user.schoolId;
     if (!schoolId) return res.status(403).json({ message: 'Access denied' });
 
-    const { geminiApiKey, smsProvider, smsApiKey, smsSenderId } = req.body;
+    const { geminiApiKey, smsProvider, smsApiKey, smsSenderId, latitude, longitude, attendanceRadius, attendance_radius } = req.body;
+    const finalRadius = attendanceRadius !== undefined ? attendanceRadius : attendance_radius;
 
     try {
         await pool.query(
@@ -809,9 +821,21 @@ const updateMySchoolSettings = async (req, res) => {
                 gemini_api_key = COALESCE($1, gemini_api_key),
                 sms_provider = COALESCE($3, sms_provider),
                 sms_api_key = COALESCE($4, sms_api_key),
-                sms_sender_id = COALESCE($5, sms_sender_id)
+                sms_sender_id = COALESCE($5, sms_sender_id),
+                latitude = COALESCE($6, latitude),
+                longitude = COALESCE($7, longitude),
+                attendance_radius = COALESCE($8, attendance_radius)
              WHERE id = $2`,
-            [geminiApiKey, schoolId, smsProvider, smsApiKey, smsSenderId]
+            [
+                geminiApiKey,
+                schoolId,
+                smsProvider,
+                smsApiKey,
+                smsSenderId,
+                latitude === undefined ? null : (latitude === '' ? null : latitude),
+                longitude === undefined ? null : (longitude === '' ? null : longitude),
+                finalRadius === undefined ? null : (finalRadius === '' ? null : finalRadius)
+            ]
         );
         res.json({ message: 'Settings updated successfully' });
     } catch (error) {

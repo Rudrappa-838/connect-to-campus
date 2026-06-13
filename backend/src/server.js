@@ -1,4 +1,5 @@
 const path = require('path');
+const http = require('http');
 const dotenv = require('dotenv');
 
 // Explicitly load .env from root of backend
@@ -13,6 +14,13 @@ if (result.error) {
 }
 const app = require('./app');
 const { pool } = require('./config/db');
+const { initSocket } = require('./services/socketService');
+
+// Create HTTP server (needed for Socket.IO)
+const httpServer = http.createServer(app);
+
+// Initialize Socket.IO for real-time GPS tracking
+initSocket(httpServer);
 
 const cron = require('node-cron');
 const { checkAndSendAbsentNotifications } = require('./services/notificationService');
@@ -196,10 +204,51 @@ const startServer = async () => {
                     END IF;
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'teacher_attendance') THEN
                         ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS marking_mode VARCHAR(50) DEFAULT 'manual';
+                        ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS check_in_time TIMESTAMPTZ;
+                        ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS check_out_time TIMESTAMPTZ;
+                        ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS check_in_lat DECIMAL(9, 6);
+                        ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS check_in_lng DECIMAL(9, 6);
+                        ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS check_out_lat DECIMAL(9, 6);
+                        ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS check_out_lng DECIMAL(9, 6);
+                        ALTER TABLE teacher_attendance ADD COLUMN IF NOT EXISTS working_hours NUMERIC(5, 2);
+                        -- Force migration to TIMESTAMPTZ in case columns were already created as TIMESTAMP
+                        ALTER TABLE teacher_attendance ALTER COLUMN check_in_time TYPE TIMESTAMPTZ;
+                        ALTER TABLE teacher_attendance ALTER COLUMN check_out_time TYPE TIMESTAMPTZ;
                     END IF;
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'staff_attendance') THEN
                         ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS marking_mode VARCHAR(50) DEFAULT 'manual';
+                        ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS check_in_time TIMESTAMPTZ;
+                        ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS check_out_time TIMESTAMPTZ;
+                        ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS check_in_lat DECIMAL(9, 6);
+                        ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS check_in_lng DECIMAL(9, 6);
+                        ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS check_out_lat DECIMAL(9, 6);
+                        ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS check_out_lng DECIMAL(9, 6);
+                        ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS working_hours NUMERIC(5, 2);
+                        -- Force migration to TIMESTAMPTZ in case columns were already created as TIMESTAMP
+                        ALTER TABLE staff_attendance ALTER COLUMN check_in_time TYPE TIMESTAMPTZ;
+                        ALTER TABLE staff_attendance ALTER COLUMN check_out_time TYPE TIMESTAMPTZ;
                     END IF;
+
+                    -- D. SCHOOLS GPS SETTINGS
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'schools') THEN
+                        ALTER TABLE schools ADD COLUMN IF NOT EXISTS latitude DECIMAL(9, 6);
+                        ALTER TABLE schools ADD COLUMN IF NOT EXISTS longitude DECIMAL(9, 6);
+                        ALTER TABLE schools ADD COLUMN IF NOT EXISTS attendance_radius INTEGER DEFAULT 200;
+                    END IF;
+
+                    -- E. GEOFENCE LOGS FOR TEACHERS
+                    CREATE TABLE IF NOT EXISTS teacher_attendance_geofence_logs (
+                        id SERIAL PRIMARY KEY,
+                        school_id INTEGER NOT NULL,
+                        teacher_id INTEGER NOT NULL,
+                        date DATE NOT NULL,
+                        event_type VARCHAR(20) NOT NULL, -- 'CHECK_IN' or 'CHECK_OUT'
+                        timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        latitude DECIMAL(9, 6),
+                        longitude DECIMAL(9, 6),
+                        distance NUMERIC(10, 2)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_geofence_logs_teacher_date ON teacher_attendance_geofence_logs(teacher_id, date);
                 END $$;
             `);
             // Fix: Add missing columns to schools table (institution_type, gemini_api_key, marksheet_template)
@@ -318,6 +367,126 @@ const startServer = async () => {
                 END $$;
             `);
 
+            // ─── EXAM SYSTEM v2 — Universal (Schools + PU Colleges) ─────────────────────
+            // Subject Master
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS exam_subjects (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL,
+                    subject_code VARCHAR(50),
+                    type VARCHAR(50) DEFAULT 'CORE',
+                    is_common_to_all BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            // Subject Groups (Combinations like PCMB, PCMC, General)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS exam_subject_groups (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    class_id INTEGER REFERENCES classes(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    is_default BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            // Language/Choice Pools (Kannada OR Hindi OR Sanskrit — pick one)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS exam_choice_pools (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    group_id INTEGER REFERENCES exam_subject_groups(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL
+                );
+            `);
+
+            // Links subjects to groups with required/optional and choice pool info
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS exam_group_subjects (
+                    id SERIAL PRIMARY KEY,
+                    group_id INTEGER REFERENCES exam_subject_groups(id) ON DELETE CASCADE,
+                    subject_id INTEGER REFERENCES exam_subjects(id) ON DELETE CASCADE,
+                    is_required BOOLEAN DEFAULT TRUE,
+                    choice_pool_id INTEGER REFERENCES exam_choice_pools(id) ON DELETE SET NULL,
+                    UNIQUE(group_id, subject_id)
+                );
+            `);
+
+            // Student to group assignment (which combination a student chose)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS student_subject_assignments (
+                    id SERIAL PRIMARY KEY,
+                    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    class_id INTEGER REFERENCES classes(id) ON DELETE CASCADE,
+                    academic_year VARCHAR(20) NOT NULL,
+                    group_id INTEGER REFERENCES exam_subject_groups(id) ON DELETE SET NULL,
+                    chosen_subjects JSONB DEFAULT '[]',
+                    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(student_id, school_id, class_id, academic_year)
+                );
+            `);
+
+            // Exam Events (CIE-1, Monthly Jan, Annual Exam, etc.)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS exam_events (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    class_id INTEGER REFERENCES classes(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL,
+                    exam_type VARCHAR(50) DEFAULT 'CUSTOM',
+                    academic_year VARCHAR(20),
+                    start_date DATE,
+                    end_date DATE,
+                    status VARCHAR(20) DEFAULT 'DRAFT',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            // Timetable slots — one row per subject per exam event
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS exam_timetable_slots (
+                    id SERIAL PRIMARY KEY,
+                    event_id INTEGER REFERENCES exam_events(id) ON DELETE CASCADE,
+                    subject_id INTEGER REFERENCES exam_subjects(id) ON DELETE CASCADE,
+                    exam_date DATE,
+                    start_time TIME,
+                    duration_minutes INTEGER DEFAULT 180,
+                    room_number VARCHAR(50),
+                    invigilator_name VARCHAR(255),
+                    max_theory_marks NUMERIC(6,2) DEFAULT 100,
+                    max_practical_marks NUMERIC(6,2) DEFAULT 0,
+                    max_total_marks NUMERIC(6,2) DEFAULT 100
+                );
+            `);
+
+            // Student marks per timetable slot
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS student_exam_marks (
+                    id SERIAL PRIMARY KEY,
+                    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                    slot_id INTEGER REFERENCES exam_timetable_slots(id) ON DELETE CASCADE,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    theory_marks NUMERIC(6,2),
+                    practical_marks NUMERIC(6,2) DEFAULT 0,
+                    total_marks NUMERIC(6,2),
+                    is_absent BOOLEAN DEFAULT FALSE,
+                    remarks TEXT,
+                    entered_by INTEGER,
+                    entered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_verified BOOLEAN DEFAULT FALSE,
+                    UNIQUE(student_id, slot_id)
+                );
+            `);
+
+            console.log('✅ Exam System v2 tables ready');
+            // ─────────────────────────────────────────────────────────────────────────────
+
             console.log('✅ Database schema verified.');
         } catch (migError) {
             console.warn('⚠️ Some migrations could not be applied automatically:', migError.message);
@@ -333,8 +502,8 @@ const startServer = async () => {
 
         client.release();
 
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Server running on port ${PORT} and accepting external connections`);
+        httpServer.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Server running on port ${PORT} with Socket.IO GPS tracking enabled`);
         });
     } catch (error) {
         console.error('❌ Database connection failed:', error.message);

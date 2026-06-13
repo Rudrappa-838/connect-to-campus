@@ -233,9 +233,12 @@ const SuperAdminDashboard = () => {
             }
 
             // Update custom options state so they appear in the buttons list
+            // Use case-insensitive comparison to avoid duplicates with predefined lists
+            const predefinedSubjectsLower = PREDEFINED_SUBJECTS.map(s => s.toLowerCase());
+            const predefinedSectionsLower = PREDEFINED_SECTIONS.map(s => s.toLowerCase());
             setCustomOptions({
-                sections: [...allSections].filter(x => !PREDEFINED_SECTIONS.includes(x)),
-                subjects: [...allSubjects].filter(x => !PREDEFINED_SUBJECTS.includes(x))
+                sections: [...allSections].filter(x => !predefinedSectionsLower.includes(x.toLowerCase())),
+                subjects: [...allSubjects].filter(x => !predefinedSubjectsLower.includes(x.toLowerCase()))
             });
 
             // Force state update with new array reference
@@ -278,16 +281,11 @@ const SuperAdminDashboard = () => {
             const updatedClasses = [...prev.classes];
 
             if (existingClassIndex !== -1) {
-                // Merge
-                const existingClass = updatedClasses[existingClassIndex];
-                // Use Set to strictly ensure uniqueness
-                const mergedSections = [...new Set([...existingClass.sections, ...configToSave.sections])];
-                const mergedSubjects = [...new Set([...existingClass.subjects, ...configToSave.subjects])];
-
+                // REPLACE (not merge) so that removed subjects/sections are properly removed
                 updatedClasses[existingClassIndex] = {
-                    ...existingClass,
-                    sections: mergedSections,
-                    subjects: mergedSubjects
+                    ...updatedClasses[existingClassIndex],
+                    sections: [...new Set(configToSave.sections)],
+                    subjects: [...new Set(configToSave.subjects)]
                 };
                 if (showToast) toast.success(`Updated configuration for ${configToSave.name}`);
             } else {
@@ -645,6 +643,20 @@ const SuperAdminDashboard = () => {
                                                     <Shield size={10} />
                                                     {school.has_biometric ? 'BIOMETRIC ON' : 'BIOMETRIC OFF'}
                                                 </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_subject_combinations', 'Subject Combination');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_subject_combinations
+                                                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_subject_combinations ? "Disable Subject Combinations" : "Enable Subject Combinations"}
+                                                >
+                                                    <Layers size={10} />
+                                                    {school.has_subject_combinations ? 'COMBO ON' : 'COMBO OFF'}
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -965,9 +977,17 @@ const SuperAdminDashboard = () => {
                                                             onChange={(e) => {
                                                                 if (e.target.value === 'custom') {
                                                                     setCustomInputs({ ...customInputs, class: true });
-                                                                    setClassInput({ ...classInput, name: '' });
+                                                                    setClassInput({ name: '', sections: [], subjects: [] });
+                                                                } else if (e.target.value === '') {
+                                                                    setClassInput({ name: '', sections: [], subjects: [] });
                                                                 } else {
-                                                                    setClassInput({ ...classInput, name: e.target.value });
+                                                                    // Pre-load existing sections & subjects for this class
+                                                                    const existingClass = formData.classes.find(c => c.name === e.target.value);
+                                                                    setClassInput({
+                                                                        name: e.target.value,
+                                                                        sections: existingClass ? [...existingClass.sections] : [],
+                                                                        subjects: existingClass ? [...existingClass.subjects] : []
+                                                                    });
                                                                 }
                                                             }}
                                                         >
@@ -1106,15 +1126,25 @@ const SuperAdminDashboard = () => {
                                             <div className="space-y-2">
                                                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Subjects</label>
                                                 <div className="flex flex-wrap gap-2 p-2 bg-slate-900 border border-slate-700 rounded-xl min-h-[50px] max-h-48 overflow-y-auto custom-scrollbar">
-                                                    {[...PREDEFINED_SUBJECTS, ...customOptions.subjects].map(s => (
+                                                    {(() => {
+                                                        // Deduplicate: merge predefined + custom, no case duplicates
+                                                        const seen = new Set();
+                                                        return [...PREDEFINED_SUBJECTS, ...customOptions.subjects].filter(s => {
+                                                            const key = s.toLowerCase();
+                                                            if (seen.has(key)) return false;
+                                                            seen.add(key);
+                                                            return true;
+                                                        });
+                                                    })().map(s => (
                                                         <button
                                                             key={s}
                                                             type="button"
                                                             onClick={() => toggleSelection('subjects', s)}
-                                                            className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${classInput.subjects.includes(s)
-                                                                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm shadow-emerald-500/10'
-                                                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
-                                                                }`}
+                                                            className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                                                                classInput.subjects.some(sel => sel.toLowerCase() === s.toLowerCase())
+                                                                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm shadow-emerald-500/10'
+                                                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                                                            }`}
                                                         >
                                                             {s}
                                                         </button>

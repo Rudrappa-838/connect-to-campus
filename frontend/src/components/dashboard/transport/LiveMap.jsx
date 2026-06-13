@@ -3,8 +3,9 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Bus, Navigation } from 'lucide-react';
-import { renderToString } from 'react-dom/server';
 import api from '../../../api/axios';
+import { io } from 'socket.io-client';
+import { useAuth } from '../../../context/AuthContext';
 
 // Fix for default Leaflet icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -40,63 +41,59 @@ const RecenterMap = ({ lat, lng }) => {
     return null;
 };
 
+const SOCKET_URL = import.meta.env.VITE_API_URL
+    ? import.meta.env.VITE_API_URL.replace('/api', '')
+    : (import.meta.env.PROD ? 'https://connect2campus.co.in' : 'http://localhost:5000');
+
 const LiveMap = ({ vehicles, routes }) => {
-    const defaultCenter = [12.9716, 77.5946];
-    const [liveVehicles, setLiveVehicles] = useState(vehicles);
-    const [simulationEnabled, setSimulationEnabled] = useState(false);
+    const { user } = useAuth();
+    const [defaultCenter, setDefaultCenter] = useState(null);
+    const [locationLoaded, setLocationLoaded] = useState(false);
+    const [liveVehicles, setLiveVehicles] = useState(vehicles || []);
 
-    // Simulate live movement
+    // Get user's present location
     useEffect(() => {
-        if (!simulationEnabled) return;
-        const interval = setInterval(() => {
-            setLiveVehicles(prev => prev.map(v => {
-                if (v.status === 'Active' && v.current_lat && v.current_lng) {
-                    return {
-                        ...v,
-                        current_lat: parseFloat(v.current_lat) + (Math.random() - 0.5) * 0.001,
-                        current_lng: parseFloat(v.current_lng) + (Math.random() - 0.5) * 0.001
-                    };
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setDefaultCenter([position.coords.latitude, position.coords.longitude]);
+                    setLocationLoaded(true);
+                },
+                (error) => {
+                    console.error("Location access denied:", error);
+                    setDefaultCenter([12.9716, 77.5946]); // fallback
+                    setLocationLoaded(true);
                 }
-                return v;
-            }));
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [simulationEnabled]);
+            );
+        } else {
+            setDefaultCenter([12.9716, 77.5946]); // fallback
+            setLocationLoaded(true);
+        }
+    }, []);
 
-    // Poll for real updates
-    useEffect(() => {
-        if (simulationEnabled) return;
-
-        const fetchLocations = async () => {
-            try {
-                const res = await api.get('/transport/vehicles');
-                // Only update if we have data to avoid flickering
-                if (res.data && res.data.length > 0) {
-                    setLiveVehicles(res.data);
-                }
-            } catch (err) {
-                console.error("Failed to poll vehicle locations", err);
-            }
-        };
-
-        fetchLocations(); // Initial fetch
-        const interval = setInterval(fetchLocations, 3000); // 3s poll
-        return () => clearInterval(interval);
-    }, [simulationEnabled]);
-
-    // Update local state when props change, but don't overwrite if we have newer polled data?
-    // Actually, simple sync is fine as props usually don't change often.
+    // Seed with props on mount/update
     useEffect(() => {
         if (vehicles && vehicles.length > 0) {
-            // Check if we have fresher data in state, if not, update.
-            // For simplicity, we just accept props updates as they likely come from full refreshes.
-            // But usually polling handles it. We can ignore this or merge.
-            // Let's just set it to handle initial load.
-            setLiveVehicles(prev => {
-                return (prev.length === 0) ? vehicles : prev;
-            });
+            setLiveVehicles(prev => prev.length === 0 ? vehicles : prev);
         }
     }, [vehicles]);
+
+    // WebSocket real-time updates (replaces polling)
+    useEffect(() => {
+        const schoolId = user?.schoolId;
+        if (!schoolId) return;
+
+        const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
+        socket.on('connect', () => socket.emit('join:school', schoolId));
+        socket.on('vehicle:location', (data) => {
+            setLiveVehicles(prev => prev.map(v =>
+                v.id === data.vehicleId
+                    ? { ...v, current_lat: data.lat, current_lng: data.lng, speed: data.speed, status: data.status }
+                    : v
+            ));
+        });
+        return () => socket.disconnect();
+    }, [user?.schoolId]);
 
     const activeVehicles = liveVehicles.filter(v => {
         const lat = parseFloat(v.current_lat);
@@ -104,9 +101,18 @@ const LiveMap = ({ vehicles, routes }) => {
         return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0 && (v.status === 'Active' || v.status === 'On Route');
     });
 
+    if (!locationLoaded && activeVehicles.length === 0) {
+        return (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500 rounded-xl">
+                <Navigation className="animate-pulse text-indigo-500 mb-2" size={32} />
+                <span className="text-sm font-bold">Getting your present location...</span>
+            </div>
+        );
+    }
+
     const center = activeVehicles.length > 0
         ? [parseFloat(activeVehicles[0].current_lat), parseFloat(activeVehicles[0].current_lng)]
-        : defaultCenter;
+        : (defaultCenter || [12.9716, 77.5946]);
 
     return (
         <div className="w-full h-full relative">
@@ -186,29 +192,15 @@ const LiveMap = ({ vehicles, routes }) => {
                     </div>
                 </div>
 
-                {/* Simulation Toggle */}
-                <div className="pt-3 border-t border-slate-100">
-                    <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-slate-600 font-medium text-xs">Simulate Movement</span>
-                        <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                            <input
-                                type="checkbox"
-                                checked={simulationEnabled}
-                                onChange={e => setSimulationEnabled(e.target.checked)}
-                                className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 checked:right-0 checked:border-indigo-600"
-                                style={{ right: simulationEnabled ? '0' : '50%' }}
-                            />
-                            <label className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${simulationEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}></label>
-                        </div>
-                    </label>
-                </div>
-
-                {/* API Info for GPS Hardware */}
-                <div className="pt-3 border-t border-slate-100 text-[10px] text-slate-400">
-                    For GPS Hardware integration, configure device to PUT location to:
-                    <code className="block bg-slate-50 p-1 mt-1 rounded border border-slate-200 select-all">
-                        /api/transport/vehicles/:id/location
+                {/* WebSocket Real-time info */}
+                <div className="pt-3 border-t border-slate-100 text-[10px] text-slate-500 space-y-1">
+                    <p className="font-bold text-slate-600">⚡ WebSocket Live</p>
+                    <p>Updates instantly when GPS data arrives. No refresh needed.</p>
+                    <p className="font-bold text-slate-600 mt-2">📡 GPS Hardware Webhook:</p>
+                    <code className="block bg-slate-50 p-1 rounded border border-slate-200 select-all break-all">
+                        POST /api/transport/gps/webhook
                     </code>
+                    <p className="text-slate-400">Any GPS company format auto-detected</p>
                 </div>
             </div>
         </div>

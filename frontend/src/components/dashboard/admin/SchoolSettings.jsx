@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Building, Upload, Image as ImageIcon, Trash2, Calendar, Layers } from 'lucide-react';
+import { Save, Building, Upload, Image as ImageIcon, Trash2, Calendar, Layers, MapPin } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
 import ClassManagement from './ClassManagement';
@@ -7,6 +10,34 @@ import AcademicYearSettings from '../settings/AcademicYearSettings';
 
 import { useAuth } from '../../../context/AuthContext';
 import { useInstitution } from '../../../context/InstitutionContext';
+
+// Fix for default Leaflet icons
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+const MapController = ({ center, zoom }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (center && center[0] && center[1]) {
+            map.setView(center, zoom || 15);
+            map.invalidateSize();
+        }
+    }, [center, zoom, map]);
+    return null;
+};
+
+const MapClickHandler = ({ onMapClick }) => {
+    useMapEvents({
+        click(e) {
+            onMapClick(e.latlng.lat, e.latlng.lng);
+        },
+    });
+    return null;
+};
 
 const SchoolSettings = () => {
     const { user } = useAuth();
@@ -29,6 +60,12 @@ const SchoolSettings = () => {
     const [updatingWord, setUpdatingWord] = useState(false);
     const [loading, setLoading] = useState(false);
 
+    // GPS Settings States
+    const [latitude, setLatitude] = useState('');
+    const [longitude, setLongitude] = useState('');
+    const [attendanceRadius, setAttendanceRadius] = useState(200);
+    const [detectingLocation, setDetectingLocation] = useState(false);
+
     useEffect(() => {
         loadSchoolInfo();
     }, []);
@@ -46,6 +83,9 @@ const SchoolSettings = () => {
                 setSmsApiKey(school.sms_api_key || '');
                 setSmsSenderId(school.sms_sender_id || '');
                 setMarksheetTemplate(school.marksheet_template || 'STANDARD');
+                setLatitude(school.latitude || '');
+                setLongitude(school.longitude || '');
+                setAttendanceRadius(school.attendance_radius || 200);
             }
 
             const templatesRes = await api.get('/schools/my-school/word-templates').catch(() => null);
@@ -82,6 +122,28 @@ const SchoolSettings = () => {
     const handleRemoveLogo = () => {
         setLogoUrl('');
         setLogoFile(null);
+    };
+
+    const handleDetectLocation = () => {
+        if (!navigator.geolocation) {
+            toast.error('Geolocation is not supported by your browser');
+            return;
+        }
+        setDetectingLocation(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLatitude(position.coords.latitude.toFixed(6));
+                setLongitude(position.coords.longitude.toFixed(6));
+                setDetectingLocation(false);
+                toast.success('Current coordinates detected successfully!');
+            },
+            (error) => {
+                console.error('Error detecting location:', error);
+                setDetectingLocation(false);
+                toast.error(error.message || 'Failed to detect location. Please grant permission.');
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
     };
 
     const handleWordUpload = async () => {
@@ -143,13 +205,15 @@ const SchoolSettings = () => {
         try {
             setLoading(true);
 
-            // Prepare Payload
             const updateData = {
                 geminiApiKey: geminiKey,
                 smsProvider: smsProvider,
                 smsApiKey: smsApiKey,
                 smsSenderId: smsSenderId,
-                marksheet_template: marksheetTemplate
+                marksheet_template: marksheetTemplate,
+                latitude: latitude === '' ? null : parseFloat(latitude),
+                longitude: longitude === '' ? null : parseFloat(longitude),
+                attendanceRadius: attendanceRadius ? parseInt(attendanceRadius) : 200
             };
 
             // 1. Update Basic Settings (API Key)
@@ -209,6 +273,16 @@ const SchoolSettings = () => {
                     >
                         <Calendar size={20} />
                         Academic Year
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('gps-attendance')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-bold transition-all ${activeTab === 'gps-attendance'
+                            ? 'bg-indigo-600 text-white shadow-md'
+                            : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                    >
+                        <MapPin size={20} />
+                        GPS Attendance
                     </button>
                     {user?.role === 'SUPER_ADMIN' && (
                         <button
@@ -510,6 +584,125 @@ const SchoolSettings = () => {
             {/* Academic Year Tab */}
             {activeTab === 'academic-year' && (
                 <AcademicYearSettings />
+            )}
+
+            {/* GPS Attendance Tab */}
+            {activeTab === 'gps-attendance' && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-2xl mx-auto animate-in fade-in">
+                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-800">
+                        <MapPin className="text-indigo-600 animate-bounce" /> GPS Attendance & Geofencing Settings
+                    </h2>
+
+                    <div className="space-y-6">
+                        <p className="text-sm text-slate-600 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                            Configure the geographical coordinates of the school and the check-in radius boundary.
+                            Teachers must be within this designated radius to check in or out from the dashboard.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Latitude</label>
+                                <input
+                                    type="number"
+                                    step="0.000001"
+                                    placeholder="e.g. 12.971598"
+                                    value={latitude}
+                                    onChange={(e) => setLatitude(e.target.value)}
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-mono"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Longitude</label>
+                                <input
+                                    type="number"
+                                    step="0.000001"
+                                    placeholder="e.g. 77.594562"
+                                    value={longitude}
+                                    onChange={(e) => setLongitude(e.target.value)}
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-mono"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-start">
+                            <button
+                                type="button"
+                                onClick={handleDetectLocation}
+                                disabled={detectingLocation}
+                                className="px-4 py-2 border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 font-bold rounded-lg transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
+                            >
+                                <MapPin size={16} />
+                                {detectingLocation ? 'Detecting Location...' : 'Use My Current Location'}
+                            </button>
+                        </div>
+
+                        {/* Leaflet Map Geofence Boundary Display/Selection */}
+                        <div className="pt-6 border-t border-slate-100">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Campus Location Geofence</label>
+                            <p className="text-xs text-slate-500 mb-3">
+                                Click on the map to pin the school coordinates. The circle visualizes the active allowed attendance radius.
+                            </p>
+                            <div className="h-80 w-full rounded-xl border border-slate-300 overflow-hidden shadow-inner relative z-10">
+                                <MapContainer
+                                    center={latitude && longitude ? [parseFloat(latitude), parseFloat(longitude)] : [12.971598, 77.594562]}
+                                    zoom={15}
+                                    style={{ height: '100%', width: '100%' }}
+                                >
+                                    <TileLayer
+                                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                    />
+                                    {latitude && longitude && (
+                                        <>
+                                            <Marker position={[parseFloat(latitude), parseFloat(longitude)]} />
+                                            <Circle
+                                                center={[parseFloat(latitude), parseFloat(longitude)]}
+                                                radius={attendanceRadius || 200}
+                                                pathOptions={{ color: '#4f46e5', fillColor: '#4f46e5', fillOpacity: 0.2 }}
+                                            />
+                                            <MapController center={[parseFloat(latitude), parseFloat(longitude)]} zoom={15} />
+                                        </>
+                                    )}
+                                    <MapClickHandler
+                                        onMapClick={(lat, lng) => {
+                                            setLatitude(lat.toFixed(6));
+                                            setLongitude(lng.toFixed(6));
+                                        }}
+                                    />
+                                </MapContainer>
+                            </div>
+                        </div>
+
+                        <div className="pt-6 border-t border-slate-100">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Allowed Boundary Radius</label>
+                            <select
+                                value={attendanceRadius}
+                                onChange={(e) => setAttendanceRadius(parseInt(e.target.value))}
+                                className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"
+                            >
+                                <option value={50}>50 meters (Very strict)</option>
+                                <option value={100}>100 meters (Standard)</option>
+                                <option value={200}>200 meters (Recommended)</option>
+                                <option value={500}>500 meters (Broad campus)</option>
+                                <option value={1000}>1000 meters (1 Kilometer)</option>
+                            </select>
+                            <p className="text-xs text-slate-500 mt-2">
+                                Set the distance buffer within which check-in is allowed. Recommending 100m to 200m depending on school grounds size.
+                            </p>
+                        </div>
+
+                        <div className="pt-6 border-t border-slate-100 flex justify-end">
+                            <button
+                                onClick={handleSave}
+                                disabled={loading}
+                                className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm hover:shadow active:scale-95"
+                            >
+                                <Save size={18} /> {loading ? 'Saving Changes...' : 'Save Settings'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Classes Tab */}

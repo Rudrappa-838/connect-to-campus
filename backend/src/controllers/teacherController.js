@@ -476,7 +476,15 @@ exports.getDailyAttendance = async (req, res) => {
         if (!date) return res.status(400).json({ message: 'Date is required' });
 
         const query = `
-            SELECT t.id, t.name, t.phone, t.subject_specialization, COALESCE(a.status, 'Unmarked') as status
+            SELECT 
+                t.id, 
+                t.name, 
+                t.phone, 
+                t.subject_specialization, 
+                COALESCE(a.status, 'Unmarked') as status,
+                a.check_in_time,
+                a.check_out_time,
+                a.working_hours
             FROM teachers t
             LEFT JOIN teacher_attendance a ON t.id = a.teacher_id AND a.date = $2
             WHERE t.school_id = $1
@@ -628,7 +636,14 @@ exports.getMyAttendanceHistory = async (req, res) => {
             )
             SELECT 
                 TO_CHAR(d.date, 'YYYY-MM-DD') as date,
-                COALESCE(a.status, CASE WHEN mh.holiday_date IS NOT NULL THEN 'Holiday' ELSE 'Unmarked' END) as status
+                COALESCE(a.status, CASE WHEN mh.holiday_date IS NOT NULL THEN 'Holiday' ELSE 'Unmarked' END) as status,
+                a.check_in_time,
+                a.check_out_time,
+                a.check_in_lat,
+                a.check_in_lng,
+                a.check_out_lat,
+                a.check_out_lng,
+                a.working_hours
             FROM generate_series($3::date, $4::date, '1 day'::interval) d(date)
             LEFT JOIN teacher_attendance a ON a.teacher_id = $1 AND a.date = d.date::date
             LEFT JOIN month_holidays mh ON mh.holiday_date = d.date::date
@@ -695,5 +710,289 @@ exports.updateMyProfile = async (req, res) => {
         res.status(500).json({ message: 'Server error updating profile' });
     } finally {
         client.release();
+    }
+};
+
+// Calculate distance between two GPS coordinates using Haversine formula
+function getDistanceMeters(lat1, lon1, lat2, lon2) {
+    if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) return null;
+    const R = 6371000; // Radius of the earth in meters
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c; // Distance in meters
+    return d;
+}
+
+// Get today's check-in / check-out status
+exports.getTodayAttendanceStatus = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const email = req.user.email;
+
+        // Find teacher ID
+        let teacher_id = req.user.linkedId;
+        if (!teacher_id) {
+            const tRes = await pool.query(
+                'SELECT id FROM teachers WHERE (LOWER(TRIM(email)) = LOWER(TRIM($1)) OR employee_id ILIKE $2) AND school_id = $3',
+                [email, email.includes('@') ? email.split('@')[0] : email, school_id]
+            );
+            if (tRes.rows.length === 0) return res.status(404).json({ message: 'Teacher profile not found' });
+            teacher_id = tRes.rows[0].id;
+        }
+
+        // Fetch School GPS configurations
+        const schoolRes = await pool.query('SELECT name, latitude, longitude, attendance_radius FROM schools WHERE id = $1', [school_id]);
+        if (schoolRes.rows.length === 0) return res.status(404).json({ message: 'School not found' });
+        const school = schoolRes.rows[0];
+
+        // Fetch today's record (using Asia/Kolkata timezone for local school date)
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        const attRes = await pool.query(
+            'SELECT * FROM teacher_attendance WHERE teacher_id = $1 AND date = $2',
+            [teacher_id, today]
+        );
+
+        const attendance = attRes.rows[0] || null;
+
+        const hasCheckedInToday = !!(attendance && attendance.check_in_time);
+        const currentlyCheckedIn = !!(attendance && attendance.check_in_time && !attendance.check_out_time);
+        const currentlyCheckedOut = !!(attendance && attendance.check_in_time && attendance.check_out_time);
+
+        res.json({
+            today,
+            hasCheckedInToday,
+            currentlyCheckedIn,
+            currentlyCheckedOut,
+            checkedIn: currentlyCheckedIn, // backwards compatibility
+            checkedOut: currentlyCheckedOut, // backwards compatibility
+            checkInTime: attendance ? attendance.check_in_time : null,
+            checkOutTime: attendance ? attendance.check_out_time : null,
+            workingHours: attendance ? parseFloat(attendance.working_hours || 0) : 0,
+            status: attendance ? attendance.status : 'Unmarked',
+            schoolConfig: {
+                latitude: school.latitude ? parseFloat(school.latitude) : null,
+                longitude: school.longitude ? parseFloat(school.longitude) : null,
+                radius: school.attendance_radius || 200,
+                name: school.name
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching today attendance status:', error);
+        res.status(500).json({ message: 'Server error fetching today attendance status' });
+    }
+};
+
+// Check-in Teacher
+exports.checkInTeacher = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const email = req.user.email;
+        const { latitude, longitude } = req.body;
+
+        if (latitude === undefined || longitude === undefined) {
+            return res.status(400).json({ message: 'Latitude and Longitude are required for check-in.' });
+        }
+
+        // Find teacher ID
+        let teacher_id = req.user.linkedId;
+        if (!teacher_id) {
+            const tRes = await pool.query(
+                'SELECT id FROM teachers WHERE (LOWER(TRIM(email)) = LOWER(TRIM($1)) OR employee_id ILIKE $2) AND school_id = $3',
+                [email, email.includes('@') ? email.split('@')[0] : email, school_id]
+            );
+            if (tRes.rows.length === 0) return res.status(404).json({ message: 'Teacher profile not found' });
+            teacher_id = tRes.rows[0].id;
+        }
+
+        // Fetch School Location
+        const schoolRes = await pool.query('SELECT latitude, longitude, attendance_radius FROM schools WHERE id = $1', [school_id]);
+        if (schoolRes.rows.length === 0) return res.status(404).json({ message: 'School not found' });
+        
+        const school = schoolRes.rows[0];
+        if (!school.latitude || !school.longitude) {
+            return res.status(400).json({ message: 'School GPS location is not configured by the admin yet.' });
+        }
+
+        const schoolLat = parseFloat(school.latitude);
+        const schoolLng = parseFloat(school.longitude);
+        const radius = school.attendance_radius || 200;
+
+        // Calculate distance
+        const distance = getDistanceMeters(latitude, longitude, schoolLat, schoolLng);
+        if (distance > radius) {
+            return res.status(400).json({
+                message: `You are out of the school zone. Distance: ${Math.round(distance)}m, Allowed Radius: ${radius}m.`
+            });
+        }
+
+        // Today's Date
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+        // Check if today's record already exists
+        const existing = await pool.query(
+            'SELECT id, check_in_time, check_out_time FROM teacher_attendance WHERE teacher_id = $1 AND date = $2',
+            [teacher_id, today]
+        );
+
+        if (existing.rows.length > 0) {
+            const record = existing.rows[0];
+            if (record.check_in_time && !record.check_out_time) {
+                return res.status(400).json({ message: 'You have already checked in.' });
+            }
+            
+            // Re-check-in: check_out_time is NOT null. We clear it and update check-in coordinates and check-in time.
+            await pool.query(
+                `UPDATE teacher_attendance 
+                 SET status = 'Present',
+                     check_in_time = CURRENT_TIMESTAMP, 
+                     check_out_time = NULL, 
+                     check_in_lat = $1, 
+                     check_in_lng = $2, 
+                     marking_mode = 'gps'
+                 WHERE id = $3`,
+                [latitude, longitude, record.id]
+            );
+        } else {
+            // First check-in today
+            await pool.query(
+                `INSERT INTO teacher_attendance(school_id, teacher_id, date, status, check_in_time, check_in_lat, check_in_lng, marking_mode, working_hours)
+                 VALUES($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6, 'gps', 0)`,
+                [school_id, teacher_id, today, 'Present', latitude, longitude]
+            );
+        }
+
+        // Insert geofence log
+        await pool.query(
+            `INSERT INTO teacher_attendance_geofence_logs (school_id, teacher_id, date, event_type, latitude, longitude, distance)
+             VALUES ($1, $2, $3, 'CHECK_IN', $4, $5, $6)`,
+            [school_id, teacher_id, today, latitude, longitude, parseFloat(distance.toFixed(2))]
+        );
+
+        res.json({ message: 'Check-in successful. Attendance marked as Present.' });
+    } catch (error) {
+        console.error('Error during check-in:', error);
+        res.status(500).json({ message: 'Server error during check-in.' });
+    }
+};
+
+// Check-out Teacher
+exports.checkOutTeacher = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const email = req.user.email;
+        const { latitude, longitude } = req.body;
+
+        if (latitude === undefined || longitude === undefined) {
+            return res.status(400).json({ message: 'Latitude and Longitude are required for check-out.' });
+        }
+
+        // Find teacher ID
+        let teacher_id = req.user.linkedId;
+        if (!teacher_id) {
+            const tRes = await pool.query(
+                'SELECT id FROM teachers WHERE (LOWER(TRIM(email)) = LOWER(TRIM($1)) OR employee_id ILIKE $2) AND school_id = $3',
+                [email, email.includes('@') ? email.split('@')[0] : email, school_id]
+            );
+            if (tRes.rows.length === 0) return res.status(404).json({ message: 'Teacher profile not found' });
+            teacher_id = tRes.rows[0].id;
+        }
+
+        // Fetch School Location
+        const schoolRes = await pool.query('SELECT latitude, longitude, attendance_radius FROM schools WHERE id = $1', [school_id]);
+        if (schoolRes.rows.length === 0) return res.status(404).json({ message: 'School not found' });
+        
+        const school = schoolRes.rows[0];
+        if (!school.latitude || !school.longitude) {
+            return res.status(400).json({ message: 'School GPS location is not configured.' });
+        }
+
+        const schoolLat = parseFloat(school.latitude);
+        const schoolLng = parseFloat(school.longitude);
+        const radius = school.attendance_radius || 200;
+
+        // Calculate distance (for logging/info, but do not block check-out since leaving the zone triggers checkout)
+        const distance = getDistanceMeters(latitude, longitude, schoolLat, schoolLng);
+
+        // Today's Date
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+        // Get existing record
+        const existing = await pool.query(
+            'SELECT id, check_in_time, check_out_time, working_hours FROM teacher_attendance WHERE teacher_id = $1 AND date = $2',
+            [teacher_id, today]
+        );
+
+        if (existing.rows.length === 0 || !existing.rows[0].check_in_time || existing.rows[0].check_out_time) {
+            return res.status(400).json({ message: 'You are not checked in currently.' });
+        }
+
+        // Calculate working hours for this session
+        const checkInTime = new Date(existing.rows[0].check_in_time);
+        const checkOutTime = new Date();
+        const diffMs = checkOutTime - checkInTime;
+        const sessionHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(4));
+        const newWorkingHours = parseFloat((parseFloat(existing.rows[0].working_hours || 0) + sessionHours).toFixed(2));
+
+        // Update record
+        await pool.query(
+            `UPDATE teacher_attendance 
+             SET check_out_time = CURRENT_TIMESTAMP, 
+                 check_out_lat = $1, 
+                 check_out_lng = $2, 
+                 working_hours = $3
+             WHERE id = $4`,
+            [latitude, longitude, newWorkingHours, existing.rows[0].id]
+        );
+
+        // Insert geofence log
+        await pool.query(
+            `INSERT INTO teacher_attendance_geofence_logs (school_id, teacher_id, date, event_type, latitude, longitude, distance)
+             VALUES ($1, $2, $3, 'CHECK_OUT', $4, $5, $6)`,
+            [school_id, teacher_id, today, latitude, longitude, parseFloat(distance.toFixed(2))]
+        );
+
+        res.json({
+            message: 'Check-out successful.',
+            workingHours: newWorkingHours
+        });
+    } catch (error) {
+        console.error('Error during check-out:', error);
+        res.status(500).json({ message: 'Server error during check-out.' });
+    }
+};
+
+// Get geofence check-in/out logs for teachers
+exports.getTeacherGeofenceLogs = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const { date, teacherId } = req.query;
+
+        if (!date) return res.status(400).json({ message: 'Date is required' });
+
+        let query = `
+            SELECT l.*, t.name as teacher_name, t.employee_id, t.phone
+            FROM teacher_attendance_geofence_logs l
+            JOIN teachers t ON l.teacher_id = t.id
+            WHERE l.school_id = $1 AND l.date = $2
+        `;
+        const params = [school_id, date];
+
+        if (teacherId) {
+            query += ` AND l.teacher_id = $3`;
+            params.push(parseInt(teacherId));
+        }
+
+        query += ` ORDER BY l.timestamp ASC`;
+
+        const logsRes = await pool.query(query, params);
+        res.json(logsRes.rows);
+    } catch (error) {
+        console.error('Error fetching geofence logs:', error);
+        res.status(500).json({ message: 'Server error fetching geofence logs' });
     }
 };
