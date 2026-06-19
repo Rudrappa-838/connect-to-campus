@@ -503,6 +503,14 @@ const startServer = async () => {
                 );
                 CREATE INDEX IF NOT EXISTS idx_out_passes_school_date ON out_passes(school_id, checkout_time);
             `);
+            
+            // Fix for early manual migrations that used person_id instead of user_id
+            try {
+                await client.query(`ALTER TABLE out_passes RENAME COLUMN person_id TO user_id;`);
+                console.log('✅ Renamed person_id to user_id in out_passes');
+            } catch (e) {
+                // Ignore if column doesn't exist or already renamed
+            }
             // ─────────────────────────────────────────────────────────────────────────────
 
             console.log('✅ Database schema verified.');
