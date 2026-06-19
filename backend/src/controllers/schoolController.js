@@ -254,7 +254,7 @@ const fetchSchoolDetails = async (id, res) => {
         const schoolRes = await pool.query(`
             SELECT 
                 s.*,
-                (SELECT COUNT(*) FROM students WHERE school_id = s.id AND status != 'Deleted') as student_count,
+                (SELECT COUNT(*) FROM students WHERE school_id = s.id AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned'))) as student_count,
                 (SELECT COUNT(*) FROM teachers WHERE school_id = s.id) as teacher_count,
                 (SELECT COUNT(*) FROM staff WHERE school_id = s.id) as staff_count
             FROM schools s
@@ -781,9 +781,9 @@ const getDashboardStats = async (req, res) => {
         // 1. Get Core Counts
         const countsRes = await pool.query(`
             SELECT 
-                (SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status != 'Deleted')) as total_students,
-                (SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status != 'Deleted') AND gender = 'Male') as male_students,
-                (SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status != 'Deleted') AND gender = 'Female') as female_students,
+                (SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned'))) as total_students,
+                (SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned')) AND gender = 'Male') as male_students,
+                (SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned')) AND gender = 'Female') as female_students,
                 (SELECT COUNT(*) FROM teachers WHERE school_id = $1) as total_teachers,
                 (SELECT COUNT(*) FROM staff WHERE school_id = $1) as total_staff
         `, [school_id]);
@@ -792,7 +792,7 @@ const getDashboardStats = async (req, res) => {
         const distRes = await pool.query(`
             SELECT c.name, COUNT(s.id) as count
             FROM classes c
-            LEFT JOIN students s ON c.id = s.class_id AND (s.status IS NULL OR s.status != 'Deleted')
+            LEFT JOIN students s ON c.id = s.class_id AND (s.status IS NULL OR s.status NOT IN ('Deleted', 'Unassigned'))
             WHERE c.school_id = $1
             GROUP BY c.id, c.name
             ORDER BY c.name ASC
