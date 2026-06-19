@@ -16,37 +16,27 @@ exports.createOutPass = async (req, res) => {
 
         // Get person name from the teachers or staff table
         let personName = null;
-        if (role === 'TEACHER') {
-            const t = await pool.query(
-                'SELECT name FROM teachers WHERE school_id = $1 AND user_id = $2',
-                [school_id, user_id]
-            );
-            if (t.rows.length === 0) {
-                // Try by email
-                const u = await pool.query('SELECT email FROM users WHERE id = $1', [user_id]);
-                const t2 = await pool.query(
+        
+        // 1. Get user email
+        const userRes = await pool.query('SELECT email FROM users WHERE id = $1', [user_id]);
+        const email = userRes.rows[0]?.email;
+        
+        if (email) {
+            if (role === 'TEACHER') {
+                const t = await pool.query(
                     'SELECT name FROM teachers WHERE school_id = $1 AND LOWER(email) = LOWER($2)',
-                    [school_id, u.rows[0]?.email]
+                    [school_id, email]
                 );
-                personName = t2.rows[0]?.name || null;
+                personName = t.rows[0]?.name || 'Teacher';
             } else {
-                personName = t.rows[0].name;
+                const s = await pool.query(
+                    'SELECT name FROM staff WHERE school_id = $1 AND LOWER(email) = LOWER($2)',
+                    [school_id, email]
+                );
+                personName = s.rows[0]?.name || 'Staff Member';
             }
         } else {
-            const s = await pool.query(
-                'SELECT name FROM staff WHERE school_id = $1 AND user_id = $2',
-                [school_id, user_id]
-            );
-            if (s.rows.length === 0) {
-                const u = await pool.query('SELECT email FROM users WHERE id = $1', [user_id]);
-                const s2 = await pool.query(
-                    'SELECT name FROM staff WHERE school_id = $1 AND LOWER(email) = LOWER($2)',
-                    [school_id, u.rows[0]?.email]
-                );
-                personName = s2.rows[0]?.name || null;
-            } else {
-                personName = s.rows[0].name;
-            }
+            personName = role === 'TEACHER' ? 'Teacher' : 'Staff Member';
         }
 
         // Check if already OUT (prevent duplicate active passes)
