@@ -297,7 +297,6 @@ const SchoolAdminDashboard = () => {
                         <NavSubButton active={activeTab === 'teacher-attendance'} onClick={() => handleTabChange('teacher-attendance')} label="Mark Attendance" />
                         <NavSubButton active={activeTab === 'teacher-daily-status'} onClick={() => handleTabChange('teacher-daily-status')} label="Daily Status" />
                         <NavSubButton active={activeTab === 'teacher-geofence-logs'} onClick={() => handleTabChange('teacher-geofence-logs')} label="Geofence Logs" />
-                        <NavSubButton active={activeTab === 'teacher-out-passes'} onClick={() => handleTabChange('teacher-out-passes')} label="Out Passes" />
                         <NavSubButton active={activeTab === 'teacher-report'} onClick={() => handleTabChange('teacher-report')} label="Reports" />
                     </NavGroup>
 
@@ -310,9 +309,15 @@ const SchoolAdminDashboard = () => {
                         <NavSubButton active={activeTab === 'staff-list'} onClick={() => handleTabChange('staff-list')} label="Staff List" />
                         <NavSubButton active={activeTab === 'staff-attendance'} onClick={() => handleTabChange('staff-attendance')} label="Mark Attendance" />
                         <NavSubButton active={activeTab === 'staff-daily-status'} onClick={() => handleTabChange('staff-daily-status')} label="Daily Status" />
-                        <NavSubButton active={activeTab === 'staff-out-passes'} onClick={() => handleTabChange('staff-out-passes')} label="Out Passes" />
                         <NavSubButton active={activeTab === 'staff-report'} onClick={() => handleTabChange('staff-report')} label="Reports" />
                     </NavGroup>
+
+                    <NavButton
+                        active={activeTab === 'out-passes'}
+                        onClick={() => handleTabChange('out-passes')}
+                        icon={LogOut}
+                        label="Out Passes"
+                    />
 
                     <p className="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 mt-6">Finance</p>
                     <NavGroup
@@ -560,13 +565,13 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'teacher-daily-status' && <TeacherDailyStatus />}
                         {activeTab === 'teacher-geofence-logs' && <TeacherGeofenceLogs />}
                         {activeTab === 'teacher-report' && <TeacherAttendanceReports />}
-                        {activeTab === 'teacher-out-passes' && <OutPassAdmin defaultType="TEACHER" />}
 
                         {activeTab === 'staff-list' && <StaffManagement />}
                         {activeTab === 'staff-attendance' && <StaffAttendanceMarking />}
                         {activeTab === 'staff-daily-status' && <StaffDailyStatus />}
                         {activeTab === 'staff-report' && <StaffAttendanceReports />}
-                        {activeTab === 'staff-out-passes' && <OutPassAdmin defaultType="STAFF" />}
+
+                        {activeTab === 'out-passes' && <OutPassAdmin />}
 
                         {activeTab === 'fee-config' && <FeeConfiguration config={academicConfig} />}
                         {activeTab === 'transport-fees' && <TransportFees config={academicConfig} />}
@@ -709,12 +714,11 @@ const getTabTitle = (tab, getLabel = (k, d) => d) => {
         'teacher-daily-status': 'Teacher Status',
         'teacher-geofence-logs': 'Teacher Geofence Logs',
         'teacher-report': 'Teacher Reports',
-        'teacher-out-passes': 'Teacher Out Passes',
         'staff-list': 'Staff Management',
         'staff-attendance': 'Staff Attendance',
         'staff-daily-status': 'Staff Status',
         'staff-report': 'Staff Reports',
-        'staff-out-passes': 'Staff Out Passes',
+        'out-passes': 'Out Passes',
         'fee-config': 'Fee Structure Configuration',
         'transport-fees': 'Transport Fee Management',
         'fee-collection': 'Fee Collection & Dues',
