@@ -144,6 +144,7 @@ route('debug', 'debugRoutes');
 route('question-bank', 'questionBankRoutes');
 route('subject-groups', 'subjectGroupRoutes');
 route('exam-v2', 'examEventRoutes');
+route('out-passes', 'outPassRoutes');
 
 // --- ADMS / Biometric Device Default Routes ---
 const { handleExternalDeviceLog } = require('./controllers/biometricController');

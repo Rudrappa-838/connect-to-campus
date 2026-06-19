@@ -487,6 +487,24 @@ const startServer = async () => {
             console.log('✅ Exam System v2 tables ready');
             // ─────────────────────────────────────────────────────────────────────────────
 
+            // Out Pass / Gate Pass system
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS out_passes (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL,
+                    person_type VARCHAR(10) NOT NULL,
+                    person_name VARCHAR(255),
+                    reason TEXT NOT NULL,
+                    checkout_time TIMESTAMPTZ DEFAULT NOW(),
+                    checkin_time TIMESTAMPTZ,
+                    status VARCHAR(20) DEFAULT 'OUT',
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS idx_out_passes_school_date ON out_passes(school_id, checkout_time);
+            `);
+            // ─────────────────────────────────────────────────────────────────────────────
+
             console.log('✅ Database schema verified.');
         } catch (migError) {
             console.warn('⚠️ Some migrations could not be applied automatically:', migError.message);

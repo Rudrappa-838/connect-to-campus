@@ -31,6 +31,7 @@ import HostelFinance from '../components/dashboard/hostel/HostelFinance';
 import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
 import FaceAttendanceScanner from '../components/dashboard/biometric/FaceAttendanceScanner';
 import { Users } from 'lucide-react';
+import OutPassManager from '../components/dashboard/common/OutPassManager';
 
 const StaffDashboard = () => {
     const { user, logout } = useAuth();
@@ -312,6 +313,7 @@ const StaffDashboard = () => {
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Finance</p>
                     <NavButton active={activeTab === 'salary'} onClick={() => handleTabChange('salary')} icon={FileText} label="Salary Slips" />
                     <NavButton active={activeTab === 'leaves'} onClick={() => handleTabChange('leaves')} icon={Clock} label="Leave Applications" />
+                    <NavButton active={activeTab === 'out-pass'} onClick={() => handleTabChange('out-pass')} icon={LogOut} label="Out Pass" />
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">General</p>
                     <NavButton id="btn-announcements" active={activeTab === 'announcements'} onClick={() => handleTabChange('announcements')} icon={Bell} label="Notice Board" />
@@ -405,6 +407,7 @@ const StaffDashboard = () => {
 
                         {activeTab === 'salary' && <StaffSalarySlips />}
                         {activeTab === 'leaves' && <StaffLeaveApplication />}
+                        {activeTab === 'out-pass' && <OutPassManager personType="STAFF" />}
                         {activeTab === 'announcements' && <ViewAnnouncements />}
                         {activeTab === 'calendar' && <SchoolCalendar />}
                         
@@ -694,6 +697,7 @@ const getTabTitle = (tab, isDriver) => {
         case 'calendar': return 'Academic Calendar';
         case 'announcements': return 'Announcements';
         case 'leaves': return 'Leave Applications';
+        case 'out-pass': return 'Out Pass';
         case 'library-overview': return 'Library Information';
         case 'library-books': return 'Book Management';
         case 'library-issue': return 'Circulation Desk';

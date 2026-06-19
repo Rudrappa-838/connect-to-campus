@@ -30,6 +30,7 @@ import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
 import FaceAttendanceScanner from '../components/dashboard/biometric/FaceAttendanceScanner';
 import { MobileHeader, MobileFooter } from '../components/layout/MobileAppFiles';
 import { Capacitor } from '@capacitor/core';
+import OutPassManager from '../components/dashboard/common/OutPassManager';
 
 const TeacherDashboard = () => {
     const { user, logout } = useAuth();
@@ -186,6 +187,7 @@ const TeacherDashboard = () => {
                     <NavButton active={activeTab === 'my-attendance'} onClick={() => handleTabChange('my-attendance')} icon={Clock} label="My Attendance" />
                     <NavButton active={activeTab === 'salary'} onClick={() => handleTabChange('salary')} icon={DollarSign} label="My Salary" />
                     <NavButton active={activeTab === 'leaves'} onClick={() => handleTabChange('leaves')} icon={Clock} label="Leave Applications" />
+                    <NavButton active={activeTab === 'out-pass'} onClick={() => handleTabChange('out-pass')} icon={LogOut} label="Out Pass" />
                     <NavButton active={activeTab === 'fleet-map'} onClick={() => handleTabChange('fleet-map')} icon={Navigation} label="Live Fleet Map" />
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">General</p>
@@ -304,6 +306,7 @@ const TeacherDashboard = () => {
                                 {activeTab === 'face-scanner' && <FaceAttendanceScanner config={attendanceConfig} preferredFacingMode="user" />}
                                 {activeTab === 'library' && <TeacherLibraryStatus />}
                                 {activeTab === 'leaves' && <TeacherLeaveApplication />}
+                                {activeTab === 'out-pass' && <OutPassManager personType="TEACHER" />}
                                 {activeTab === 'announcements' && <ViewAnnouncements />}
                                 {activeTab === 'calendar' && <SchoolCalendar />}
                                 {activeTab === 'profile' && <TeacherProfile profile={teacherProfile} onUpdate={fetchProfile} />}
@@ -482,6 +485,7 @@ const getTabTitle = (tab) => {
         case 'question-generator': return 'AI Question Paper Generator';
         case 'face-enroll': return 'Biometric Face Enrollment';
         case 'face-scanner': return 'Biometric Face Scanner';
+        case 'out-pass': return 'Out Pass';
         case 'profile': return 'My Profile Settings';
         default: return 'Dashboard';
     }
