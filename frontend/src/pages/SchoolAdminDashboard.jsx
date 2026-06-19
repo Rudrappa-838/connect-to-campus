@@ -312,6 +312,7 @@ const SchoolAdminDashboard = () => {
                         <NavSubButton active={activeTab === 'staff-report'} onClick={() => handleTabChange('staff-report')} label="Reports" />
                     </NavGroup>
 
+                    <p className="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 mt-6">Gate Pass</p>
                     <NavButton
                         active={activeTab === 'out-passes'}
                         onClick={() => handleTabChange('out-passes')}
