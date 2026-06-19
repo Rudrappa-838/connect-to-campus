@@ -246,12 +246,26 @@ async function broadcastAnnouncement(item, school_id) {
 
     try {
         if (item.target_role === 'All' || item.target_role === 'all') {
-            const res = await pool.query('SELECT id FROM users WHERE school_id = $1', [school_id]);
+            // Exclude deleted/unassigned students from broadcast
+            const res = await pool.query(`
+                SELECT u.id FROM users u
+                WHERE u.school_id = $1
+                AND (
+                    u.role != 'STUDENT'
+                    OR EXISTS (
+                        SELECT 1 FROM students s 
+                        WHERE LOWER(s.email) = LOWER(u.email) 
+                        AND (s.status IS NULL OR s.status NOT IN ('Deleted', 'Unassigned'))
+                    )
+                )
+            `, [school_id]);
             targetUsers = res.rows;
         } else if (item.target_role === 'Student' || item.target_role === 'student') {
             const res = await pool.query(`
-                SELECT id FROM users 
-                WHERE school_id = $1 AND role = 'STUDENT'
+                SELECT u.id FROM users u
+                JOIN students s ON LOWER(s.email) = LOWER(u.email)
+                WHERE u.school_id = $1 AND u.role = 'STUDENT'
+                AND (s.status IS NULL OR s.status NOT IN ('Deleted', 'Unassigned'))
             `, [school_id]);
             targetUsers = res.rows;
         } else if (item.target_role === 'Teacher' || item.target_role === 'teacher') {
@@ -312,13 +326,13 @@ exports.getAudienceCount = async (req, res) => {
 
         if (target_role === 'All') {
             const [s, t, st] = await Promise.all([
-                pool.query('SELECT COUNT(*) FROM students WHERE school_id = $1', [school_id]),
+                pool.query(`SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned'))`, [school_id]),
                 pool.query('SELECT COUNT(*) FROM teachers WHERE school_id = $1', [school_id]),
                 pool.query('SELECT COUNT(*) FROM staff WHERE school_id = $1', [school_id])
             ]);
             count = parseInt(s.rows[0].count) + parseInt(t.rows[0].count) + parseInt(st.rows[0].count);
         } else if (target_role === 'Student') {
-            const res = await pool.query('SELECT COUNT(*) FROM students WHERE school_id = $1', [school_id]);
+            const res = await pool.query(`SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned'))`, [school_id]);
             count = parseInt(res.rows[0].count);
         } else if (target_role === 'Teacher') {
             const res = await pool.query('SELECT COUNT(*) FROM teachers WHERE school_id = $1', [school_id]);
@@ -327,7 +341,7 @@ exports.getAudienceCount = async (req, res) => {
             const res = await pool.query('SELECT COUNT(*) FROM staff WHERE school_id = $1', [school_id]);
             count = parseInt(res.rows[0].count);
         } else if (target_role === 'Class' && class_id && class_id !== '') {
-            let query = 'SELECT COUNT(*) FROM students WHERE school_id = $1 AND class_id = $2';
+            let query = `SELECT COUNT(*) FROM students WHERE school_id = $1 AND class_id = $2 AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned'))`;
             const params = [school_id, class_id];
 
             // Explicitly only add section filter if a specific section is chosen
