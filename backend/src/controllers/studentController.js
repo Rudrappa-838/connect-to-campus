@@ -1466,31 +1466,38 @@ const internalReorderRollNumbers = async (school_id, class_id, section_id, clien
     try {
         console.log(`[ROLL REORDER] Starting for Class: ${class_id}, Section: ${section_id || 'NONE'}`);
 
-        let studentsRef;
+        let updateQuery;
+        let params;
+
         if (section_id && section_id !== '' && section_id !== 'null') {
-            studentsRef = await client.query(
-                `SELECT id FROM students 
-                 WHERE school_id = $1 AND class_id = $2 AND section_id = $3 AND (status IS NULL OR status != 'Deleted')
-                 ORDER BY name ASC, roll_number ASC`,
-                [school_id, class_id, section_id]
-            );
+            updateQuery = `
+                UPDATE students
+                SET roll_number = t.new_roll
+                FROM (
+                    SELECT id, ROW_NUMBER() OVER(ORDER BY name ASC, roll_number ASC) as new_roll
+                    FROM students
+                    WHERE school_id = $1 AND class_id = $2 AND section_id = $3 AND (status IS NULL OR status != 'Deleted')
+                ) t
+                WHERE students.id = t.id
+            `;
+            params = [school_id, class_id, section_id];
         } else {
-            studentsRef = await client.query(
-                `SELECT id FROM students 
-                 WHERE school_id = $1 AND class_id = $2 AND section_id IS NULL AND (status IS NULL OR status != 'Deleted')
-                 ORDER BY name ASC, roll_number ASC`,
-                [school_id, class_id]
-            );
+            updateQuery = `
+                UPDATE students
+                SET roll_number = t.new_roll
+                FROM (
+                    SELECT id, ROW_NUMBER() OVER(ORDER BY name ASC, roll_number ASC) as new_roll
+                    FROM students
+                    WHERE school_id = $1 AND class_id = $2 AND section_id IS NULL AND (status IS NULL OR status != 'Deleted')
+                ) t
+                WHERE students.id = t.id
+            `;
+            params = [school_id, class_id];
         }
 
-        console.log(`[ROLL REORDER] Found ${studentsRef.rows.length} students to reorder`);
+        await client.query(updateQuery, params);
+        console.log(`[ROLL REORDER] Successfully reordered students`);
 
-        for (let i = 0; i < studentsRef.rows.length; i++) {
-            await client.query(
-                `UPDATE students SET roll_number = $1 WHERE id = $2`,
-                [i + 1, studentsRef.rows[i].id]
-            );
-        }
         return true;
     } catch (err) {
         console.error('[ROLL REORDER] Failed:', err.message);

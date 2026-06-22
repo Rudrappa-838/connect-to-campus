@@ -491,6 +491,122 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
         printWindow.document.close();
     };
 
+    const handlePrintLoginCredentials = () => {
+        const className = config.classes?.find(c => c.class_id === parseInt(filterClass))?.class_name || 'All Classes';
+        const sectionName = availableSections?.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
+
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Student Login Credentials - ${className} ${sectionName !== 'All Sections' ? '- ' + sectionName : ''}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { 
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                        padding: 30px; 
+                        background: white;
+                        color: #1e293b;
+                    }
+                    .header {
+                        text-align: center;
+                        margin-bottom: 30px;
+                        border-bottom: 2px solid #4f46e5;
+                        padding-bottom: 20px;
+                    }
+                    h1 { 
+                        color: #1e2a78; 
+                        font-size: 28px; 
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        margin-bottom: 5px;
+                    }
+                    h2 { 
+                        color: #64748b; 
+                        font-size: 18px; 
+                        margin-bottom: 10px;
+                    }
+                    table { 
+                        width: 100%; 
+                        border-collapse: collapse; 
+                        margin-top: 10px;
+                        table-layout: fixed;
+                    }
+                    th, td { 
+                        border: 1px solid #e2e8f0; 
+                        padding: 12px 10px; 
+                        text-align: left; 
+                        font-size: 14px;
+                    }
+                    th { 
+                        background-color: #4f46e5; 
+                        color: white; 
+                        font-weight: bold;
+                        text-transform: uppercase;
+                        font-size: 12px;
+                    }
+                    tr:nth-child(even) { 
+                        background-color: #f8fafc; 
+                    }
+                    .login-id {
+                        font-family: monospace;
+                        font-weight: bold;
+                        color: #0369a1;
+                        font-size: 16px;
+                    }
+                    @media print {
+                        body { padding: 0; }
+                        @page { margin: 1.5cm; }
+                        th { -webkit-print-color-adjust: exact; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>Student Login IDs</h1>
+                    <h2>Class: ${className} ${sectionName !== 'All Sections' ? ' | Section: ' + sectionName : ''}</h2>
+                    <p style="color: #64748b; font-size: 14px; margin-top: 10px;">Students can use their Login ID to log in to the application.</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50%;">Student Name</th>
+                            <th style="width: 25%;">Class & Section</th>
+                            <th style="width: 25%;">Student ID (Login ID)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${students.map(student => {
+                            let formattedName = student.name;
+                            if (student.father_name) {
+                                formattedName += ' ' + student.father_name.charAt(0).toUpperCase() + '.';
+                            }
+                            return `
+                            <tr>
+                                <td style="font-weight: bold;">${formattedName}</td>
+                                <td>${student.class_name || className} ${student.section_name || (sectionName !== 'All Sections' ? sectionName : '')}</td>
+                                <td class="login-id">${student.admission_no || student.id}</td>
+                            </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+                <script>
+                    window.onload = function() {
+                        window.print();
+                        setTimeout(() => window.close(), 500);
+                    }
+                </script>
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+    };
+
     const isSubmittingRef = React.useRef(false);
 
     const handleSubmit = async (e) => {
@@ -598,6 +714,13 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                 className={`bg-slate-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-slate-500/20 hover:bg-slate-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${selectedStudents.length > 0 ? 'opacity-30 blur-[1px]' : ''}`}
                             >
                                 <Printer size={20} /> Print List
+                            </button>
+                            <button
+                                onClick={handlePrintLoginCredentials}
+                                disabled={students.length === 0 || selectedStudents.length > 0}
+                                className={`bg-sky-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${selectedStudents.length > 0 ? 'opacity-30 blur-[1px]' : ''}`}
+                            >
+                                <Printer size={20} /> Print Login IDs
                             </button>
                         </>
                     )}

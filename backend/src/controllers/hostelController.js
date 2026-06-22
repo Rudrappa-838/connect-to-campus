@@ -118,6 +118,44 @@ exports.deleteRoom = async (req, res) => {
     }
 };
 
+exports.updateRoom = async (req, res) => {
+    const { id } = req.params;
+    const { room_number, capacity, cost_per_term } = req.body;
+    try {
+        // Validate capacity is not less than current occupancy
+        const occupancyCheck = await pool.query(`
+            SELECT COUNT(a.id) as occupied 
+            FROM hostel_allocations a 
+            WHERE a.room_id = $1 AND a.status = 'Active'
+        `, [id]);
+        const occupied = parseInt(occupancyCheck.rows[0].occupied || 0);
+        if (capacity && parseInt(capacity) < occupied) {
+            return res.status(400).json({
+                error: `Cannot reduce capacity below ${occupied} (current occupancy)`
+            });
+        }
+
+        const result = await pool.query(
+            `UPDATE hostel_rooms 
+             SET room_number = COALESCE($1, room_number),
+                 capacity = COALESCE($2, capacity),
+                 cost_per_term = COALESCE($3, cost_per_term)
+             WHERE id = $4 RETURNING *`,
+            [room_number, capacity, cost_per_term, id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Room not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error updating room:', error);
+        if (error.code === '23505') {
+            return res.status(400).json({ error: 'Room number already in use for this hostel' });
+        }
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
 // --- Allocations ---
 
 exports.allocateRoom = async (req, res) => {
@@ -749,5 +787,410 @@ exports.getPendingDues = async (req, res) => {
     } catch (error) {
         console.error('Critical Error in getPendingDues:', error);
         res.status(500).json({ error: 'Server error: ' + error.message });
+    }
+};
+
+// All allocated hostel students with fee status — split by gender
+exports.getAllHostelStudents = async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                s.id, s.name, s.admission_no, s.gender,
+                c.name   AS class_name,
+                sec.name AS section_name,
+                h.name   AS hostel_name,
+                h.type   AS hostel_type,
+                r.room_number,
+                a.id     AS allocation_id,
+                a.allocation_date,
+                COALESCE((
+                    SELECT SUM(hp.amount) FROM hostel_payments hp
+                    WHERE hp.student_id = s.id AND hp.payment_type = 'Hostel Fee'
+                      AND hp.payment_status = 'Assigned'
+                ), 0) AS total_fee_assigned,
+                COALESCE((
+                    SELECT SUM(hp.paid_amount) FROM hostel_payments hp
+                    WHERE hp.student_id = s.id AND hp.payment_type = 'Hostel Fee'
+                      AND hp.payment_status = 'Paid'
+                ), 0) AS total_paid,
+                (
+                    SELECT hp.due_date FROM hostel_payments hp
+                    WHERE hp.student_id = s.id AND hp.payment_type = 'Hostel Fee'
+                      AND hp.payment_status = 'Assigned'
+                    ORDER BY hp.created_at DESC LIMIT 1
+                ) AS due_date
+            FROM hostel_allocations a
+            JOIN students s       ON a.student_id = s.id
+            JOIN hostel_rooms r   ON a.room_id = r.id
+            JOIN hostels h        ON r.hostel_id = h.id
+            LEFT JOIN classes c   ON s.class_id = c.id
+            LEFT JOIN sections sec ON s.section_id = sec.id
+            WHERE a.status = 'Active'
+              AND h.school_id = $1
+              AND (s.status IS NULL OR s.status = 'Active')
+            ORDER BY LOWER(s.gender) DESC, s.name ASC
+        `, [req.user.schoolId]);
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching hostel students:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// Full payment history for one student
+exports.getStudentPaymentHistory = async (req, res) => {
+    const { studentId } = req.params;
+    try {
+        const result = await pool.query(`
+            SELECT hp.*, s.name AS student_name, s.admission_no
+            FROM hostel_payments hp
+            JOIN students s ON hp.student_id = s.id
+            WHERE hp.student_id = $1 AND s.school_id = $2
+              AND hp.payment_type = 'Hostel Fee'
+            ORDER BY hp.created_at DESC
+        `, [studentId, req.user.schoolId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching payment history:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// Assign hostel fee to one or many students
+exports.assignHostelFee = async (req, res) => {
+    const { student_ids, amount, due_date, remarks } = req.body;
+    if (!Array.isArray(student_ids) || student_ids.length === 0)
+        return res.status(400).json({ error: 'student_ids required' });
+    if (!amount || parseFloat(amount) <= 0)
+        return res.status(400).json({ error: 'Valid amount required' });
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        for (const sid of student_ids) {
+            await client.query(`
+                INSERT INTO hostel_payments
+                    (student_id, amount, payment_type, payment_status, due_date, remarks, payment_date)
+                VALUES ($1, $2, 'Hostel Fee', 'Assigned', $3, $4, CURRENT_DATE)
+            `, [sid, parseFloat(amount), due_date || null, remarks || null]);
+        }
+        await client.query('COMMIT');
+        res.json({ message: `Fee assigned to ${student_ids.length} student(s)` });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error assigning fee:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        client.release();
+    }
+};
+
+// Record a payment directly for a student
+exports.receiveHostelPayment = async (req, res) => {
+    const { studentId } = req.params;
+    const { paid_amount, paid_date, remarks } = req.body;
+    try {
+        const result = await pool.query(`
+            INSERT INTO hostel_payments (student_id, amount, payment_type, payment_status, paid_amount, payment_date, remarks)
+            VALUES ($1, $2, 'Hostel Fee', 'Paid', $2, COALESCE($3::date, CURRENT_DATE), $4)
+            RETURNING *
+        `, [studentId, paid_amount, paid_date || null, remarks || null]);
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error recording payment:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// Update due date for an assigned fee
+exports.updateHostelFeeDueDate = async (req, res) => {
+    const { paymentId } = req.params;
+    const { due_date } = req.body;
+    try {
+        const result = await pool.query(`
+            UPDATE hostel_payments
+            SET due_date = $1
+            WHERE id = $2 AND payment_status = 'Assigned'
+            RETURNING *
+        `, [due_date || null, paymentId]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Assigned fee not found' });
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error updating due date:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// Bulk update due date for assigned fees
+exports.bulkUpdateDueDate = async (req, res) => {
+    const { student_ids, due_date } = req.body;
+    if (!Array.isArray(student_ids) || student_ids.length === 0) return res.status(400).json({ error: 'student_ids required' });
+    try {
+        await pool.query(`
+            UPDATE hostel_payments
+            SET due_date = $1
+            WHERE student_id = ANY($2) AND payment_status = 'Assigned'
+        `, [due_date || null, student_ids]);
+        res.json({ message: 'Due dates updated successfully' });
+    } catch (error) {
+        console.error('Error bulk updating due dates:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// Get students NOT yet in any hostel, gender-filtered based on selected hostel type
+exports.getUnallocatedStudents = async (req, res) => {
+    const { hostelId } = req.query;
+    try {
+        let genderFilter = '';
+        if (hostelId) {
+            const hostelRes = await pool.query(
+                'SELECT type FROM hostels WHERE id = $1 AND school_id = $2',
+                [hostelId, req.user.schoolId]
+            );
+            if (hostelRes.rows.length > 0) {
+                const hostelType = String(hostelRes.rows[0].type || '').trim().toLowerCase();
+                if (hostelType === 'boys') genderFilter = `AND LOWER(s.gender) = 'male'`;
+                else if (hostelType === 'girls') genderFilter = `AND LOWER(s.gender) = 'female'`;
+            }
+        }
+
+        const result = await pool.query(`
+            SELECT s.id, s.name, s.admission_no, s.gender, s.roll_number,
+                   c.name as class_name, c.id as class_id,
+                   sec.name as section_name, sec.id as section_id
+            FROM students s
+            LEFT JOIN classes c ON s.class_id = c.id
+            LEFT JOIN sections sec ON s.section_id = sec.id
+            WHERE s.school_id = $1
+              AND (s.status IS NULL OR s.status = 'Active')
+              ${genderFilter}
+              AND s.id NOT IN (
+                  SELECT student_id FROM hostel_allocations WHERE status = 'Active'
+              )
+            ORDER BY c.name ASC, sec.name ASC, s.name ASC
+        `, [req.user.schoolId]);
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching unallocated students:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// Bulk allocate multiple students to one room
+exports.bulkAllocateRoom = async (req, res) => {
+    const { roomId } = req.params;
+    const { student_ids } = req.body;
+    if (!Array.isArray(student_ids) || student_ids.length === 0) {
+        return res.status(400).json({ error: 'student_ids array is required' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const roomCheck = await client.query(`
+            SELECT r.capacity, COALESCE(COUNT(a.id), 0) as occupied
+            FROM hostel_rooms r
+            LEFT JOIN hostel_allocations a ON r.id = a.room_id AND a.status = 'Active'
+            WHERE r.id = $1
+            GROUP BY r.capacity
+        `, [roomId]);
+
+        if (roomCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Room not found' });
+        }
+
+        const { capacity, occupied } = roomCheck.rows[0];
+        const available = capacity - parseInt(occupied);
+        if (student_ids.length > available) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: `Only ${available} beds available in this room` });
+        }
+
+        let allocated = 0, skipped = 0;
+        for (const student_id of student_ids) {
+            const existCheck = await client.query(
+                "SELECT id FROM hostel_allocations WHERE student_id = $1 AND status = 'Active'",
+                [student_id]
+            );
+            if (existCheck.rows.length > 0) { skipped++; continue; }
+            await client.query(
+                "INSERT INTO hostel_allocations (room_id, student_id, allocation_date, status) VALUES ($1, $2, CURRENT_DATE, 'Active')",
+                [roomId, student_id]
+            );
+            allocated++;
+        }
+
+        await client.query('COMMIT');
+
+        const { sendPushNotification } = require('../services/notificationService');
+        for (const sid of student_ids) {
+            sendPushNotification(sid, 'Hostel Allocation', 'You have been allocated a room in the hostel.').catch(() => {});
+        }
+
+        res.json({ allocated, skipped });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error bulk allocating:', error);
+        res.status(500).json({ error: error.message || 'Server error' });
+    } finally {
+        client.release();
+    }
+};
+
+// Edit an existing allocation — move student to a different room
+exports.updateAllocation = async (req, res) => {
+    const { id } = req.params;
+    const { room_id } = req.body;
+    if (!room_id) return res.status(400).json({ error: 'room_id is required' });
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const roomCheck = await client.query(`
+            SELECT r.capacity, COALESCE(COUNT(a.id), 0) as occupied
+            FROM hostel_rooms r
+            LEFT JOIN hostel_allocations a ON r.id = a.room_id AND a.status = 'Active' AND a.id != $2
+            WHERE r.id = $1
+            GROUP BY r.capacity
+        `, [room_id, id]);
+
+        if (roomCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Room not found' });
+        }
+
+        const { capacity, occupied } = roomCheck.rows[0];
+        if (parseInt(occupied) >= capacity) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'New room is fully occupied' });
+        }
+
+        const result = await client.query(
+            'UPDATE hostel_allocations SET room_id = $1 WHERE id = $2 RETURNING *',
+            [room_id, id]
+        );
+
+        await client.query('COMMIT');
+        res.json(result.rows[0]);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error updating allocation:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        client.release();
+    }
+};
+
+/* ==========================================
+   HOSTEL ATTENDANCE CONTROLLERS
+   ========================================== */
+
+exports.getDailyAttendance = async (req, res) => {
+    const { hostel_id, date, room_id } = req.query;
+    if (!hostel_id || !date) return res.status(400).json({ error: 'hostel_id and date required' });
+
+    try {
+        let query = `
+            SELECT 
+                s.id as student_id,
+                s.name,
+                s.admission_no,
+                r.room_number,
+                r.id as room_id,
+                COALESCE(ha.status, 'Unmarked') as status
+            FROM hostel_allocations a
+            JOIN students s ON a.student_id = s.id
+            JOIN hostel_rooms r ON a.room_id = r.id
+            LEFT JOIN hostel_attendance ha ON ha.student_id = s.id AND ha.date = $3
+            WHERE a.status = 'Active' AND r.hostel_id = $1 AND s.school_id = $2
+        `;
+        const params = [hostel_id, req.user.schoolId, date];
+
+        if (room_id) {
+            params.push(room_id);
+            query += ` AND r.id = $${params.length}`;
+        }
+
+        query += ` ORDER BY r.room_number ASC, s.name ASC`;
+
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching hostel daily attendance:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+exports.markDailyAttendance = async (req, res) => {
+    const { date, hostel_id, attendanceData } = req.body;
+    if (!date || !attendanceData || !Array.isArray(attendanceData)) {
+        return res.status(400).json({ error: 'Invalid data' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        for (const record of attendanceData) {
+            await client.query(`
+                INSERT INTO hostel_attendance (school_id, hostel_id, student_id, date, status)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (student_id, date) 
+                DO UPDATE SET status = EXCLUDED.status, created_at = CURRENT_TIMESTAMP
+            `, [req.user.schoolId, hostel_id, record.student_id, date, record.status]);
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Attendance saved successfully' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error saving hostel attendance:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        client.release();
+    }
+};
+
+exports.getMonthlyAttendanceReport = async (req, res) => {
+    const { hostel_id, month, year, room_id } = req.query;
+    if (!hostel_id || !month || !year) return res.status(400).json({ error: 'hostel_id, month, year required' });
+
+    try {
+        let query = `
+            SELECT 
+                s.id as student_id,
+                s.name,
+                s.admission_no,
+                r.room_number,
+                TO_CHAR(ha.date, 'YYYY-MM-DD') as date,
+                ha.status
+            FROM hostel_allocations a
+            JOIN students s ON a.student_id = s.id
+            JOIN hostel_rooms r ON a.room_id = r.id
+            LEFT JOIN hostel_attendance ha ON ha.student_id = s.id 
+                AND EXTRACT(MONTH FROM ha.date) = $3 
+                AND EXTRACT(YEAR FROM ha.date) = $4
+            WHERE a.status = 'Active' AND r.hostel_id = $1 AND s.school_id = $2
+        `;
+        const params = [hostel_id, req.user.schoolId, month, year];
+
+        if (room_id) {
+            params.push(room_id);
+            query += ` AND r.id = $${params.length}`;
+        }
+
+        query += ` ORDER BY r.room_number ASC, s.name ASC, ha.date ASC`;
+
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching hostel monthly report:', error);
+        res.status(500).json({ error: 'Server error' });
     }
 };

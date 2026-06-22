@@ -73,7 +73,9 @@ import StudentOverallResult from '../components/dashboard/academics/StudentOvera
 import HostelOverview from '../components/dashboard/hostel/HostelOverview';
 import RoomManagement from '../components/dashboard/hostel/RoomManagement';
 import RoomAllocation from '../components/dashboard/hostel/RoomAllocation';
-import HostelFinance from '../components/dashboard/hostel/HostelFinance';
+import HostelAttendanceMarking from '../components/dashboard/hostel/HostelAttendanceMarking';
+import HostelAttendanceReports from '../components/dashboard/hostel/HostelAttendanceReports';
+import HostelFinanceStudents from '../components/dashboard/hostel/HostelFinanceStudents';
 
 // Certificate Component
 import CertificateGenerator from '../components/dashboard/certificates/CertificateGenerator';
@@ -399,7 +401,9 @@ const SchoolAdminDashboard = () => {
                             <NavSubButton active={activeTab === 'hostel-overview'} onClick={() => handleTabChange('hostel-overview')} label="Hostel Overview" />
                             <NavSubButton active={activeTab === 'hostel-rooms'} onClick={() => handleTabChange('hostel-rooms')} label="Room Management" />
                             <NavSubButton active={activeTab === 'hostel-allocation'} onClick={() => handleTabChange('hostel-allocation')} label="Room Allocation" />
-                            <NavSubButton active={activeTab === 'hostel-finance'} onClick={() => handleTabChange('hostel-finance')} label="Hostel Finance" />
+                            <NavSubButton active={activeTab === 'hostel-attendance'} onClick={() => handleTabChange('hostel-attendance')} label="Mark Attendance" />
+                            <NavSubButton active={activeTab === 'hostel-attendance-report'} onClick={() => handleTabChange('hostel-attendance-report')} label="Attendance Reports" />
+                            <NavSubButton active={activeTab === 'hostel-fee-students'} onClick={() => handleTabChange('hostel-fee-students')} label="Fee Collection" />
                         </NavGroup>
                     )}
 
@@ -598,7 +602,9 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'hostel-overview' && <HostelOverview />}
                         {activeTab === 'hostel-rooms' && <RoomManagement />}
                         {activeTab === 'hostel-allocation' && <RoomAllocation />}
-                        {activeTab === 'hostel-finance' && <HostelFinance />}
+                        {activeTab === 'hostel-attendance' && <HostelAttendanceMarking />}
+                        {activeTab === 'hostel-attendance-report' && <HostelAttendanceReports />}
+                        {activeTab === 'hostel-fee-students' && <HostelFinanceStudents />}
 
                         {activeTab === 'school-calendar' && <SchoolCalendar />}
                         {activeTab === 'announcements' && <Announcements />}
@@ -738,7 +744,9 @@ const getTabTitle = (tab, getLabel = (k, d) => d) => {
         'hostel-overview': 'Hostel Management',
         'hostel-rooms': 'Room Configuration',
         'hostel-allocation': 'Student Allocation',
-        'hostel-finance': 'Hostel Fees & Mess',
+        'hostel-attendance': 'Hostel Attendance Marking',
+        'hostel-attendance-report': 'Hostel Attendance Report',
+        'hostel-fee-students': 'Hostel Fee Collection',
         'school-calendar': `${schoolLabel} Calendar`,
         'announcements': 'Announcements & Notice Board',
         'leave-management': 'Leave Management',
