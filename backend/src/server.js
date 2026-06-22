@@ -512,6 +512,68 @@ const startServer = async () => {
                 // Ignore if column doesn't exist or already renamed
             }
             // ─────────────────────────────────────────────────────────────────────────────
+            // Hostel Module Auto-Migration
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS hostels (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL,
+                    type VARCHAR(50),
+                    address TEXT,
+                    warden_name VARCHAR(255),
+                    contact_number VARCHAR(50),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS hostel_rooms (
+                    id SERIAL PRIMARY KEY,
+                    hostel_id INTEGER REFERENCES hostels(id) ON DELETE CASCADE,
+                    room_number VARCHAR(50) NOT NULL,
+                    capacity INTEGER NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS hostel_allocations (
+                    id SERIAL PRIMARY KEY,
+                    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                    room_id INTEGER REFERENCES hostel_rooms(id) ON DELETE CASCADE,
+                    allocation_date DATE NOT NULL,
+                    status VARCHAR(50) DEFAULT 'Occupied',
+                    vacated_date DATE,
+                    monthly_fee NUMERIC(10, 2) DEFAULT 0,
+                    payment_status VARCHAR(50) DEFAULT 'Pending',
+                    fee_remarks TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS hostel_attendance (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                    hostel_id INTEGER REFERENCES hostels(id) ON DELETE CASCADE,
+                    date DATE NOT NULL,
+                    status VARCHAR(50) NOT NULL,
+                    remarks TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(student_id, date)
+                );
+            `);
+
+            // Also run alter tables to add any missing columns in case tables existed but were missing newer columns
+            try {
+                await client.query(`
+                    ALTER TABLE hostels ADD COLUMN IF NOT EXISTS address TEXT;
+                    ALTER TABLE hostels ADD COLUMN IF NOT EXISTS type VARCHAR(50);
+                    ALTER TABLE hostels ADD COLUMN IF NOT EXISTS warden_name VARCHAR(255);
+                    ALTER TABLE hostels ADD COLUMN IF NOT EXISTS contact_number VARCHAR(50);
+                    ALTER TABLE hostel_allocations ADD COLUMN IF NOT EXISTS monthly_fee NUMERIC(10, 2) DEFAULT 0;
+                    ALTER TABLE hostel_allocations ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'Pending';
+                    ALTER TABLE hostel_allocations ADD COLUMN IF NOT EXISTS fee_remarks TEXT;
+                `);
+            } catch (e) {
+                // Ignore if already exist
+            }
+            // ─────────────────────────────────────────────────────────────────────────────
 
             console.log('✅ Database schema verified.');
         } catch (migError) {
