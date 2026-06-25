@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../../api/axios';
 import { toast } from 'react-hot-toast';
-import { Calendar, Clock, Save, Hash, Plus, Printer, Trash2, RefreshCw, Edit2, Settings, X } from 'lucide-react';
+import { Calendar, Clock, Save, Hash, Plus, Printer, Trash2, RefreshCw, Edit2, Settings, X, Copy } from 'lucide-react';
 import ExcelMarksManager from './ExcelMarksManager';
 
 const ExamSchedule = () => {
@@ -41,6 +41,16 @@ const ExamSchedule = () => {
     const [selectedNewSection, setSelectedNewSection] = useState('');
     const [newClassSections, setNewClassSections] = useState([]);
 
+    // Copy Timetable State
+    const [showCopyModal, setShowCopyModal] = useState(false);
+    const [copyExamName, setCopyExamName] = useState('');
+    const [copyDateShift, setCopyDateShift] = useState(30);
+    const [copyDateOverrides, setCopyDateOverrides] = useState({}); // { [subject_id]: 'YYYY-MM-DD' }
+    const [copyTargetClasses, setCopyTargetClasses] = useState([]); // [{ class_id, section_id, class_name, section_name }]
+
+    // Ref to suppress the auto-fetch when we intentionally set a new exam (e.g. after copy)
+    const skipNextFetchRef = useRef(false);
+
     useEffect(() => {
         fetchExamTypes();
         fetchClasses();
@@ -54,6 +64,11 @@ const ExamSchedule = () => {
 
     useEffect(() => {
         if (selectedExam) {
+            // If copy just set this exam, skip the DB fetch — we already have the schedule in state
+            if (skipNextFetchRef.current) {
+                skipNextFetchRef.current = false;
+                return;
+            }
             fetchExistingSchedule();
         } else {
             setSchedule([]);
@@ -232,6 +247,93 @@ const ExamSchedule = () => {
         setSchedule([...schedule, ...newSchedule]);
         setShowAutoModal(false);
         toast.success(`Generated ${newSchedule.length} schedule items (Unsaved)`);
+    };
+
+    // Generate schedule and immediately save to DB in one step
+    const handleGenerateAndSave = async () => {
+        if (!selectedExam) { toast.error('Select an exam first'); return; }
+
+        const selectedSubs = Object.entries(subjectConfigs)
+            .filter(([_, conf]) => conf.selected)
+            .map(([id, conf]) => ({ id: parseInt(id), ...conf }));
+
+        if (selectedSubs.length === 0) { toast.error('Please select at least one subject'); return; }
+        const incomplete = selectedSubs.find(s => !s.date || !s.startTime || !s.endTime);
+        if (incomplete) { toast.error('Please fill all date and time fields for selected subjects'); return; }
+
+        for (const sub of selectedSubs) {
+            if (parseFloat(sub.min_marks) > parseFloat(sub.max_marks)) {
+                const subName = availableSubjects.find(s => s.id === sub.id)?.name;
+                toast.error(`Subject '${subName}' Min Marks cannot be greater than Max Marks`);
+                return;
+            }
+            const comps = sub.components || [];
+            if (comps.length > 0) {
+                const totalMax = comps.reduce((sum, c) => sum + (parseFloat(c.max_marks) || 0), 0);
+                const totalMin = comps.reduce((sum, c) => sum + (parseFloat(c.min_marks) || 0), 0);
+                if (totalMax !== parseFloat(sub.max_marks)) {
+                    const subName = availableSubjects.find(s => s.id === sub.id)?.name;
+                    toast.error(`Subject '${subName}' components Max Marks must match Subject Max Marks (${sub.max_marks})`);
+                    return;
+                }
+                if (totalMin !== parseFloat(sub.min_marks)) {
+                    const subName = availableSubjects.find(s => s.id === sub.id)?.name;
+                    toast.error(`Subject '${subName}' components Min Marks must match Subject Min Marks (${sub.min_marks})`);
+                    return;
+                }
+            }
+        }
+
+        const newScheduleItems = [];
+        targetClasses.forEach(cls => {
+            selectedSubs.forEach(sub => {
+                newScheduleItems.push({
+                    id: Date.now() + Math.random(),
+                    school_id: cls.school_id,
+                    exam_type_id: parseInt(selectedExam),
+                    class_id: cls.class_id,
+                    section_id: cls.section_id,
+                    subject_id: sub.id,
+                    class_name: cls.class_name,
+                    section_name: cls.section_name,
+                    subject_name: availableSubjects.find(s => s.id === sub.id)?.name,
+                    exam_date: sub.date,
+                    start_time: sub.startTime,
+                    end_time: sub.endTime,
+                    max_marks: sub.max_marks,
+                    min_marks: sub.min_marks,
+                    components: sub.components
+                });
+            });
+        });
+
+        // Combine existing saved items with newly generated ones
+        const allItems = [...schedule.filter(s => !s.data_new), ...newScheduleItems];
+
+        setLoading(true);
+        try {
+            const payload = allItems.map(item => ({
+                exam_type_id: parseInt(selectedExam),
+                class_id: item.class_id,
+                section_id: item.section_id,
+                subject_id: item.subject_id,
+                exam_date: item.exam_date,
+                start_time: item.start_time,
+                end_time: item.end_time,
+                max_marks: item.max_marks || 100,
+                min_marks: item.min_marks || 35,
+                components: item.components || []
+            }));
+            await api.post('/exam-schedule/save', { schedules: payload, delete_existing: true });
+            setShowAutoModal(false);
+            toast.success(`✅ Schedule saved! ${newScheduleItems.length} entries created.`);
+            fetchExistingSchedule(); // Refresh from DB to get server-assigned IDs
+        } catch (error) {
+            toast.error('Failed to save schedule');
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleAddClassToSchedule = async () => {
@@ -503,6 +605,109 @@ const ExamSchedule = () => {
         }
     };
 
+    // Copy current exam schedule to a brand-new exam type with shifted dates
+    const handleCopyExam = async () => {
+        if (!copyExamName.trim()) {
+            toast.error('Please enter a name for the new exam');
+            return;
+        }
+        if (copyTargetClasses.length === 0) {
+            toast.error('Please select at least one class for the copy');
+            return;
+        }
+        if (schedule.length === 0) {
+            toast.error('No schedule to copy');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            // 1. Create new exam type copying parameters from the source
+            const sourceExam = examTypes.find(e => e.id === parseInt(selectedExam));
+            const res = await api.post('/marks/exam-types', {
+                name: copyExamName.trim(),
+                max_marks: sourceExam?.max_marks || 100,
+                min_marks: sourceExam?.min_marks || 35,
+                start_month: sourceExam?.start_month || 1,
+                end_month: sourceExam?.end_month || 12,
+                weightage: 0
+            });
+            const newExamType = res.data;
+
+            // 2. Copy all schedule rows with shifted dates
+            const shiftDays = parseInt(copyDateShift) || 0;
+
+            // Get unique subjects from original schedule as templates
+            const subjectTemplates = [...new Map(schedule.map(s => [s.subject_id, s])).values()];
+
+            // Helper: resolve new date for a subject (override > global shift)
+            const getNewDate = (template) => {
+                if (copyDateOverrides[template.subject_id]) return copyDateOverrides[template.subject_id];
+                const d = new Date(template.exam_date + 'T00:00:00');
+                d.setDate(d.getDate() + shiftDays);
+                return d.toISOString().split('T')[0];
+            };
+
+            let copiedSchedule;
+            // Build entries for each selected class × each unique subject
+            copiedSchedule = [];
+            copyTargetClasses.forEach(cls => {
+                subjectTemplates.forEach(template => {
+                    copiedSchedule.push({
+                        id: Date.now() + Math.random(),
+                        school_id: template.school_id,
+                        exam_type_id: newExamType.id,
+                        class_id: cls.class_id,
+                        section_id: cls.section_id,
+                        subject_id: template.subject_id,
+                        class_name: cls.class_name,
+                        section_name: cls.section_name,
+                        subject_name: template.subject_name,
+                        exam_date: getNewDate(template),
+                        start_time: template.start_time,
+                        end_time: template.end_time,
+                        max_marks: template.max_marks,
+                        min_marks: template.min_marks,
+                        components: template.components
+                            ? JSON.parse(JSON.stringify(template.components))
+                            : [],
+                        data_new: true
+                    });
+                });
+            });
+
+            // 3. Save the copied schedule directly to DB
+            const payload = copiedSchedule.map(item => ({
+                exam_type_id: newExamType.id,
+                class_id: item.class_id,
+                section_id: item.section_id,
+                subject_id: item.subject_id,
+                exam_date: item.exam_date,
+                start_time: item.start_time,
+                end_time: item.end_time,
+                max_marks: item.max_marks || 100,
+                min_marks: item.min_marks || 35,
+                components: item.components || []
+            }));
+            await api.post('/exam-schedule/save', { schedules: payload, delete_existing: true });
+
+            // 4. Switch to new exam — useEffect will fetch the saved schedule from DB
+            setExamTypes(prev => [...prev, newExamType]);
+            setSelectedExam(newExamType.id.toString());
+            setShowCopyModal(false);
+            setCopyExamName('');
+            setCopyDateShift(30);
+            setCopyDateOverrides({});
+            setCopyTargetClasses([]);
+            toast.success(`✅ "${newExamType.name}" created and saved!`);
+        } catch (error) {
+            console.error(error);
+            toast.error(error.response?.data?.message || 'Failed to copy exam');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const openEditModal = () => {
         const currentParams = examTypes.find(e => e.id === parseInt(selectedExam));
         if (currentParams) {
@@ -608,6 +813,21 @@ const ExamSchedule = () => {
                             title="Delete Exam Type"
                         >
                             <Trash2 size={15} /> <span className="hidden sm:inline">Delete</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                const currentExam = examTypes.find(e => e.id === parseInt(selectedExam));
+                                setCopyExamName(currentExam ? `${currentExam.name} (Copy)` : '');
+                                setCopyDateShift(30);
+                                setCopyDateOverrides({});
+                                setCopyTargetClasses([]);
+                                setShowCopyModal(true);
+                            }}
+                            disabled={!selectedExam || schedule.length === 0 || schedule.some(s => s.data_new)}
+                            className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-sm font-bold transition-all"
+                            title={schedule.some(s => s.data_new) ? 'Save the schedule first before copying' : 'Copy this exam schedule to a new exam'}
+                        >
+                            <Copy size={15} /> <span className="hidden sm:inline">Copy Exam</span>
                         </button>
                     </div>
                 </div>
@@ -808,6 +1028,26 @@ const ExamSchedule = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Unsaved Changes Banner */}
+                {schedule.some(s => s.data_new) && (
+                    <div className="flex items-center justify-between gap-3 px-5 py-3 bg-amber-50 border-t-2 border-amber-400 print:hidden">
+                        <div className="flex items-center gap-2.5">
+                            <span className="text-xl flex-shrink-0">⚠️</span>
+                            <div>
+                                <p className="font-bold text-sm text-amber-800">You have unsaved changes!</p>
+                                <p className="text-xs text-amber-600">The schedule has been generated but not yet saved to the database.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleSave}
+                            disabled={loading}
+                            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-md flex-shrink-0"
+                        >
+                            <Save size={16} /> Save Now
+                        </button>
+                    </div>
+                )}
 
                 {/* Print View (Grouped by Class) */}
                 <div className="hidden print:block p-4">
@@ -1046,9 +1286,15 @@ const ExamSchedule = () => {
                                 </table>
                             </div>
 
-                            <div className="p-6 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-xl">
-                                <button onClick={() => setShowAutoModal(false)} className="text-slate-600 hover:bg-slate-200 px-4 py-2 rounded font-bold">Cancel</button>
-                                <button onClick={handleGenerate} className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded font-bold">Generate Schedule</button>
+                            <div className="p-6 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-end gap-2">
+                                <button onClick={() => setShowAutoModal(false)} className="text-slate-600 hover:bg-slate-200 px-4 py-2 rounded-lg font-bold text-sm">Cancel</button>
+                                <button
+                                    onClick={handleGenerateAndSave}
+                                    disabled={loading}
+                                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all"
+                                >
+                                    <Save size={15} /> Save Schedule
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1520,6 +1766,172 @@ const ExamSchedule = () => {
                                     Add Class
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Copy Timetable Modal */}
+            {showCopyModal && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 print:hidden">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-start">
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                    <Copy size={20} className="text-purple-600" /> Copy Exam Schedule
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Duplicate &ldquo;{examTypes.find(e => e.id === parseInt(selectedExam))?.name}&rdquo; as a new exam type
+                                </p>
+                            </div>
+                            <button onClick={() => { setShowCopyModal(false); setCopyDateOverrides({}); setCopyTargetClasses([]); }} className="text-slate-400 hover:text-slate-700 mt-0.5">
+                                <X size={22} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-5">
+                            {/* New Exam Name */}
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">
+                                    New Exam Name <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={copyExamName}
+                                    onChange={e => setCopyExamName(e.target.value)}
+                                    placeholder="e.g. Term 2 Exam 2026"
+                                    className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm"
+                                />
+                            </div>
+
+                            {/* Date Shift */}
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Shift All Dates By (Days)</label>
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <input
+                                        type="number"
+                                        value={copyDateShift}
+                                        onChange={e => setCopyDateShift(e.target.value)}
+                                        className="w-28 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 outline-none text-sm text-center font-bold"
+                                    />
+                                    <span className="text-sm text-slate-500 font-medium">
+                                        {parseInt(copyDateShift) > 0
+                                            ? `+${copyDateShift} days forward`
+                                            : parseInt(copyDateShift) < 0
+                                            ? `${copyDateShift} days backward`
+                                            : 'Same dates (no shift)'}
+                                    </span>
+                                    {Object.keys(copyDateOverrides).length > 0 && (
+                                        <button
+                                            onClick={() => setCopyDateOverrides({})}
+                                            className="text-xs text-red-500 hover:text-red-700 underline font-medium flex-shrink-0"
+                                            title="Clear all individually-set dates and use the global shift"
+                                        >
+                                            ↺ Reset custom dates ({Object.keys(copyDateOverrides).length})
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1">You can also edit each subject's date individually in the table below.</p>
+                            </div>
+
+                            {/* Target Classes */}
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">
+                                    Copy To Classes <span className="text-red-500">*</span>
+                                    <span className="ml-2 text-slate-400 font-normal text-xs">(select at least 1 class)</span>
+                                </label>
+                                <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                                    <ClassMultiSelector
+                                        classes={classes}
+                                        selected={copyTargetClasses}
+                                        onAdd={cls => setCopyTargetClasses(prev => [...prev, cls])}
+                                        onRemove={idx => setCopyTargetClasses(prev => prev.filter((_, i) => i !== idx))}
+                                    />
+                                </div>
+                                {copyTargetClasses.length === 0 && (
+                                    <p className="text-xs text-red-500 font-medium mt-1">
+                                        ⚠️ Please select at least one class to continue.
+                                    </p>
+                                )}
+                                {copyTargetClasses.length > 0 && (
+                                    <p className="text-xs text-indigo-600 font-medium mt-1">
+                                        ✓ Schedule will be created for {copyTargetClasses.length} class{copyTargetClasses.length > 1 ? 'es' : ''} selected above.
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Live Preview Table */}
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Date Preview</label>
+                                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                    <div className="max-h-48 overflow-y-auto">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-slate-100 sticky top-0 z-10">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-left text-slate-600 font-bold">Subject</th>
+                                                    <th className="px-3 py-2 text-left text-slate-500 font-bold">Original</th>
+                                                    <th className="px-3 py-2 text-left text-purple-700 font-bold">→ New Date <span className="font-normal text-purple-400">(editable)</span></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {[...new Map(schedule.map(s => [s.subject_id, s])).values()]
+                                                    .sort((a, b) => new Date(a.exam_date) - new Date(b.exam_date))
+                                                    .map((item, i) => {
+                                                        const origDate = new Date(item.exam_date + 'T00:00:00');
+                                                        const shifted = new Date(origDate);
+                                                        shifted.setDate(shifted.getDate() + (parseInt(copyDateShift) || 0));
+                                                        const newDateStr = shifted.toISOString().split('T')[0];
+                                                        const dateChanged = newDateStr !== item.exam_date;
+                                                        return (
+                                                            <tr key={i} className="hover:bg-purple-50">
+                                                                <td className="px-3 py-2 font-medium text-slate-700">
+                                                                    {item.subject_name}
+                                                                    {copyDateOverrides[item.subject_id] && (
+                                                                        <span className="ml-1 text-purple-500 text-xs font-bold">•</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-slate-400">{item.exam_date}</td>
+                                                                <td className="px-2 py-1.5">
+                                                                    <input
+                                                                        type="date"
+                                                                        value={copyDateOverrides[item.subject_id] || newDateStr}
+                                                                        onChange={e => setCopyDateOverrides(prev => ({
+                                                                            ...prev,
+                                                                            [item.subject_id]: e.target.value
+                                                                        }))}
+                                                                        className={`border rounded px-2 py-1 text-xs font-bold outline-none w-full focus:ring-2 ${
+                                                                            copyDateOverrides[item.subject_id]
+                                                                                ? 'border-purple-400 text-purple-700 bg-purple-50 focus:ring-purple-400'
+                                                                                : 'border-slate-300 text-slate-600 focus:ring-purple-300'
+                                                                        }`}
+                                                                    />
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
+                            <button
+                                onClick={() => { setShowCopyModal(false); setCopyDateOverrides({}); setCopyTargetClasses([]); }}
+                                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-bold text-sm transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCopyExam}
+                                disabled={loading || !copyExamName.trim() || copyTargetClasses.length === 0}
+                                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-sm"
+                            >
+                                <Copy size={15} /> Create &amp; Save
+                            </button>
                         </div>
                     </div>
                 </div>
