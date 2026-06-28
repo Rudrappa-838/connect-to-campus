@@ -42,6 +42,9 @@ if (fs.existsSync(serviceAccountPath)) {
 const sendPushNotification = async (token, title, body, data = {}, badge = null) => {
     if (!token) return;
 
+    // Generate stable tag: attendance notifications are grouped per-user in system tray
+    const notifTag = data.tag || `ctc_notification_${token.slice(-8)}`;
+
     const message = {
         notification: {
             title,
@@ -49,17 +52,20 @@ const sendPushNotification = async (token, title, body, data = {}, badge = null)
         },
         android: {
             priority: 'high',
-            ttl: 86400000, // 24 hours in milliseconds
+            ttl: 86400000, // 24 hours
             notification: {
-                channelId: 'school_notifications', // Matches the channel created in frontend
+                channelId: 'school_notifications',
                 color: '#4f46e5',
-                sticky: true, // Make notification persistent until manually cleared
+                // Use a stable tag so attendance notifications replace each other (no spam)
+                tag: notifTag,
+                // Visible on lockscreen even when phone is locked
                 visibility: 'public',
+                // Show in notification count badge
                 notificationCount: badge ? parseInt(badge) : undefined,
                 defaultSound: true,
                 defaultVibrateTimings: true,
                 priority: 'max',
-                tag: data.tag || 'school_notification' // Use stable tag to prevent OS spam filtering
+                // autoCancel: true — notification clears when user taps it
             }
         },
         apns: {
@@ -67,16 +73,25 @@ const sendPushNotification = async (token, title, body, data = {}, badge = null)
                 aps: {
                     badge: badge ? parseInt(badge) : undefined,
                     sound: 'default',
-                    'content-available': 1
+                    'content-available': 1,
+                    // Ensure notification shows even when app is open (iOS foreground)
+                    alert: { title, body }
                 }
+            },
+            headers: {
+                'apns-priority': '10'
             }
         },
         data: {
-            ...data,
-            click_action: 'OPEN_NOTIFICATIONS'
+            ...Object.fromEntries(
+                Object.entries(data).map(([k, v]) => [k, String(v)])
+            ),
+            click_action: 'OPEN_NOTIFICATIONS',
+            tag: notifTag
         },
         token
     };
+
 
     if (messaging) {
         try {

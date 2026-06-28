@@ -61,24 +61,25 @@ const NotificationRegistration = () => {
                     console.error('Push Registration Error:', err);
                 });
 
-                // 7. App OPEN (Foreground) - Show in SYSTEM NOTIFICATION BAR using Local Notifications
+                // 7. App OPEN (Foreground) — Show in SYSTEM NOTIFICATION BAR using Local Notifications
                 PushNotifications.addListener('pushNotificationReceived', async (notification) => {
                     console.log('Push received in foreground:', notification);
 
                     try {
-                        // Show as a REAL system notification in the tray
+                        // Show as a REAL system notification in the status bar
                         await LocalNotifications.schedule({
                             notifications: [
                                 {
-                                    id: Math.floor(Math.random() * 100000),
-                                    title: notification.title || 'School Alert',
+                                    id: Math.floor(Math.random() * 10000000),
+                                    title: notification.title || 'Connect to Campus',
                                     body: notification.body || '',
                                     channelId: 'school_notifications',
                                     smallIcon: 'ic_launcher',
-                                    iconColor: '#0ea5e9',
+                                    iconColor: '#4f46e5',
                                     sound: 'default',
-                                    ongoing: true, // Keep in tray
-                                    autoCancel: false, // Don't dismiss automatically
+                                    // Allow user to dismiss by swiping
+                                    ongoing: false,
+                                    autoCancel: true,
                                     extra: notification.data || {}
                                 }
                             ]

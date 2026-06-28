@@ -4,41 +4,52 @@ import { Camera, Search, User, Check, X, Shield, RefreshCw, AlertCircle, ScanLin
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
 
+// Mobile-adaptive constants (shared pattern with scanner)
+const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent)
+    || window.innerWidth < 768;
+const DETECTOR_INPUT_SIZE = isMobile ? 224 : 320;
+const DETECT_INTERVAL_MS  = isMobile ? 800 : 500;  // Face detection preview loop
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights/';
+
 const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
+    // === Multi-sample enrollment constants ===
+    const TOTAL_SAMPLES = 5;  // 5 samples → averaged descriptor → much more accurate
+
     const [loading, setLoading] = useState(true);
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [userRole, setUserRole] = useState('student'); // 'student', 'teacher', 'staff'
+    const [userRole, setUserRole] = useState('student');
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [step, setStep] = useState(0); // 0: search, 1: capture 1, 2: capture 2, 3: confirm
-    
-    const [descriptor1, setDescriptor1] = useState(null);
-    const [descriptor2, setDescriptor2] = useState(null);
-    const [capturedImage1, setCapturedImage1] = useState(null);
-    const [capturedImage2, setCapturedImage2] = useState(null);
-    
+    // step: 0=search, 1=capturing, 2=confirm
+    const [step, setStep] = useState(0);
+
+    // Multi-sample state
+    const [collectedDescriptors, setCollectedDescriptors] = useState([]); // Array of Float32Array-like arrays
+    const [capturedImages, setCapturedImages] = useState([]);             // Preview images
+    const [finalDescriptor, setFinalDescriptor] = useState(null);         // Averaged descriptor
+    const [isCapturing, setIsCapturing] = useState(false);               // Prevent double-tap
+
     const [cameraActive, setCameraActive] = useState(false);
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const [scanning, setScanning] = useState(false);
     const [faceDetected, setFaceDetected] = useState(false);
 
-    // Initial Model Loading
+    // Initial Model Loading — TinyFaceDetector is 5-10x faster on Android
     useEffect(() => {
         const loadModels = async () => {
             try {
                 setLoading(true);
-                // Models hosted on standard face-api location or public weights folder
-                const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/';
-                
+                // jsDelivr CDN: globally cached edge delivery, faster than GitHub raw
+                // tinyFaceDetector + faceLandmark68TinyNet = designed for mobile/low-power devices
                 await Promise.all([
-                    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
                     faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
                 ]);
                 setModelsLoaded(true);
-                console.log('Face-api models loaded');
+                console.log(`[Enrollment] Models loaded. Mobile=${isMobile}`);
             } catch (error) {
                 console.error('Failed to load models', error);
                 toast.error('Could not load AI models. Please check your internet connection.');
@@ -63,18 +74,26 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
 
     const startCamera = async () => {
         try {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: preferredFacingMode,
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                } 
-            });
+            // Lower resolution on mobile = faster frame processing = no hang
+            const constraints = isMobile
+                ? { facingMode: preferredFacingMode, width: { ideal: 320 }, height: { ideal: 240 } }
+                : { facingMode: preferredFacingMode, width: { ideal: 640 }, height: { ideal: 480 } };
+
+            const mediaStream = await navigator.mediaDevices.getUserMedia({ video: constraints });
             setStream(mediaStream);
             setCameraActive(true);
         } catch (err) {
-            console.error('Enrollment Camera Error:', err);
-            toast.error('Could not access camera. Please check permissions.');
+            // Fallback: try without resolution constraints
+            try {
+                const fallback = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: preferredFacingMode }
+                });
+                setStream(fallback);
+                setCameraActive(true);
+            } catch (fallbackErr) {
+                console.error('Enrollment Camera Error:', fallbackErr);
+                toast.error('Could not access camera. Please check permissions.');
+            }
         }
     };
 
@@ -98,111 +117,136 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
         setCameraActive(false);
     };
 
-    // Real-time Face Detection Loop
+    // Real-time Face Detection Preview Loop (live green box feedback)
     useEffect(() => {
         let interval;
-        if (cameraActive && modelsLoaded && (step === 1 || step === 2)) {
+        if (cameraActive && modelsLoaded && step === 1) {
             interval = setInterval(async () => {
                 if (!videoRef.current) return;
-                
-                const detections = await faceapi.detectSingleFace(videoRef.current)
-                    .withFaceLandmarks()
-                    .withFaceDescriptor();
-                
-                if (detections) {
-                    setFaceDetected(true);
-                    setScanning(true);
-                } else {
-                    setFaceDetected(false);
-                    setScanning(false);
+                // Guard: skip if video not yet playing
+                if (videoRef.current.readyState < 2 || videoRef.current.paused) return;
+
+                try {
+                    // TinyFaceDetector: fast detection for live preview indicator
+                    const detectorOpts = new faceapi.TinyFaceDetectorOptions({
+                        inputSize: DETECTOR_INPUT_SIZE,
+                        scoreThreshold: 0.5
+                    });
+                    const detected = await faceapi.detectSingleFace(videoRef.current, detectorOpts);
+                    setFaceDetected(!!detected);
+                    setScanning(!!detected);
+                } catch (e) {
+                    // Ignore — UI still updates next tick
                 }
-            }, 500);
+            }, DETECT_INTERVAL_MS);
         }
         return () => clearInterval(interval);
     }, [cameraActive, modelsLoaded, step]);
 
-    const captureSample = async () => {
-        if (!faceDetected) {
-            return toast.error('No face detected in frame. Please adjust position.');
+    // Average N descriptor arrays into a single 128-float array
+    const averageDescriptors = (descriptors) => {
+        const len = descriptors[0].length;
+        const avg = new Array(len).fill(0);
+        for (const d of descriptors) {
+            for (let i = 0; i < len; i++) avg[i] += d[i];
         }
+        return avg.map(v => v / descriptors.length);
+    };
 
-        toast.loading('Capturing biometric fingerprint...', { id: 'capture' });
-        
+    const captureSample = async () => {
+        if (!faceDetected || isCapturing) return;
+        if (collectedDescriptors.length >= TOTAL_SAMPLES) return;
+
+        setIsCapturing(true);
+        toast.loading(`Capturing sample ${collectedDescriptors.length + 1}/${TOTAL_SAMPLES}...`, { id: 'capture' });
+
         try {
-            const detections = await faceapi.detectSingleFace(videoRef.current)
-                .withFaceLandmarks()
+            // TinyFaceDetector for capture: same 128-dim descriptor quality, much faster on mobile
+            const captureDet = await faceapi
+                .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({
+                    inputSize: DETECTOR_INPUT_SIZE,
+                    scoreThreshold: 0.5
+                }))
+                .withFaceLandmarks(true)
                 .withFaceDescriptor();
 
-            if (!detections) {
-                toast.error('Face lost, try again', { id: 'capture' });
+            if (!captureDet) {
+                toast.error('No face in frame, try again.', { id: 'capture' });
+                setIsCapturing(false);
                 return;
             }
 
-            // Draw to a canvas to show user what we captured
+            const newDescriptor = Array.from(captureDet.descriptor);
+
+            // Consistency check: every capture after the first must be within distance 0.55 of first
+            if (collectedDescriptors.length > 0) {
+                const dist = faceapi.euclideanDistance(collectedDescriptors[0], newDescriptor);
+                if (dist > 0.55) {
+                    toast.error('Different face detected! Ensure only one person is in frame.', { id: 'capture' });
+                    setIsCapturing(false);
+                    return;
+                }
+            }
+
+            // Capture preview image
             const canvas = document.createElement('canvas');
             canvas.width = videoRef.current.videoWidth;
             canvas.height = videoRef.current.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(videoRef.current, 0, 0);
-            const dataUrl = canvas.toDataURL('image/jpeg');
+            canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
 
-            if (step === 1) {
-                setDescriptor1(Array.from(detections.descriptor));
-                setCapturedImage1(dataUrl);
-                setStep(2);
-                toast.success('Step 1 successful! Please look at the camera again for verification.', { id: 'capture' });
-            } else if (step === 2) {
-                const currentDescriptor = Array.from(detections.descriptor);
-                
-                // Compare with Descriptor 1
-                const distance = faceapi.euclideanDistance(descriptor1, currentDescriptor);
-                console.log('Distance:', distance);
+            const updatedDescriptors = [...collectedDescriptors, newDescriptor];
+            const updatedImages = [...capturedImages, dataUrl];
 
-                if (distance > 0.6) {
-                    toast.error('Face match inconsistent. Please ensure clear lighting and try again.', { id: 'capture' });
-                    // Restart enrollment
-                    setStep(1);
-                    setDescriptor1(null);
-                    return;
-                }
+            setCollectedDescriptors(updatedDescriptors);
+            setCapturedImages(updatedImages);
 
-                setDescriptor2(currentDescriptor);
-                setCapturedImage2(dataUrl);
-                setStep(3);
-                toast.success('Face Verified Successfully!', { id: 'capture' });
+            if (updatedDescriptors.length >= TOTAL_SAMPLES) {
+                // All samples collected — compute averaged descriptor
+                const averaged = averageDescriptors(updatedDescriptors);
+                setFinalDescriptor(averaged);
+                setStep(2); // Move to confirmation
+                toast.success('All samples captured! Review and confirm.', { id: 'capture' });
                 stopCamera();
+            } else {
+                const remaining = TOTAL_SAMPLES - updatedDescriptors.length;
+                toast.success(`Sample ${updatedDescriptors.length}/${TOTAL_SAMPLES} captured. ${remaining} more needed.`, { id: 'capture' });
             }
         } catch (error) {
             console.error(error);
-            toast.error('Error during capture', { id: 'capture' });
+            toast.error('Error during capture, try again.', { id: 'capture' });
+        } finally {
+            setIsCapturing(false);
         }
     };
 
     const handleSave = async () => {
-        if (!selectedUser || !descriptor2) return;
-        
+        if (!selectedUser || !finalDescriptor) return;
+
         const loadingToast = toast.loading('Saving face enrollment...');
         try {
+            // Save the averaged single descriptor (backward-compatible with legacy scanner)
             await api.post('/biometric/enroll-face', {
                 type: selectedUser.type || userRole,
                 id: selectedUser.id,
-                biometric_template: descriptor2
+                biometric_template: finalDescriptor
             });
-            toast.success('Face Profile Created Successfully!', { id: loadingToast });
-            handleSearch(); // Refresh search list to update status
+            toast.success('Face Profile Created Successfully! ✓', { id: loadingToast });
+            handleSearch();
             resetEnrollment();
         } catch (error) {
-            toast.error('Failed to save enrollment', { id: loadingToast });
+            const msg = error.response?.data?.message || 'Failed to save enrollment';
+            toast.error(msg, { id: loadingToast });
         }
     };
 
     const resetEnrollment = () => {
         setStep(0);
         setSelectedUser(null);
-        setDescriptor1(null);
-        setDescriptor2(null);
-        setCapturedImage1(null);
-        setCapturedImage2(null);
+        setCollectedDescriptors([]);
+        setCapturedImages([]);
+        setFinalDescriptor(null);
+        setIsCapturing(false);
         stopCamera();
     };
 
@@ -327,146 +371,161 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
                 </div>
             )}
 
-            {/* Step 1 & 2: Capture Flow */}
-            {(step === 1 || step === 2) && (
+            {/* Step 1: Multi-Sample Capture */}
+            {step === 1 && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-20 animate-in fade-in duration-500">
                     {/* Camera Feed */}
                     <div className="lg:col-span-2 space-y-4">
                         <div className="relative aspect-video rounded-3xl overflow-hidden bg-black shadow-2xl border-4 border-white ring-1 ring-slate-200">
-                            <video 
-                                ref={videoRef} 
-                                autoPlay 
-                                muted 
-                                playsInline 
-                                className="w-full h-full object-cover mirror"
-                            />
-                            
+                            <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover mirror" />
+
                             {/* Scanning Overlay */}
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <div className={`w-64 h-80 border-2 rounded-[3rem] transition-all duration-500 relative flex items-center justify-center ${faceDetected ? 'border-emerald-500 ring-[200px] ring-black/40' : 'border-white/30 ring-0'}`}>
+                                <div className={`w-64 h-80 border-2 rounded-[3rem] transition-all duration-500 relative ${faceDetected ? 'border-emerald-500 shadow-[0_0_0_2000px_rgba(0,0,0,0.35)]' : 'border-white/30'}`}>
                                     {!faceDetected && (
-                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/50 text-center w-full px-4 font-bold text-xs">
+                                        <div className="absolute inset-0 flex items-center justify-center text-white/50 text-center px-4 font-bold text-xs">
                                             Center face within frame
                                         </div>
                                     )}
-                                    
-                                    {/* Scan Line Animation */}
                                     {faceDetected && (
-                                        <div className="absolute inset-x-0 h-0.5 bg-emerald-400/50 shadow-[0_0_15px_#10b981] animate-scanline z-10 w-full top-0"></div>
+                                        <div className="absolute inset-x-0 h-0.5 bg-emerald-400 shadow-[0_0_15px_#10b981] animate-scanline top-0" />
                                     )}
+                                    {/* Corner marks */}
+                                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-2xl" />
+                                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-2xl" />
+                                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-2xl" />
+                                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-2xl" />
                                 </div>
                             </div>
 
-                            {/* Status Indicator */}
-                            <div className="absolute top-6 left-6 flex items-center gap-3">
+                            {/* Face Status */}
+                            <div className="absolute top-6 left-6">
                                 <div className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg backdrop-blur-md border ${faceDetected ? 'bg-emerald-500/90 text-white border-emerald-400' : 'bg-black/60 text-white/70 border-white/20'}`}>
-                                    <div className={`w-2 h-2 rounded-full ${faceDetected ? 'bg-white animate-ping' : 'bg-slate-500'}`}></div>
-                                    {faceDetected ? 'Sensing Pulse' : 'Detecting...'}
+                                    <div className={`w-2 h-2 rounded-full ${faceDetected ? 'bg-white animate-ping' : 'bg-slate-500'}`} />
+                                    {faceDetected ? 'Face Detected' : 'Looking...'}
                                 </div>
                             </div>
 
-                            {/* Step Indicator */}
+                            {/* Sample progress dots */}
                             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2">
-                                <div className={`w-3 h-3 rounded-full ${step >= 1 ? 'bg-indigo-500' : 'bg-white/30'}`}></div>
-                                <div className="w-12 h-1 bg-white/20 rounded-full"></div>
-                                <div className={`w-3 h-3 rounded-full ${step >= 2 ? 'bg-indigo-500' : 'bg-white/30'}`}></div>
+                                {Array.from({ length: TOTAL_SAMPLES }).map((_, i) => (
+                                    <div key={i} className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                                        i < collectedDescriptors.length ? 'bg-emerald-400 scale-110' : 'bg-white/30'
+                                    }`} />
+                                ))}
                             </div>
                         </div>
 
-                        <div className="bg-slate-900/95 p-6 rounded-3xl text-white shadow-xl flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                                    <Camera className="text-white" size={24} />
-                                </div>
+                        {/* Capture Bar */}
+                        <div className="bg-slate-900 p-5 rounded-3xl text-white shadow-xl">
+                            <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <p className="text-xs font-black uppercase text-white/40 tracking-wider">Instructions</p>
+                                    <p className="text-[10px] font-black uppercase text-white/40 tracking-widest">Multi-Sample Capture</p>
                                     <p className="font-bold text-sm">
-                                        {step === 1 ? 'Look straight into the lens for the first capture' : 'Repeat for verification to ensure match stability'}
+                                        {collectedDescriptors.length === 0
+                                            ? 'Look straight, then tap Capture'
+                                            : collectedDescriptors.length < TOTAL_SAMPLES
+                                                ? `Great! ${TOTAL_SAMPLES - collectedDescriptors.length} more sample(s) needed`
+                                                : 'All samples ready!'}
                                     </p>
                                 </div>
+                                <div className="text-right">
+                                    <p className="text-3xl font-black text-emerald-400">{collectedDescriptors.length}</p>
+                                    <p className="text-[10px] text-white/40">of {TOTAL_SAMPLES}</p>
+                                </div>
                             </div>
-                            <button 
+
+                            {/* Progress bar */}
+                            <div className="w-full bg-white/10 rounded-full h-1.5 mb-4">
+                                <div
+                                    className="bg-emerald-400 h-1.5 rounded-full transition-all duration-500"
+                                    style={{ width: `${(collectedDescriptors.length / TOTAL_SAMPLES) * 100}%` }}
+                                />
+                            </div>
+
+                            <button
                                 onClick={captureSample}
-                                disabled={!faceDetected}
-                                className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all flex items-center gap-3 ${faceDetected ? 'bg-white text-black hover:scale-105 active:scale-95 shadow-xl shadow-white/10' : 'bg-white/10 text-white/30 cursor-not-allowed'}`}
+                                disabled={!faceDetected || isCapturing}
+                                className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all flex items-center justify-center gap-3 ${
+                                    faceDetected && !isCapturing
+                                        ? 'bg-white text-black hover:scale-[1.02] active:scale-95 shadow-xl'
+                                        : 'bg-white/10 text-white/30 cursor-not-allowed'
+                                }`}
                             >
-                                <ScanLine size={18} /> {step === 1 ? 'Start Capture' : 'Verify Face'}
+                                <ScanLine size={18} />
+                                {isCapturing ? 'Processing...' : `Capture Sample ${collectedDescriptors.length + 1}`}
                             </button>
                         </div>
                     </div>
 
-                    {/* Sidebar: Progress & Profile */}
-                    <div className="space-y-6">
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 min-h-[400px]">
-                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-2">Target {selectedUser.type || userRole}</p>
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black text-xl">
+                    {/* Sidebar: Captured Previews */}
+                    <div className="space-y-4">
+                        <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">Captured Samples</p>
+
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-lg">
                                     {selectedUser.name[0]}
                                 </div>
                                 <div>
-                                    <h4 className="font-black text-lg text-slate-800">{selectedUser.name}</h4>
+                                    <h4 className="font-black text-slate-800">{selectedUser.name}</h4>
                                     <p className="font-mono text-xs text-slate-400">{selectedUser.user_id}</p>
                                 </div>
                             </div>
 
-                            <div className="space-y-6">
-                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 relative overflow-hidden group">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-tighter italic">Sample 01 - Calibration</p>
-                                    {capturedImage1 ? (
-                                        <img src={capturedImage1} className="w-full h-32 object-cover rounded-xl border border-slate-200 animate-in zoom-in-75 duration-300" alt="Sample 1" />
-                                    ) : (
-                                        <div className="w-full h-32 bg-slate-200/50 rounded-xl flex items-center justify-center border-2 border-dashed border-slate-300">
-                                            <Camera size={24} className="text-slate-300" />
-                                        </div>
-                                    )}
-                                    {capturedImage1 && <div className="absolute top-6 right-6 bg-emerald-500 text-white p-1 rounded-full shadow-lg animate-in fade-in zoom-in"><Check size={12} /></div>}
-                                </div>
-
-                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 relative overflow-hidden group">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-tighter italic">Sample 02 - Verification</p>
-                                    {capturedImage2 ? (
-                                        <img src={capturedImage2} className="w-full h-32 object-cover rounded-xl border border-slate-200 animate-in zoom-in-75 duration-300" alt="Sample 2" />
-                                    ) : (
-                                        <div className="w-full h-32 bg-slate-200/50 rounded-xl flex items-center justify-center border-2 border-dashed border-slate-300">
-                                            <Camera size={24} className="text-slate-300" />
-                                        </div>
-                                    )}
-                                    {capturedImage2 && <div className="absolute top-6 right-6 bg-emerald-500 text-white p-1 rounded-full shadow-lg animate-in fade-in zoom-in"><Check size={12} /></div>}
-                                </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                {Array.from({ length: TOTAL_SAMPLES }).map((_, i) => (
+                                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden border-2 border-dashed border-slate-200 bg-slate-50">
+                                        {capturedImages[i] ? (
+                                            <>
+                                                <img src={capturedImages[i]} alt={`Sample ${i + 1}`} className="w-full h-full object-cover" />
+                                                <div className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5">
+                                                    <Check size={10} strokeWidth={3} />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs font-black">
+                                                {i + 1}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
                         <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 flex items-start gap-3">
-                            <AlertCircle size={20} className="mt-1" />
-                            <p className="text-xs leading-loose font-bold">Ensure direct overhead lighting. Avoid wearing sunglasses or heavy masks during enrollment.</p>
+                            <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                            <p className="text-xs leading-loose font-bold">5 different angles improve accuracy. Try: straight, slight left, slight right.</p>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Step 3: Final Confirmation */}
-            {step === 3 && (
+            {/* Step 2: Final Confirmation */}
+            {step === 2 && (
                 <div className="max-w-xl mx-auto space-y-8 animate-in zoom-in-95 duration-500 text-center pb-20">
                     <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-slate-100">
-                        <div className="w-24 h-24 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl shadow-emerald-200 animate-bounce">
-                           <Check size={48} />
-                        </div>
-                        
-                        <h3 className="text-3xl font-black text-slate-800 mb-2">Face Profile Ready</h3>
-                        <p className="text-slate-500 mb-10 font-bold">Mathematical match verified within safe threshold.</p>
-                        
-                        <div className="relative group mb-10">
-                            <img 
-                                src={capturedImage2} 
-                                className="w-48 h-48 mx-auto object-cover rounded-[2rem] border-4 border-emerald-500 shadow-2xl transition-transform group-hover:scale-105" 
-                                alt="Final" 
-                            />
-                            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-6 py-2 rounded-full font-black uppercase text-[10px] tracking-widest shadow-xl">
-                                Biometric Secured
-                            </div>
+                        <div className="w-24 h-24 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-200">
+                            <Check size={48} />
                         </div>
 
-                        <div className="space-y-4 mb-10 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                        <h3 className="text-3xl font-black text-slate-800 mb-2">Face Profile Ready</h3>
+                        <p className="text-slate-500 mb-8 font-bold">{TOTAL_SAMPLES} samples captured & averaged into a high-accuracy biometric template.</p>
+
+                        {/* Sample grid preview */}
+                        <div className="grid grid-cols-5 gap-2 mb-8">
+                            {capturedImages.map((img, i) => (
+                                <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border-2 border-emerald-200">
+                                    <img src={img} alt={`Sample ${i + 1}`} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-emerald-500/10" />
+                                    <div className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5">
+                                        <Check size={8} strokeWidth={3} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="space-y-4 mb-8 bg-slate-50 p-6 rounded-3xl border border-slate-100 text-left">
                             <div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">{selectedUser.type?.toUpperCase() || 'USER'} NAME</p>
                                 <p className="text-2xl font-black text-slate-800 tracking-tight">{selectedUser.name}</p>
@@ -477,24 +536,24 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
                                     <p className="font-mono font-bold text-indigo-600">{selectedUser.user_id}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Status</p>
-                                    <p className="font-bold text-emerald-600">Verified</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Samples</p>
+                                    <p className="font-bold text-emerald-600">{TOTAL_SAMPLES} × Averaged</p>
                                 </div>
                             </div>
                         </div>
 
                         <div className="flex gap-4">
-                            <button 
+                            <button
                                 onClick={resetEnrollment}
                                 className="flex-1 py-4 px-6 rounded-2xl bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-sm hover:bg-slate-200 transition-all active:scale-95"
                             >
                                 Re-Enroll
                             </button>
-                            <button 
+                            <button
                                 onClick={handleSave}
                                 className="flex-[2] py-4 px-6 rounded-2xl bg-indigo-600 text-white font-black uppercase tracking-widest text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all active:scale-95"
                             >
-                                Confirm & Save Enrollment
+                                Confirm & Save ✓
                             </button>
                         </div>
                     </div>

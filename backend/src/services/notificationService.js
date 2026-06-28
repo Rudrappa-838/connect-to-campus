@@ -159,53 +159,39 @@ const sendAttendanceNotification = async (user, status) => {
             timeZone: 'Asia/Kolkata'
         }).format(new Date());
 
-        let message = '';
-        let title = 'Attendance Update';
+        const todayDate = new Intl.DateTimeFormat('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata'
+        }).format(new Date());
 
-        // Customized messages based on role (implicitly handled by user object structure or could be explicit)
-        // Here we assume student/parent usage primarily.
+        let title = '';
+        let body = '';
 
         if (status === 'Present') {
-            message = `Reached school at ${now}`;
+            title = `✅ ${user.name} is Present`;
+            body = `Attendance marked at ${now} on ${todayDate}`;
         } else if (status === 'Absent') {
-            message = `Marked ABSENT today (${new Date().toLocaleDateString()})`;
+            title = `⚠️ ${user.name} is Absent`;
+            body = `No attendance recorded for ${todayDate}`;
         } else if (status === 'Late') {
-            message = `Arrived late at ${now}`;
+            title = `🕐 ${user.name} arrived Late`;
+            body = `Late arrival marked at ${now} on ${todayDate}`;
         }
 
-        if (!message) return;
+        if (!title) return;
 
-        // Configuration: Choose your messaging channel
-        const USE_SMS = process.env.ENABLE_SMS !== 'false'; // Default: enabled (cheap ₹0.10/msg)
-        const USE_WHATSAPP = process.env.ENABLE_WHATSAPP === 'true'; // Default: disabled (expensive ₹0.50-1.50/msg)
-
-        if (user.contact_number) {
-            // Option 1: SMS (Recommended - Cheap & Reliable)
-            if (USE_SMS) {
-                await sendAttendanceSMS(user, status);
-            }
-
-            // Option 2: WhatsApp (Optional - Expensive but Rich)
-            if (USE_WHATSAPP) {
-                await sendAttendanceWhatsApp(user, status);
-            }
-
-            // Fallback: Old SMS function (if new services not configured)
-            if (!USE_SMS && !USE_WHATSAPP) {
-                await sendSMS(user.contact_number, `Dear Parent, your ward ${user.name} has ${message.toLowerCase()}. - School Admin`);
-            }
-        }
-
-        // Detect Role for Push Logic
+        // Detect role for push routing
         let roleHint = 'Student';
-        if (user.employee_id) {
-            // Check if user is a teacher or staff (role check or department)
-            if (user.role && user.role.toLowerCase().includes('teacher')) roleHint = 'Teacher';
-            else roleHint = 'Staff';
+        if (user.type === 'teacher' || (user.role && user.role.toLowerCase().includes('teacher'))) {
+            roleHint = 'Teacher';
+        } else if (user.type === 'staff' || user.employee_id) {
+            roleHint = 'Staff';
         }
 
-        // Always send Mobile App Push Notification (FREE & Real-time)
-        await sendPushNotification(user.id, title, `${user.name} has ${message.toLowerCase()}.`, roleHint);
+        // Push-only: send FCM push notification directly to the student/teacher/staff app account
+        // This shows in the Android/iOS notification bar immediately (outside app)
+        await sendPushNotification(user.id, title, body, roleHint);
+
+        console.log(`[ATTENDANCE PUSH] Sent to ${roleHint} ID:${user.id} — "${title}"`);
 
     } catch (error) {
         console.error('Error sending attendance notification:', error);
