@@ -9,7 +9,7 @@ const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.
     || window.innerWidth < 768;
 const DETECTOR_INPUT_SIZE = isMobile ? 224 : 320;
 const DETECT_INTERVAL_MS  = isMobile ? 800 : 500;  // Face detection preview loop
-const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights/';
+const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights/';
 
 const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
     // === Multi-sample enrollment constants ===
