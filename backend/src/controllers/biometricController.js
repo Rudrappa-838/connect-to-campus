@@ -377,13 +377,24 @@ const markFaceAttendance = async (req, res) => {
     try {
         const { descriptor, class_id, section_id } = req.body;
         const schoolId = req.user.schoolId;
-        const { role, linkedId } = req.user;
+        let { role, linkedId, email } = req.user;
         const date = new Date().toISOString().split('T')[0];
 
         // Permission Check (Skip for Admins)
         const ADMIN_ROLES = ['SCHOOL_ADMIN', 'SUPER_ADMIN'];
         if (!ADMIN_ROLES.includes(role)) {
             const table = role === 'TEACHER' ? 'teachers' : 'staff';
+
+            if (!linkedId) {
+                const potentialEmpId = email ? (email.includes('@') ? email.split('@')[0].toUpperCase() : email.toUpperCase()) : '';
+                const fallbackRes = await pool.query(`SELECT id FROM ${table} WHERE (email = $1 OR employee_id ILIKE $2) AND school_id = $3`, [email, potentialEmpId, schoolId]);
+                if (fallbackRes.rows.length > 0) linkedId = fallbackRes.rows[0].id;
+            }
+
+            if (!linkedId) {
+                return res.status(403).json({ message: 'Access denied: User profile not linked.' });
+            }
+
             const permCheck = await pool.query(`SELECT can_take_face_attendance FROM ${table} WHERE id = $1 AND school_id = $2`, [linkedId, schoolId]);
             if (permCheck.rows.length === 0 || !permCheck.rows[0].can_take_face_attendance) {
                 return res.status(403).json({ message: 'Access denied: Permission to take face attendance not granted.' });
@@ -473,13 +484,24 @@ const markFaceAttendanceById = async (req, res) => {
     try {
         const { userId, type = 'student', marking_mode = 'face' } = req.body;
         const schoolId = req.user.schoolId;
-        const { role, linkedId } = req.user;
+        let { role, linkedId, email } = req.user;
         const date = new Date().toISOString().split('T')[0];
 
         // Permission Check (Skip for Admins)
         const ADMIN_ROLES = ['SCHOOL_ADMIN', 'SUPER_ADMIN'];
         if (!ADMIN_ROLES.includes(role)) {
             const table = role === 'TEACHER' ? 'teachers' : 'staff';
+
+            if (!linkedId) {
+                const potentialEmpId = email ? (email.includes('@') ? email.split('@')[0].toUpperCase() : email.toUpperCase()) : '';
+                const fallbackRes = await pool.query(`SELECT id FROM ${table} WHERE (email = $1 OR employee_id ILIKE $2) AND school_id = $3`, [email, potentialEmpId, schoolId]);
+                if (fallbackRes.rows.length > 0) linkedId = fallbackRes.rows[0].id;
+            }
+
+            if (!linkedId) {
+                return res.status(403).json({ message: 'Access denied: User profile not linked.' });
+            }
+
             const permCheck = await pool.query(`SELECT can_take_face_attendance FROM ${table} WHERE id = $1 AND school_id = $2`, [linkedId, schoolId]);
             if (permCheck.rows.length === 0 || !permCheck.rows[0].can_take_face_attendance) {
                 return res.status(403).json({ message: 'Access denied: Permission to take face attendance not granted.' });
