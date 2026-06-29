@@ -17,7 +17,7 @@ const DETECTOR_INPUT_SIZE = isMobile ? 224 : 320;
 const SCAN_INTERVAL_MS   = isMobile ? 700 : 400;   // Don't overwhelm slower mobile CPUs
 
 // jsDelivr CDN: globally cached, 5x faster than GitHub raw, works offline after first load
-const MODEL_URL = '/models/';
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights/';
 
 const FaceAttendanceScanner = ({ config, preferredFacingMode = 'user' }) => {
     const [loading, setLoading] = useState(true);
