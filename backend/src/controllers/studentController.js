@@ -229,14 +229,16 @@ exports.bulkUploadStudents = async (req, res) => {
             const rowNum = i + 2; // Excel row number (1-index + header)
 
             try {
-                // 1. Data Extraction
-                const firstName = (getValue(row, 'First Name') || getValue(row, 'First_Name') || '').toString().trim();
-                const middleName = (getValue(row, 'Middle Name') || getValue(row, 'Middle_Name') || '').toString().trim();
-                const lastName = (getValue(row, 'Last Name') || getValue(row, 'Last_Name') || '').toString().trim();
+                // 1. Data Extraction (Strictly match template columns)
+                const firstName = (getValue(row, 'First Name') || '').toString().trim();
+                const middleName = (getValue(row, 'Middle Name') || '').toString().trim();
+                const lastName = (getValue(row, 'Last Name') || '').toString().trim();
 
                 // Combine into full name
                 let name = [firstName, middleName, lastName].filter(Boolean).join(' ').trim();
-                if (!name) {
+                
+                // If they completely ignored the first/middle/last name columns, try fallback
+                if (!name && !firstName && !middleName && !lastName) {
                     name = (getValue(row, 'Student Name') || getValue(row, 'Name') || '').toString().trim();
                 }
 
@@ -251,8 +253,8 @@ exports.bulkUploadStudents = async (req, res) => {
                 let admissionNo = getValue(row, 'Admission No')?.toString().trim();
 
                 // 2. Strict Validation
-                if (!name) throw new Error('Student Name is required');
-                if (!className) throw new Error('Class Name is required');
+                if (!name) throw new Error('First Name (or Student Name) is required as per template');
+                if (!className) throw new Error('Class is required');
 
                 // Name validation: Only characters and spaces
                 if (!/^[a-zA-Z\s.]+$/.test(name)) {
@@ -451,7 +453,7 @@ exports.getStudents = async (req, res) => {
             LEFT JOIN classes c ON s.class_id = c.id
             LEFT JOIN sections sec ON s.section_id = sec.id
             WHERE s.school_id = $1 
-            AND (s.status IS NULL OR s.status != 'Deleted')
+            AND (s.status IS NULL OR s.status NOT IN ('Deleted', 'Unassigned'))
         `;
         const params = [school_id];
 
@@ -477,7 +479,7 @@ exports.getStudents = async (req, res) => {
         console.log(`[Get Students] Found ${result.rows.length} students`);
 
         // Get total count for pagination metadata
-        let countQuery = `SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status != 'Deleted')`;
+        let countQuery = `SELECT COUNT(*) FROM students WHERE school_id = $1 AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned'))`;
         const countParams = [school_id];
 
         if (class_id) {
@@ -755,11 +757,11 @@ exports.permanentDeleteStudent = async (req, res) => {
         const { name, email, admission_no } = studentRes.rows[0];
         console.log(`[PERMANENT DELETE STUDENT] Deleting student: ${name} (${admission_no})`);
 
-        // Get user_id from users table
+        // Get user_id from users table (ensure it's only a STUDENT account)
         let user_id = null;
         try {
             const userRes = await client.query(
-                'SELECT id FROM users WHERE email = $1 OR email = $2',
+                "SELECT id FROM users WHERE (email = $1 OR email = $2) AND role = 'STUDENT'",
                 [email, `${admission_no.toLowerCase()}@student.school.com`]
             );
             if (userRes.rows.length > 0) {

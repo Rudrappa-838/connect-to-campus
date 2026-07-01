@@ -60,10 +60,10 @@ exports.promoteStudents = async (req, res) => {
                     notes
                 ]);
 
-                // Update student's class, section, and academic year
+                // Update student's class, section, academic year, and set status to Active
                 await client.query(`
                     UPDATE students 
-                    SET class_id = $1, section_id = $2, academic_year = $3
+                    SET class_id = $1, section_id = $2, academic_year = $3, status = 'Active'
                     WHERE id = $4 AND school_id = $5
                 `, [targetClassId, targetSectionId, to_academic_year, student_id, school_id]);
 
