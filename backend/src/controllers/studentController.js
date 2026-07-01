@@ -184,12 +184,17 @@ exports.bulkUploadStudents = async (req, res) => {
             return res.status(400).json({ message: 'Excel sheet is empty' });
         }
 
-        // Helper to find key case-insensitively and trimmed
-        const getValue = (row, keyGuess) => {
-            const exact = row[keyGuess];
-            if (exact !== undefined) return exact;
-            const key = Object.keys(row).find(k => k.trim().toLowerCase() === keyGuess.toLowerCase());
-            return key ? row[key] : undefined;
+        // Helper to find key robustly (ignores case, spaces, and quotes)
+        const getValue = (row, ...keyGuesses) => {
+            for (const keyGuess of keyGuesses) {
+                const exact = row[keyGuess];
+                if (exact !== undefined) return exact;
+                
+                const guessClean = keyGuess.toLowerCase().replace(/[\s']/g, '');
+                const foundKey = Object.keys(row).find(k => k.toLowerCase().replace(/[\s']/g, '') === guessClean);
+                if (foundKey !== undefined) return row[foundKey];
+            }
+            return undefined;
         };
 
         // Fetch Classes and Sections for Mapping
@@ -229,26 +234,26 @@ exports.bulkUploadStudents = async (req, res) => {
             const rowNum = i + 2; // Excel row number (1-index + header)
 
             try {
-                // 1. Data Extraction (Strictly match template columns)
-                const firstName = (getValue(row, 'First Name') || '').toString().trim();
-                const middleName = (getValue(row, 'Middle Name') || '').toString().trim();
-                const lastName = (getValue(row, 'Last Name') || '').toString().trim();
+                // 1. Data Extraction (Robustly match template columns)
+                const firstName = (getValue(row, 'First Name', 'FirstName') || '').toString().trim();
+                const middleName = (getValue(row, 'Middle Name', 'MiddleName') || '').toString().trim();
+                const lastName = (getValue(row, 'Last Name', 'LastName') || '').toString().trim();
 
                 // Combine into full name
                 let name = [firstName, middleName, lastName].filter(Boolean).join(' ').trim();
                 
                 // If they completely ignored the first/middle/last name columns, try fallback
                 if (!name && !firstName && !middleName && !lastName) {
-                    name = (getValue(row, 'Student Name') || getValue(row, 'Name') || '').toString().trim();
+                    name = (getValue(row, 'Student Name', 'Name') || '').toString().trim();
                 }
 
                 const className = getValue(row, 'Class');
                 const sectionName = getValue(row, 'Section');
-                const dobRaw = getValue(row, 'Date of Birth') || getValue(row, 'DOB');
-                const fatherName = getValue(row, 'Father\'s Name') || getValue(row, 'Father Name') || '';
-                const motherName = getValue(row, 'Mother\'s Name') || getValue(row, 'Mother Name') || '';
-                const contact = (getValue(row, 'Mobile Number') || getValue(row, 'Contact Number') || '').toString().trim();
-                const email = (getValue(row, 'Email Address') || getValue(row, 'Email') || '').toString().trim();
+                const dobRaw = getValue(row, 'Date of Birth', 'DOB');
+                const fatherName = getValue(row, 'Father\'s Name', 'Father Name', 'FathersName') || '';
+                const motherName = getValue(row, 'Mother\'s Name', 'Mother Name', 'MothersName') || '';
+                const contact = (getValue(row, 'Mobile Number', 'Contact Number', 'Mobile') || '').toString().trim();
+                const email = (getValue(row, 'Email Address', 'Email') || '').toString().trim();
                 const address = (getValue(row, 'Address') || '').toString().trim();
                 let admissionNo = getValue(row, 'Admission No')?.toString().trim();
 
