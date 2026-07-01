@@ -871,19 +871,19 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                         <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[11px] tracking-wider">
                             <tr>
                                 <th className="p-4 pl-6 w-12">
-                                    {filterClass && (
+                                    {(filterClass || viewMode === 'bin') && (
                                         <input
                                             type="checkbox"
                                             className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                             checked={selectedStudents.length === students.length && students.length > 0}
                                             onChange={(e) => {
                                                 if (e.target.checked) {
-                                                    setSelectedStudents(students);
+                                                    setSelectedStudents([...students]);
                                                 } else {
                                                     setSelectedStudents([]);
                                                 }
                                             }}
-                                            title="Select all students in this class"
+                                            title="Select all students"
                                         />
                                     )}
                                 </th>
@@ -930,7 +930,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     {students.map(student => (
                                         <tr key={student.id} className="group hover:bg-slate-50/50 transition-colors">
                                             <td className="p-4 pl-6">
-                                                {filterClass && (
+                                                {(filterClass || viewMode === 'bin') && (
                                                     <input
                                                         type="checkbox"
                                                         className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
