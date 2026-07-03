@@ -1170,7 +1170,6 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                     <label className="label">Last Name <span className="text-red-500">*</span></label>
                                     <input
                                         className="input"
-                                        required
                                         id="student-last-name"
                                         name="last_name"
                                         placeholder="Last Name"
@@ -1190,19 +1189,18 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                             </div>
 
                             <div className="col-span-1">
-                                <label className="label">Gender <span className="text-red-500">*</span></label>
-                                <select className="input" id="student-gender" name="gender" required value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })}>
+                                <label className="label">Gender</label>
+                                <select className="input" id="student-gender" name="gender" value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })}>
                                     <option value="">Select Gender</option>
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
                                 </select>
                             </div>
                             <div className="col-span-1">
-                                <label className="label">Date of Birth <span className="text-red-500">*</span></label>
+                                <label className="label">Date of Birth</label>
                                 <input
                                     type="date"
                                     className="input"
-                                    required
                                     autoComplete="off"
                                     max={new Date().toISOString().split('T')[0]}
                                     value={formData.dob}
@@ -1214,8 +1212,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                 <input className="input bg-gray-50" readOnly autoComplete="off" value={formData.age} placeholder="Auto-calculated" />
                             </div>
                             <div className="col-span-1">
-                                <label className="label">Admission Date <span className="text-red-500">*</span></label>
-                                <input type="date" className="input" required autoComplete="off" value={formData.admission_date} onChange={e => setFormData({ ...formData, admission_date: e.target.value })} />
+                                <label className="label">Admission Date</label>
+                                <input type="date" className="input" autoComplete="off" value={formData.admission_date} onChange={e => setFormData({ ...formData, admission_date: e.target.value })} />
                             </div>
 
                             {/* Academic Details */}
@@ -1250,10 +1248,9 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                 <h3 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-3">Guardian & Contact</h3>
                             </div>
                             <div className="col-span-1">
-                                <label className="label">Father's Name <span className="text-red-500">*</span></label>
+                                <label className="label">Father's Name</label>
                                 <input
                                     className="input"
-                                    required
                                     pattern="[A-Za-z\s]+"
                                     title="Only letters and spaces allowed"
                                     autoComplete="off"
@@ -1268,10 +1265,9 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                 />
                             </div>
                             <div className="col-span-1">
-                                <label className="label">Mother's Name <span className="text-red-500">*</span></label>
+                                <label className="label">Mother's Name</label>
                                 <input
                                     className="input"
-                                    required
                                     pattern="[A-Za-z\s]+"
                                     title="Only letters and spaces allowed"
                                     autoComplete="off"
@@ -1286,11 +1282,10 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                 />
                             </div>
                             <div className="col-span-1">
-                                <label className="label">Mobile Number <span className="text-red-500">*</span></label>
+                                <label className="label">Mobile Number</label>
                                 <input
                                     className="input"
                                     type="tel"
-                                    required
                                     id="student-contact"
                                     name="contact_number"
                                     maxLength="10"
@@ -1308,11 +1303,10 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                 />
                             </div>
                             <div className="col-span-1">
-                                <label className="label">Email Address <span className="text-red-500">*</span></label>
+                                <label className="label">Email Address</label>
                                 <input
                                     className="input"
                                     type="email"
-                                    required
                                     id="student-email"
                                     name="email"
                                     placeholder="example@domain.com"

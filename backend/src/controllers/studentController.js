@@ -31,6 +31,10 @@ exports.addStudent = async (req, res) => {
         // Convert empty section_id to null
         const safe_section_id = (section_id === '' || section_id === 'null' || section_id === undefined) ? null : section_id;
 
+        const safe_father = father_name || '';
+        const safe_dob = dob === '' ? null : dob;
+        const safe_admission_date = admission_date === '' ? null : admission_date;
+
         // 0. Duplicate Check (Name + Father Name + DOB)
         const dbDuplicateCheck = await client.query(
             `SELECT id, admission_no FROM students 
@@ -38,12 +42,12 @@ exports.addStudent = async (req, res) => {
                  AND TRIM(LOWER(name)) = TRIM(LOWER($2)) 
                  AND TRIM(LOWER(father_name)) = TRIM(LOWER($3))
                  AND (dob = $4 OR (dob IS NULL AND $4 IS NULL))`,
-            [school_id, name, father_name, dob]
+            [school_id, name, safe_father, safe_dob]
         );
 
         if (dbDuplicateCheck.rows.length > 0) {
             return res.status(400).json({
-                message: `Student "${name}" with Father's Name "${father_name}" already exists in the database (Admission No: ${dbDuplicateCheck.rows[0].admission_no}).`
+                message: `Student "${name}" with Father's Name "${safe_father}" already exists in the database (Admission No: ${dbDuplicateCheck.rows[0].admission_no}).`
             });
         }
 
@@ -109,8 +113,8 @@ exports.addStudent = async (req, res) => {
             (school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, age, class_id, section_id, 
              father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
-            [school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, age, class_id, safe_section_id,
-                father_name, mother_name, contact_number, email, address, attendance_id, admission_date || new Date()]
+            [school_id, name, first_name, last_name, admission_no, roll_number, gender, safe_dob, age, class_id, safe_section_id,
+                safe_father, mother_name, contact_number, email, address, attendance_id, safe_admission_date || new Date()]
         );
         const newStudent = result.rows[0];
 
