@@ -75,7 +75,6 @@ export const registerPushNotifications = async (userId) => {
                             schedule: { at: new Date(Date.now() + 100) },
                             extra: notification.data || {},
                             channelId: 'school_notifications',
-                            smallIcon: 'ic_stat_notification', // Common standard icon name
                             autoCancel: false, // Do not auto-dismiss on click
                             actionTypeId: 'OPEN_NOTIFICATIONS'
                         }
