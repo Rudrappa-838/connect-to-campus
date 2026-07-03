@@ -310,14 +310,14 @@ const TeacherManagement = ({ config }) => {
 
                             {/* Subject Selection */}
                             <div>
-                                <label className="label">Subject Specialization <span className="text-red-500">*</span></label>
+                                <label className="label">Subject Specialization</label>
                                 <div className="relative">
                                     <input
                                         list="subjects-list"
                                         className="input"
                                         id="teacher-subject"
                                         name="subject_specialization"
-                                        required
+
                                         placeholder="Select or Type Subject"
                                         autoComplete="off"
                                         value={formData.subject_specialization}
@@ -333,13 +333,13 @@ const TeacherManagement = ({ config }) => {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="label">Phone <span className="text-red-500">*</span></label>
+                                    <label className="label">Phone</label>
                                     <input
                                         className={`input ${fieldErrors.phone ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
                                         id="teacher-phone"
                                         name="phone"
                                         placeholder="Phone"
-                                        required
+
                                         maxLength={10}
                                         autoComplete="off"
                                         value={formData.phone}
@@ -352,13 +352,12 @@ const TeacherManagement = ({ config }) => {
                                     {fieldErrors.phone && <p className="text-xs text-red-500 mt-1 font-medium">{fieldErrors.phone}</p>}
                                 </div>
                                 <div>
-                                    <label className="label">Email <span className="text-red-500">*</span></label>
+                                    <label className="label">Email</label>
                                     <input
                                         className={`input ${fieldErrors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
                                         id="teacher-email"
                                         name="email"
                                         placeholder="Email"
-                                        required
                                         type="email"
                                         autoComplete="off"
                                         value={formData.email}
@@ -373,16 +372,15 @@ const TeacherManagement = ({ config }) => {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="label">Gender <span className="text-red-500">*</span></label>
-                                    <select className="input" required value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })}>
+                                    <label className="label">Gender</label>
+                                    <select className="input" value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })}>
                                         <option value="">Select Gender</option><option value="Male">Male</option><option value="Female">Female</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="label">Date of Joining <span className="text-red-500">*</span></label>
+                                    <label className="label">Date of Joining</label>
                                     <input
                                         className="input"
-                                        required
                                         type="date"
                                         autoComplete="off"
                                         max={new Date().toISOString().split('T')[0]}
@@ -393,12 +391,11 @@ const TeacherManagement = ({ config }) => {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="col-span-1">
-                                    <label className="label">Salary Per Month <span className="text-red-500">*</span></label>
+                                    <label className="label">Salary Per Month</label>
                                     <input
                                         className="input"
                                         type="number"
                                         min="0"
-                                        required
                                         placeholder="30000"
                                         autoComplete="off"
                                         value={formData.salary_per_month}
