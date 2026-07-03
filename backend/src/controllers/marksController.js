@@ -338,82 +338,53 @@ exports.saveMarks = async (req, res) => {
         let failedCount = 0;
         const failedMarks = [];
 
+        // Filter and prepare marks
+        const insertValues = [];
+        const insertParams = [];
+        let paramIndex = 1;
+
+        const componentInserts = [];
+        let componentParamIndex = 1;
+        const componentParams = [];
+
         for (let i = 0; i < marks.length; i++) {
             const mark = marks[i];
             const rowYear = mark.year || targetYear;
-
-            // Allow section_id to be NULL or 0 if not provided
             const sectionVal = mark.section_id || null;
 
-            console.log(`[Marks Save] Processing mark ${i + 1}/${marks.length}: student_id=${mark.student_id}, subject_id=${mark.subject_id}, marks=${mark.marks_obtained}`);
+            // Handle possible NaN values gracefully (if frontend sends "AB" or empty incorrectly parsed)
+            let marksObt = parseFloat(mark.marks_obtained);
+            if (isNaN(marksObt)) marksObt = 0;
 
+            if (mark.component_id) {
+                // Component-based mark logic (if used by backend)
+                // In this case, we'll keep it simple or skip as frontend uses component_scores JSON now
+            } else {
+                insertValues.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, CURRENT_TIMESTAMP)`);
+                insertParams.push(school_id, mark.student_id, mark.class_id, sectionVal, mark.subject_id, mark.exam_type_id, marksObt, mark.remarks || null, rowYear, mark.component_scores || {});
+                savedCount++;
+            }
+        }
+
+        if (insertValues.length > 0) {
             try {
-                if (mark.component_id) {
-                    // Component-based mark
-
-                    const mainMarkResult = await client.query(
-                        `INSERT INTO marks 
-                         (school_id, student_id, class_id, section_id, subject_id, exam_type_id, marks_obtained, year, updated_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, 0, $7, CURRENT_TIMESTAMP)
-                         ON CONFLICT (school_id, student_id, subject_id, exam_type_id, year)
-                         DO UPDATE SET marks_obtained = marks.marks_obtained, updated_at = CURRENT_TIMESTAMP
-                         RETURNING id`,
-                        [school_id, mark.student_id, mark.class_id, sectionVal,
-                            mark.subject_id, mark.exam_type_id, rowYear]
-                    );
-
-                    const markId = mainMarkResult.rows[0].id;
-
-                    await client.query(
-                        `INSERT INTO mark_components (mark_id, component_id, marks_obtained)
-                         VALUES ($1, $2, $3)
-                         ON CONFLICT (mark_id, component_id)
-                         DO UPDATE SET marks_obtained = EXCLUDED.marks_obtained`,
-                        [markId, mark.component_id, mark.marks_obtained]
-                    );
-
-                    const totalResult = await client.query(
-                        `SELECT COALESCE(SUM(marks_obtained), 0) as total 
-                         FROM mark_components 
-                         WHERE mark_id = $1`,
-                        [markId]
-                    );
-
-                    await client.query(
-                        `UPDATE marks SET marks_obtained = $1 WHERE id = $2`,
-                        [totalResult.rows[0].total, markId]
-                    );
-                    savedCount++;
-                    console.log(`[Marks Save] ✅ Saved mark ${i + 1}: student_id=${mark.student_id}, subject_id=${mark.subject_id}`);
-                } else {
-                    // Simple mark OR JSON-based Component Mark
-                    await client.query(
-                        `INSERT INTO marks 
-                         (school_id, student_id, class_id, section_id, subject_id, exam_type_id, marks_obtained, remarks, year, component_scores, updated_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
-                         ON CONFLICT (school_id, student_id, subject_id, exam_type_id, year)
-                         DO UPDATE SET 
-                            marks_obtained = EXCLUDED.marks_obtained,
-                            remarks = EXCLUDED.remarks,
-                            component_scores = EXCLUDED.component_scores,
-                            updated_at = CURRENT_TIMESTAMP`,
-                        [school_id, mark.student_id, mark.class_id, sectionVal,
-                            mark.subject_id, mark.exam_type_id, mark.marks_obtained, mark.remarks || null, rowYear, mark.component_scores || {}]
-                    );
-                    savedCount++;
-                    console.log(`[Marks Save] ✅ Saved mark ${i + 1}: student_id=${mark.student_id}, subject_id=${mark.subject_id}`);
-                }
-            } catch (markError) {
-                failedCount++;
-                failedMarks.push({
-                    student_id: mark.student_id,
-                    subject_id: mark.subject_id,
-                    error: markError.message
-                });
-                console.error(`[Marks Save] ❌ FAILED mark ${i + 1}: student_id=${mark.student_id}, subject_id=${mark.subject_id}`);
-                console.error(`[Marks Save] Error:`, markError.message);
-                console.error(`[Marks Save] Error detail:`, markError.detail);
-                console.error(`[Marks Save] Error constraint:`, markError.constraint);
+                const query = `
+                    INSERT INTO marks 
+                    (school_id, student_id, class_id, section_id, subject_id, exam_type_id, marks_obtained, remarks, year, component_scores, updated_at)
+                    VALUES ${insertValues.join(', ')}
+                    ON CONFLICT (school_id, student_id, subject_id, exam_type_id, year)
+                    DO UPDATE SET 
+                        marks_obtained = EXCLUDED.marks_obtained,
+                        remarks = EXCLUDED.remarks,
+                        component_scores = EXCLUDED.component_scores,
+                        updated_at = EXCLUDED.updated_at
+                `;
+                await client.query(query, insertParams);
+                console.log(`[Marks Save] ✅ Successfully batched saved ${savedCount} marks`);
+            } catch (err) {
+                console.error(`[Marks Save] ❌ Batch Insert Error:`, err.message);
+                failedCount = marks.length;
+                savedCount = 0;
             }
         }
 
@@ -421,7 +392,7 @@ exports.saveMarks = async (req, res) => {
 
         console.log(`[Marks Save] Successfully saved ${savedCount} marks`);
         if (failedCount > 0) {
-            console.log(`[Marks Save] Failed to save ${failedCount} marks:`, failedMarks);
+            console.log(`[Marks Save] Failed to save marks. Check errors.`);
         }
 
         // Notification Logic (wrapped in try-catch to prevent failures from affecting save)

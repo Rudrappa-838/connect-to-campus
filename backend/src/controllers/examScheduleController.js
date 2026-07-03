@@ -109,14 +109,14 @@ exports.saveExamSchedule = async (req, res) => {
                     String(s.exam_type_id) === eid
                 );
 
-                for (const schedule of schedulesForBlock) {
+                const upsertPromises = schedulesForBlock.map(schedule => {
                     incomingSubjects.add(Number(schedule.subject_id));
 
                     // UPSERT LOGIC
                     if (existingMap.has(Number(schedule.subject_id))) {
                         // UPDATE existing record (Reactive it if it was deleted)
                         const existingId = existingMap.get(Number(schedule.subject_id));
-                        await client.query(
+                        return client.query(
                             `UPDATE exam_schedules SET 
                                 exam_date = $1, start_time = $2, end_time = $3, 
                                 components = $4, max_marks = $5, min_marks = $6,
@@ -139,7 +139,7 @@ exports.saveExamSchedule = async (req, res) => {
                             (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks)
                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                         `;
-                        await client.query(insertQ, [
+                        return client.query(insertQ, [
                             school_id,
                             schedule.exam_type_id,
                             schedule.class_id,
@@ -153,25 +153,31 @@ exports.saveExamSchedule = async (req, res) => {
                             schedule.min_marks || 35
                         ]);
                     }
-                }
+                });
+                
+                await Promise.all(upsertPromises);
 
                 // 3. SOFT DELETE records that are NOT in the incoming list
+                const deletePromises = [];
                 for (const [subjectId, scheduleId] of existingMap.entries()) {
                     if (!incomingSubjects.has(subjectId)) {
                         // Soft delete this schedule
-                        await client.query(
+                        deletePromises.push(client.query(
                             `UPDATE exam_schedules SET deleted_at = NOW() WHERE id = $1`,
                             [scheduleId]
-                        );
+                        ));
                     }
+                }
+                if (deletePromises.length > 0) {
+                    await Promise.all(deletePromises);
                 }
             }
         } else {
             // If strictly appending (not replacing), simply insert. 
             // In this app, the UI usually sends the whole list, so delete_existing is mostly true.
             // But just in case:
-            for (const schedule of schedules) {
-                await client.query(
+            const insertPromises = schedules.map(schedule => {
+                return client.query(
                     `INSERT INTO exam_schedules 
                      (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks)
                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
@@ -189,7 +195,8 @@ exports.saveExamSchedule = async (req, res) => {
                         schedule.min_marks || 35
                     ]
                 );
-            }
+            });
+            await Promise.all(insertPromises);
         }
 
         await client.query('COMMIT');
