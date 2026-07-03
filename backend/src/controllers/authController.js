@@ -76,11 +76,17 @@ const login = async (req, res) => {
         }
 
         if (!user) {
+            console.log(`[LOGIN DEBUG] No user found for ID: ${email}`);
             return res.status(401).json({ message: 'Invalid credentials or role mismatch' });
         }
 
+        console.log(`[LOGIN DEBUG] Attempting login for DB User: ${user.email} (Role: ${user.role}) using provided password.`);
+
         // Verify password
         const validPassword = await bcrypt.compare(password, user.password);
+        
+        console.log(`[LOGIN DEBUG] Password match result: ${validPassword}`);
+
         if (!validPassword) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
