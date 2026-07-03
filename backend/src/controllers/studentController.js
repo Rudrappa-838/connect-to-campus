@@ -52,11 +52,17 @@ exports.addStudent = async (req, res) => {
         if (!admission_no) {
             // NEW FORMAT: [School First 2 Letters (Upper)] + [Role: S] + [4 Digits]
             // Constraint: Total 7 Characters. Example: DAS4545
-            const schoolRes = await client.query('SELECT name FROM schools WHERE id = $1', [school_id]);
+            const schoolRes = await client.query('SELECT name, id_prefix FROM schools WHERE id = $1', [school_id]);
             const schoolName = schoolRes.rows[0]?.name || 'XX';
-            // Get first 2 letters, uppercase, remove non-alphabets
-            let prefix = schoolName.replace(/[^a-zA-Z]/g, '').substring(0, 2).toUpperCase();
-            if (prefix.length < 2) prefix = (prefix + 'X').substring(0, 2); // Fallback if name is 1 char
+            const customPrefix = schoolRes.rows[0]?.id_prefix;
+            // Get prefix
+            let prefix;
+            if (customPrefix) {
+                prefix = customPrefix.toUpperCase();
+            } else {
+                prefix = schoolName.replace(/[^a-zA-Z]/g, '').substring(0, 2).toUpperCase();
+                if (prefix.length < 2) prefix = (prefix + 'X').substring(0, 2); // Fallback if name is 1 char
+            }
 
             // Generate unique 4-digit number to ensure total length 7
             let isUnique = false;
@@ -64,8 +70,9 @@ exports.addStudent = async (req, res) => {
             while (!isUnique) {
                 rand4 = Math.floor(1000 + Math.random() * 9000); // 1000 to 9999
                 admission_no = `${prefix}S${rand4}`; // XX + S + 1234 = 7 chars
-                const check = await client.query('SELECT id FROM students WHERE admission_no = $1 AND school_id = $2', [admission_no, school_id]);
-                if (check.rows.length === 0) isUnique = true;
+                const checkStudent = await client.query('SELECT id FROM students WHERE admission_no = $1', [admission_no]);
+                const checkUser = await client.query('SELECT id FROM users WHERE email = $1', [admission_no.toLowerCase()]);
+                if (checkStudent.rows.length === 0 && checkUser.rows.length === 0) isUnique = true;
             }
         } else {
             // If provided manually, ensure uppercase
@@ -216,10 +223,16 @@ exports.bulkUploadStudents = async (req, res) => {
         sectionRes.rows.forEach(s => sectionMap.set(`${s.name.trim().toLowerCase()}_${s.class_id}`, s.id));
 
         // Get School Prefix for Admission No Generation
-        const schoolRes = await client.query('SELECT name FROM schools WHERE id = $1', [school_id]);
+        const schoolRes = await client.query('SELECT name, id_prefix FROM schools WHERE id = $1', [school_id]);
         const schoolName = schoolRes.rows[0]?.name || 'XX';
-        let prefix = schoolName.replace(/[^a-zA-Z]/g, '').substring(0, 2).toUpperCase();
-        if (prefix.length < 2) prefix = (prefix + 'X').substring(0, 2);
+        const customPrefix = schoolRes.rows[0]?.id_prefix;
+        let prefix;
+        if (customPrefix) {
+            prefix = customPrefix.toUpperCase();
+        } else {
+            prefix = schoolName.replace(/[^a-zA-Z]/g, '').substring(0, 2).toUpperCase();
+            if (prefix.length < 2) prefix = (prefix + 'X').substring(0, 2);
+        }
 
         let successCount = 0;
         let failureCount = 0;

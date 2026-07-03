@@ -1,6 +1,7 @@
 const { pool } = require('../config/db');
 const bcrypt = require('bcrypt');
 const { generateAnnualCalendar } = require('../utils/holidayUtils');
+const { regenerateSchoolIds } = require('../utils/idMigrationUtil');
 
 // Create a new school with admin and configuration
 const createSchool = async (req, res) => {
@@ -9,7 +10,7 @@ const createSchool = async (req, res) => {
     try {
         const {
             name, address, contactEmail, contactNumber,
-            adminEmail, adminPassword,
+            adminEmail, adminPassword, id_prefix,
             classes // Array of { name, sections: [], subjects: [] }
         } = req.body;
 
@@ -69,9 +70,9 @@ const createSchool = async (req, res) => {
 
         // 1. Create School
         const schoolRes = await client.query(
-            `INSERT INTO schools (name, address, contact_email, contact_number, school_code, institution_type) 
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, school_code`,
-            [name, address, contactEmail, contactNumber, schoolCode, req.body.institution_type || 'SCHOOL']
+            `INSERT INTO schools (name, address, contact_email, contact_number, school_code, institution_type, id_prefix) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, school_code`,
+            [name, address, contactEmail, contactNumber, schoolCode, req.body.institution_type || 'SCHOOL', id_prefix || null]
         );
         const schoolId = schoolRes.rows[0].id;
         const generatedCode = schoolRes.rows[0].school_code;
@@ -304,7 +305,7 @@ const fetchSchoolDetails = async (id, res) => {
 // Update school details with class/section deletion support
 const updateSchool = async (req, res) => {
     const { id } = req.params;
-    const { name, address, contactEmail, contactNumber, classes, allowDeletions, marksheet_template } = req.body;
+    const { name, address, contactEmail, contactNumber, classes, allowDeletions, marksheet_template, id_prefix } = req.body;
     console.log(`[UPDATE SCHOOL] ID: ${id}, Body:`, JSON.stringify(req.body, null, 2));
 
     const client = await pool.connect();
@@ -313,18 +314,25 @@ const updateSchool = async (req, res) => {
         await client.query('BEGIN');
         console.log('[UPDATE SCHOOL] Transaction Started');
 
+        const currentSchoolRes = await client.query('SELECT id_prefix FROM schools WHERE id = $1', [id]);
+        if (currentSchoolRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'School not found' });
+        }
+        const oldPrefix = currentSchoolRes.rows[0].id_prefix;
+
         // 1. Update Basic Info including API Key and Marksheet Template
         const result = await client.query(
             `UPDATE schools 
-             SET name = $1, address = $2, contact_email = $3, contact_number = $4, institution_type = $5, gemini_api_key = COALESCE($6, gemini_api_key), marksheet_template = COALESCE($8, marksheet_template)
+             SET name = $1, address = $2, contact_email = $3, contact_number = $4, institution_type = $5, gemini_api_key = COALESCE($6, gemini_api_key), marksheet_template = COALESCE($8, marksheet_template), id_prefix = $9
              WHERE id = $7 RETURNING *`,
-            [name, address, contactEmail, contactNumber, req.body.institution_type || 'SCHOOL', req.body.geminiApiKey, id, marksheet_template]
+            [name, address, contactEmail, contactNumber, req.body.institution_type || 'SCHOOL', req.body.geminiApiKey, id, marksheet_template, id_prefix || null]
         );
         console.log('[UPDATE SCHOOL] Basic Info Updated');
 
-        if (result.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ message: 'School not found' });
+        if (id_prefix && oldPrefix !== id_prefix) {
+            console.log(`[UPDATE SCHOOL] ID Prefix changed from ${oldPrefix} to ${id_prefix}. Regenerating IDs...`);
+            await regenerateSchoolIds(id, id_prefix, client);
         }
 
         // 2. Full Sync of Academic Configuration

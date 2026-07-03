@@ -425,6 +425,35 @@ const forgotPassword = async (req, res) => {
                     }
                 }
             }
+        } else if (isEmail && role) {
+            // User entered their real email address, we need to find their login ID
+            if (role === 'STUDENT') {
+                const sRes = await pool.query('SELECT email, admission_no, first_name, last_name FROM students WHERE email ILIKE $1', [email]);
+                if (sRes.rows.length > 0) {
+                    checkEmails.push(sRes.rows[0].admission_no.toLowerCase());
+                    userDetails.id = sRes.rows[0].admission_no;
+                    userDetails.name = `${sRes.rows[0].first_name || ''} ${sRes.rows[0].last_name || ''}`.trim();
+                    userDetails.email = sRes.rows[0].email;
+                }
+            }
+            else if (role === 'TEACHER') {
+                const tRes = await pool.query('SELECT email, employee_id, name FROM teachers WHERE email ILIKE $1', [email]);
+                if (tRes.rows.length > 0) {
+                    checkEmails.push(tRes.rows[0].employee_id.toLowerCase());
+                    userDetails.id = tRes.rows[0].employee_id;
+                    userDetails.name = tRes.rows[0].name;
+                    userDetails.email = tRes.rows[0].email;
+                }
+            }
+            else if (['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN'].includes(role)) {
+                const stRes = await pool.query('SELECT email, employee_id, name FROM staff WHERE email ILIKE $1', [email]);
+                if (stRes.rows.length > 0) {
+                    checkEmails.push(stRes.rows[0].employee_id.toLowerCase());
+                    userDetails.id = stRes.rows[0].employee_id;
+                    userDetails.name = stRes.rows[0].name;
+                    userDetails.email = stRes.rows[0].email;
+                }
+            }
         }
 
         // Find user

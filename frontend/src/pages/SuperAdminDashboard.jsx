@@ -35,6 +35,7 @@ const SuperAdminDashboard = () => {
         adminPassword: '',
         confirmAdminPassword: '',
         institutionType: 'SCHOOL',
+        id_prefix: '',
         classes: []
     });
 
@@ -252,6 +253,7 @@ const SuperAdminDashboard = () => {
                 adminPassword: '',
                 confirmAdminPassword: '',
                 institutionType: fullSchool.institution_type || 'SCHOOL',
+                id_prefix: fullSchool.id_prefix || '',
                 classes: [...transformedClasses] // Use spread to ensure new array reference
             }));
             setShowModal(true);
@@ -266,7 +268,7 @@ const SuperAdminDashboard = () => {
         setEditSchoolId(null);
         setFormData({
             name: '', address: '', contactEmail: '', contactNumber: '',
-            adminEmail: '', adminPassword: '', confirmAdminPassword: '', institutionType: 'SCHOOL', classes: []
+            adminEmail: '', adminPassword: '', confirmAdminPassword: '', institutionType: 'SCHOOL', id_prefix: '', classes: []
         });
         setShowModal(true);
     };
@@ -362,6 +364,7 @@ const SuperAdminDashboard = () => {
                     contactEmail: formData.contactEmail,
                     contactNumber: formData.contactNumber,
                     institution_type: formData.institutionType,
+                    id_prefix: formData.id_prefix,
                     classes: formData.classes,
                     allowDeletions: true
                 });
@@ -833,6 +836,22 @@ const SuperAdminDashboard = () => {
                                                 value={formData.name}
                                                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                                             />
+                                        </div>
+                                        <div className="group">
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Custom ID Prefix</label>
+                                            <input
+                                                maxLength="5"
+                                                placeholder="e.g. FGD (max 5 chars)"
+                                                autoComplete="off"
+                                                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all uppercase"
+                                                value={formData.id_prefix}
+                                                onChange={e => setFormData({ ...formData, id_prefix: e.target.value.replace(/[^a-zA-Z]/g, '').toUpperCase() })}
+                                            />
+                                            {isEditing && (
+                                                <p className="mt-1 text-xs text-amber-500 font-medium">
+                                                    Warning: Changing this will regenerate login IDs for all existing users.
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="group">
                                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Official Email</label>

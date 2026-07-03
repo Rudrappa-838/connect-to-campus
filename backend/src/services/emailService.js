@@ -59,10 +59,14 @@ const sendOTP = async (recipientEmail, otp, userDetails) => {
             <h2 style="color: #2563eb; text-align: center;">Account Security Verification</h2>
             <hr style="border: 1px solid #e0e0e0;">
             
+            <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                <p style="margin: 0; color: #166534;"><strong>Important:</strong> Your current Login ID is <strong style="font-size: 18px;">${userDetails.id}</strong></p>
+                <p style="margin: 5px 0 0 0; color: #166534; font-size: 13px;">Please use this ID to log in after resetting your password.</p>
+            </div>
+
             <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <p style="margin: 10px 0;"><strong>School:</strong> ${userDetails.schoolName || 'N/A'}</p>
                 <p style="margin: 10px 0;"><strong>Role:</strong> ${userDetails.role || 'User'}</p>
-                <p style="margin: 10px 0;"><strong>ID:</strong> ${userDetails.id}</p>
                 ${userDetails.name ? `<p style="margin: 10px 0;"><strong>Name:</strong> ${userDetails.name}</p>` : ''}
             </div>
             
