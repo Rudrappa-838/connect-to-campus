@@ -1,0 +1,2 @@
+const { pool } = require('./src/config/db');
+pool.query('DELETE FROM users a USING ( SELECT id, ROW_NUMBER() OVER (PARTITION BY linked_id, role, school_id ORDER BY id ASC) as rnum FROM users WHERE school_id = $1 AND linked_id IS NOT NULL ) b WHERE a.id = b.id AND b.rnum > 1', [2]).then(res => { console.log('Success:', res.rowCount); pool.end(); }).catch(e => { console.error('SQL Error:', e); pool.end(); });

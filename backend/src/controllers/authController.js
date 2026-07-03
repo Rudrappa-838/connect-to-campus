@@ -65,7 +65,10 @@ const login = async (req, res) => {
                 // If login was via ID, prioritize the synthetic email that matches the ID
                 // Example: Input 'ADM2'. Result has 'adm2@student.school.com' and 'dad@gmail.com'
                 // We want 'adm2@...'
-                const priorityMatch = result.rows.find(u => u.email.toLowerCase().startsWith(email.toLowerCase() + '@'));
+                const priorityMatch = result.rows.find(u => 
+                    u.email.toLowerCase().startsWith(email.toLowerCase() + '@') ||
+                    u.email.toLowerCase() === email.toLowerCase()
+                );
                 user = priorityMatch || result.rows[0];
             } else {
                 user = result.rows[0];
