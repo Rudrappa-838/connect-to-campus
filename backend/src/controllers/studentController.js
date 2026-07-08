@@ -30,6 +30,9 @@ exports.addStudent = async (req, res) => {
 
         // Convert empty section_id to null
         const safe_section_id = (section_id === '' || section_id === 'null' || section_id === undefined) ? null : section_id;
+        const safe_age = (age === '' || age === 'null' || age === undefined) ? null : age;
+        const safe_attendance_id = (attendance_id === '' || attendance_id === 'null' || attendance_id === undefined) ? null : attendance_id;
+        const safe_class_id = (class_id === '' || class_id === 'null' || class_id === undefined) ? null : class_id;
 
         const safe_father = father_name || '';
         const safe_dob = dob === '' ? null : dob;
@@ -90,9 +93,9 @@ exports.addStudent = async (req, res) => {
             // Check if this roll number is already taken in this class/section
             let rollDup;
             if (safe_section_id) {
-                rollDup = await client.query('SELECT id FROM students WHERE class_id = $1 AND section_id = $2 AND roll_number = $3 AND school_id = $4 AND (status IS NULL OR status != \'Deleted\')', [class_id, safe_section_id, roll_number, school_id]);
+                rollDup = await client.query('SELECT id FROM students WHERE class_id = $1 AND section_id = $2 AND roll_number = $3 AND school_id = $4 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, safe_section_id, roll_number, school_id]);
             } else {
-                rollDup = await client.query('SELECT id FROM students WHERE class_id = $1 AND section_id IS NULL AND roll_number = $2 AND school_id = $3 AND (status IS NULL OR status != \'Deleted\')', [class_id, roll_number, school_id]);
+                rollDup = await client.query('SELECT id FROM students WHERE class_id = $1 AND section_id IS NULL AND roll_number = $2 AND school_id = $3 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, roll_number, school_id]);
             }
             if (rollDup.rows.length > 0) {
                 return res.status(400).json({ message: `Roll Number ${roll_number} is already assigned in this class.` });
@@ -100,9 +103,9 @@ exports.addStudent = async (req, res) => {
         } else {
             let rollCheck;
             if (safe_section_id) {
-                rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id = $2 AND (status IS NULL OR status != \'Deleted\')', [class_id, safe_section_id]);
+                rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id = $2 AND (status IS NULL OR status != \'Deleted\')', [safe_class_id, safe_section_id]);
             } else {
-                rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id IS NULL AND (status IS NULL OR status != \'Deleted\')', [class_id]);
+                rollCheck = await client.query('SELECT MAX(roll_number) as max_roll FROM students WHERE class_id = $1 AND section_id IS NULL AND (status IS NULL OR status != \'Deleted\')', [safe_class_id]);
             }
             roll_number = (parseInt(rollCheck.rows[0].max_roll) || 0) + 1;
         }
@@ -113,8 +116,8 @@ exports.addStudent = async (req, res) => {
             (school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, age, class_id, section_id, 
              father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
-            [school_id, name, first_name, last_name, admission_no, roll_number, gender, safe_dob, age, class_id, safe_section_id,
-                safe_father, mother_name, contact_number, email, address, attendance_id, safe_admission_date || new Date()]
+            [school_id, name, first_name, last_name, admission_no, roll_number, gender, safe_dob, safe_age, safe_class_id, safe_section_id,
+                safe_father, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date || new Date()]
         );
         const newStudent = result.rows[0];
 
@@ -1571,6 +1574,36 @@ exports.notifyAbsentees = async (req, res) => {
     } catch (error) {
         console.error('Error notifying absentees:', error);
         res.status(500).json({ message: 'Server error while sending notifications' });
+    } finally {
+        client.release();
+    }
+};
+
+exports.bulkUpdateExamBatch = async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const school_id = req.user.schoolId;
+        const { updates } = req.body; // Array of { id: student_id, exam_batch: 'NEET' | 'KCET' | 'JEE' | null }
+
+        if (!Array.isArray(updates) || updates.length === 0) {
+            return res.status(400).json({ message: 'No updates provided' });
+        }
+
+        await client.query('BEGIN');
+
+        for (const update of updates) {
+            await client.query(
+                `UPDATE students SET exam_batch = $1 WHERE id = $2 AND school_id = $3`,
+                [update.exam_batch || null, update.id, school_id]
+            );
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Exam batches updated successfully' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error in bulkUpdateExamBatch:', error);
+        res.status(500).json({ message: 'Server error while updating exam batches' });
     } finally {
         client.release();
     }
