@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as faceapi from 'face-api.js';
-import { Camera, Search, User, Check, X, Shield, RefreshCw, AlertCircle, ScanLine } from 'lucide-react';
+import { Camera, Search, User, Check, X, Shield, RefreshCw, AlertCircle, ScanLine, Filter } from 'lucide-react';
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -23,6 +23,19 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
     const [selectedUser, setSelectedUser] = useState(null);
     // step: 0=search, 1=capturing, 2=confirm
     const [step, setStep] = useState(0);
+
+    const [filterClass, setFilterClass] = useState('');
+    const [filterSection, setFilterSection] = useState('');
+
+    const sortedClasses = React.useMemo(() => {
+        return [...(config?.classes || [])].sort((a, b) => {
+            const numA = parseInt(a.class_name.replace(/\D/g, '') || '0', 10);
+            const numB = parseInt(b.class_name.replace(/\D/g, '') || '0', 10);
+            return numA === numB ? a.class_name.localeCompare(b.class_name) : numA - numB;
+        });
+    }, [config]);
+
+    const availableSections = sortedClasses.find(c => c.class_id === parseInt(filterClass))?.sections || [];
 
     // Multi-sample state
     const [collectedDescriptors, setCollectedDescriptors] = useState([]); // Array of Float32Array-like arrays
@@ -63,12 +76,27 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
     const handleSearch = async (e) => {
         if (e) e.preventDefault();
         try {
-            const res = await api.get('/biometric/search', { params: { type: userRole, query: searchQuery } });
+            const params = { type: userRole, query: searchQuery };
+            if (userRole === 'student' && filterClass) params.class_id = filterClass;
+            if (userRole === 'student' && filterSection) params.section_id = filterSection;
+            
+            const res = await api.get('/biometric/search', { params });
             setUsers(res.data);
         } catch (error) {
             toast.error('Search failed');
         }
     };
+
+    useEffect(() => {
+        if (userRole === 'student') {
+            handleSearch();
+        }
+    }, [filterClass, filterSection]);
+
+    useEffect(() => {
+        setUsers([]);
+        handleSearch();
+    }, [userRole]);
 
     const [stream, setStream] = useState(null);
 
@@ -311,6 +339,35 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
                             <Search size={20} /> Search
                         </button>
                     </form>
+
+                    {userRole === 'student' && (
+                        <div className="flex flex-wrap items-center gap-3 mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                            <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors w-full md:w-auto">
+                                <Filter size={18} className="text-slate-400" />
+                                <select
+                                    className="bg-transparent text-sm outline-none text-slate-700 font-bold min-w-[140px] cursor-pointer"
+                                    value={filterClass}
+                                    onChange={e => { setFilterClass(e.target.value); setFilterSection(''); }}
+                                >
+                                    <option value="">All Classes</option>
+                                    {sortedClasses.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
+                                </select>
+                            </div>
+                            {filterClass && availableSections.length > 0 && (
+                                <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors animate-in fade-in slide-in-from-left-2 w-full md:w-auto">
+                                    <span className="text-slate-300 font-light">/</span>
+                                    <select
+                                        className="bg-transparent text-sm outline-none text-slate-700 font-bold min-w-[120px] cursor-pointer"
+                                        value={filterSection}
+                                        onChange={e => setFilterSection(e.target.value)}
+                                    >
+                                        <option value="">All Sections</option>
+                                        {availableSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {users.map(user => (

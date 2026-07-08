@@ -4,7 +4,7 @@ const { sendAttendanceNotification } = require('../services/notificationService'
 // Unified User Search
 const searchUsers = async (req, res) => {
     try {
-        const { type, query } = req.query; // type: 'student', 'teacher', 'staff'
+        const { type, query, class_id, section_id } = req.query; // type: 'student', 'teacher', 'staff'
         const schoolId = req.user.schoolId;
         const { role, id: userId, linkedId } = req.user;
 
@@ -23,17 +23,45 @@ const searchUsers = async (req, res) => {
         }
 
         let sql = '';
-        let params = [schoolId, `%${query}%`];
+        let params = [schoolId];
 
         if (type === 'student') {
             sql = `SELECT id, name, admission_no as user_id, 'student' as type, biometric_template, rfid_card_id 
-                   FROM students WHERE school_id = $1 AND (name ILIKE $2 OR admission_no ILIKE $2)`;
+                   FROM students WHERE school_id = $1 AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned'))`;
+            
+            let paramIdx = 2;
+            if (query) {
+                params.push(`%${query}%`);
+                sql += ` AND (name ILIKE $${paramIdx} OR admission_no ILIKE $${paramIdx})`;
+                paramIdx++;
+            }
+            if (class_id) {
+                params.push(class_id);
+                sql += ` AND class_id = $${paramIdx}`;
+                paramIdx++;
+            }
+            if (section_id) {
+                params.push(section_id);
+                sql += ` AND section_id = $${paramIdx}`;
+                paramIdx++;
+            }
+            sql += ` ORDER BY roll_number ASC, name ASC LIMIT 100`; // Limits output slightly
         } else if (type === 'teacher') {
             sql = `SELECT id, name, COALESCE(employee_id, email) as user_id, 'teacher' as type, biometric_template, rfid_card_id 
-                   FROM teachers WHERE school_id = $1 AND (name ILIKE $2 OR email ILIKE $2 OR employee_id ILIKE $2)`;
+                   FROM teachers WHERE school_id = $1`;
+            if (query) {
+                params.push(`%${query}%`);
+                sql += ` AND (name ILIKE $2 OR email ILIKE $2 OR employee_id ILIKE $2)`;
+            }
+            sql += ` LIMIT 100`;
         } else if (type === 'staff') {
             sql = `SELECT id, name, COALESCE(employee_id, email) as user_id, 'staff' as type, biometric_template, rfid_card_id 
-                   FROM staff WHERE school_id = $1 AND (name ILIKE $2 OR email ILIKE $2 OR employee_id ILIKE $2)`;
+                   FROM staff WHERE school_id = $1`;
+            if (query) {
+                params.push(`%${query}%`);
+                sql += ` AND (name ILIKE $2 OR email ILIKE $2 OR employee_id ILIKE $2)`;
+            }
+            sql += ` LIMIT 100`;
         }
 
         const result = await pool.query(sql, params);
