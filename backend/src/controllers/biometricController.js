@@ -376,7 +376,7 @@ const enrollFace = async (req, res) => {
                 }
                 const distance = Math.sqrt(sumSq);
                 
-                if (distance < 0.45) { // 0.45 is a strict duplicate threshold
+                if (distance < 0.38) { // 0.38 is a stricter duplicate threshold (was 0.45)
                     duplicateUser = user;
                     break;
                 }
@@ -460,7 +460,7 @@ const markFaceAttendance = async (req, res) => {
         if (candidates.length === 0) return res.status(404).json({ message: 'No enrolled users found' });
 
         let bestMatch = null;
-        let minDistance = 0.45; // Extremely strict threshold to prevent false positives
+        let minDistance = 0.38; // Even stricter threshold to prevent false positives (was 0.45)
 
         for (const user of candidates) {
             try {
