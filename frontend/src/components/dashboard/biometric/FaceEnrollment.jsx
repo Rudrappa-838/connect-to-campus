@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as faceapi from 'face-api.js';
-import { Camera, Search, User, Check, X, Shield, RefreshCw, AlertCircle, ScanLine, Filter } from 'lucide-react';
+import { Camera, Search, User, Check, X, Shield, RefreshCw, AlertCircle, ScanLine, Filter, Printer } from 'lucide-react';
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -97,6 +97,68 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
         setUsers([]);
         handleSearch();
     }, [userRole]);
+
+    const handlePrintMissingFaces = () => {
+        const missingFaces = users.filter(u => !u.biometric_template);
+        if (missingFaces.length === 0) {
+            toast.success('No missing faces to print in current list!');
+            return;
+        }
+
+        const printWindow = window.open('', '_blank');
+        
+        let tableRows = missingFaces.map((u, i) => `
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ddd;">${i + 1}</td>
+                <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${u.name}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">${u.user_id}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">${u.class_name || '-'}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">${u.section_name || '-'}</td>
+            </tr>
+        `).join('');
+
+        const html = `
+            <html>
+                <head>
+                    <title>Missing Face Enrollment List</title>
+                    <style>
+                        body { font-family: 'Inter', Arial, sans-serif; padding: 40px; color: #333; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left; }
+                        th { background: #f8fafc; padding: 12px 8px; border: 1px solid #ddd; font-weight: bold; color: #475569; }
+                        h2 { text-align: center; color: #1e293b; margin-bottom: 5px; }
+                        p { text-align: center; color: #64748b; margin-top: 0; margin-bottom: 30px; }
+                        @media print {
+                            body { -webkit-print-color-adjust: exact; padding: 0; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h2>Pending Face Enrollment</h2>
+                    <p>Total Pending: ${missingFaces.length}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Name</th>
+                                <th>ID</th>
+                                <th>Class</th>
+                                <th>Section</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                    <script>
+                        window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); }
+                    </script>
+                </body>
+            </html>
+        `;
+        
+        printWindow.document.write(html);
+        printWindow.document.close();
+    };
 
     const [stream, setStream] = useState(null);
 
@@ -365,6 +427,16 @@ const FaceEnrollment = ({ config, preferredFacingMode = 'user' }) => {
                                         {availableSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                     </select>
                                 </div>
+                            )}
+                            
+                            {users.length > 0 && (
+                                <button
+                                    onClick={handlePrintMissingFaces}
+                                    type="button"
+                                    className="ml-auto bg-white hover:bg-slate-100 text-slate-700 px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm font-bold text-sm flex items-center gap-2 transition-colors"
+                                >
+                                    <Printer size={18} /> Print Pending Faces
+                                </button>
                             )}
                         </div>
                     )}

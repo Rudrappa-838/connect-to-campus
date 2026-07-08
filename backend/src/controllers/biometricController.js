@@ -26,26 +26,30 @@ const searchUsers = async (req, res) => {
         let params = [schoolId];
 
         if (type === 'student') {
-            sql = `SELECT id, name, admission_no as user_id, 'student' as type, biometric_template, rfid_card_id 
-                   FROM students WHERE school_id = $1 AND (status IS NULL OR status NOT IN ('Deleted', 'Unassigned'))`;
+            sql = `SELECT s.id, s.name, s.admission_no as user_id, 'student' as type, s.biometric_template, s.rfid_card_id,
+                          c.name as class_name, sec.name as section_name
+                   FROM students s
+                   LEFT JOIN classes c ON s.class_id = c.id
+                   LEFT JOIN sections sec ON s.section_id = sec.id
+                   WHERE s.school_id = $1 AND (s.status IS NULL OR s.status NOT IN ('Deleted', 'Unassigned'))`;
             
             let paramIdx = 2;
             if (query) {
                 params.push(`%${query}%`);
-                sql += ` AND (name ILIKE $${paramIdx} OR admission_no ILIKE $${paramIdx})`;
+                sql += ` AND (s.name ILIKE $${paramIdx} OR s.admission_no ILIKE $${paramIdx})`;
                 paramIdx++;
             }
             if (class_id) {
                 params.push(class_id);
-                sql += ` AND class_id = $${paramIdx}`;
+                sql += ` AND s.class_id = $${paramIdx}`;
                 paramIdx++;
             }
             if (section_id) {
                 params.push(section_id);
-                sql += ` AND section_id = $${paramIdx}`;
+                sql += ` AND s.section_id = $${paramIdx}`;
                 paramIdx++;
             }
-            sql += ` ORDER BY roll_number ASC, name ASC LIMIT 100`; // Limits output slightly
+            sql += ` ORDER BY s.roll_number ASC, s.name ASC LIMIT 100`; // Limits output slightly
         } else if (type === 'teacher') {
             sql = `SELECT id, name, COALESCE(employee_id, email) as user_id, 'teacher' as type, biometric_template, rfid_card_id 
                    FROM teachers WHERE school_id = $1`;
