@@ -57,14 +57,14 @@ exports.getEventById = async (req, res) => {
 exports.createEvent = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
-        const { name, exam_type, class_id, academic_year, start_date, end_date } = req.body;
+        const { name, exam_type, class_id, academic_year, start_date, end_date, target_batch } = req.body;
 
         if (!name || !class_id) return res.status(400).json({ message: 'Name and class are required' });
 
         const result = await pool.query(
-            `INSERT INTO exam_events (school_id, class_id, name, exam_type, academic_year, start_date, end_date, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'DRAFT') RETURNING *`,
-            [school_id, class_id, name.trim(), exam_type || 'CUSTOM', academic_year || null, start_date || null, end_date || null]
+            `INSERT INTO exam_events (school_id, class_id, name, exam_type, academic_year, start_date, end_date, target_batch, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'DRAFT') RETURNING *`,
+            [school_id, class_id, name.trim(), exam_type || 'CUSTOM', academic_year || null, start_date || null, end_date || null, target_batch || null]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -77,13 +77,13 @@ exports.updateEvent = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { name, exam_type, class_id, academic_year, start_date, end_date, status } = req.body;
+        const { name, exam_type, class_id, academic_year, start_date, end_date, status, target_batch } = req.body;
 
         const result = await pool.query(
             `UPDATE exam_events SET name=$1, exam_type=$2, class_id=$3, academic_year=$4,
-             start_date=$5, end_date=$6, status=$7, updated_at=NOW()
-             WHERE id=$8 AND school_id=$9 RETURNING *`,
-            [name, exam_type, class_id, academic_year, start_date, end_date, status || 'DRAFT', id, school_id]
+             start_date=$5, end_date=$6, status=$7, target_batch=$8, updated_at=NOW()
+             WHERE id=$9 AND school_id=$10 RETURNING *`,
+            [name, exam_type, class_id, academic_year, start_date, end_date, status || 'DRAFT', target_batch || null, id, school_id]
         );
         if (!result.rows.length) return res.status(404).json({ message: 'Event not found' });
         res.json(result.rows[0]);
@@ -203,7 +203,7 @@ exports.getStudentsForSlot = async (req, res) => {
 
         // Get slot info to find subject + event (which has class_id)
         const slotRes = await pool.query(
-            `SELECT ts.*, e.class_id, e.academic_year, s.is_common_to_all, s.type as subject_type
+            `SELECT ts.*, e.class_id, e.academic_year, e.target_batch, s.is_common_to_all, s.type as subject_type
              FROM exam_timetable_slots ts
              JOIN exam_events e ON e.id = ts.event_id
              JOIN exam_subjects s ON s.id = ts.subject_id
@@ -216,13 +216,15 @@ exports.getStudentsForSlot = async (req, res) => {
         // If subject is common to all, get all students in class
         // Otherwise, get only students whose group contains this subject
         let studentQuery;
+        let batchFilter = slot.target_batch ? ` AND s.exam_batch = '${slot.target_batch}'` : '';
+
         if (slot.is_common_to_all) {
             studentQuery = await pool.query(
                 `SELECT s.id, s.name, s.admission_no, s.roll_no,
                         m.theory_marks, m.practical_marks, m.total_marks, m.is_absent, m.id as mark_id
                  FROM students s
                  LEFT JOIN student_exam_marks m ON m.student_id = s.id AND m.slot_id = $1
-                 WHERE s.school_id = $2 AND s.class_id = $3
+                 WHERE s.school_id = $2 AND s.class_id = $3 ${batchFilter}
                  ORDER BY s.roll_no, s.name`,
                 [slot_id, school_id, slot.class_id]
             );
@@ -236,7 +238,7 @@ exports.getStudentsForSlot = async (req, res) => {
                     AND a.school_id = $2 AND a.class_id = $3 AND a.academic_year = $4
                  JOIN exam_group_subjects gs ON gs.group_id = a.group_id AND gs.subject_id = $5
                  LEFT JOIN student_exam_marks m ON m.student_id = s.id AND m.slot_id = $1
-                 WHERE s.school_id = $2 AND s.class_id = $3
+                 WHERE s.school_id = $2 AND s.class_id = $3 ${batchFilter}
                  UNION
                  -- Also include students who individually chose this subject (language pool)
                  SELECT s.id, s.name, s.admission_no, s.roll_no,
@@ -247,6 +249,7 @@ exports.getStudentsForSlot = async (req, res) => {
                  LEFT JOIN student_exam_marks m ON m.student_id = s.id AND m.slot_id = $1
                  WHERE s.school_id = $2 AND s.class_id = $3
                    AND a.chosen_subjects::jsonb @> jsonb_build_array(jsonb_build_object('subject_id', $5))
+                   ${batchFilter}
                  ORDER BY roll_no, name`,
                 [slot_id, school_id, slot.class_id, slot.academic_year, slot.subject_id]
             );

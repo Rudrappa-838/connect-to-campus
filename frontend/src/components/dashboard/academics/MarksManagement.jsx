@@ -260,7 +260,13 @@ const MarksManagement = ({ config }) => {
         }
     };
 
-    const isSubjectAssignedToStudent = (studentId, subjectId) => {
+    const isSubjectAssignedToStudent = (studentId, subjectId, targetBatch = null) => {
+        if (targetBatch && config?.has_exam_batches === true) {
+            const studentObj = students.find(s => parseInt(s.id) === parseInt(studentId));
+            if (studentObj && studentObj.exam_batch !== targetBatch) {
+                return false;
+            }
+        }
         // Guard 1: Only apply combinations if enabled for this school
         if (config?.has_subject_combinations !== true) {
             return true;
@@ -466,10 +472,11 @@ const MarksManagement = ({ config }) => {
 
             // Filter subjects for marksheet as well, ensuring we only include subjects assigned to the student
             const scheduledSubjectIds = new Set(examSchedule?.map(s => s.subject_id) || []);
-            const subjectsToDisplay = subjects.filter(sub => 
-                scheduledSubjectIds.has(sub.id) && 
-                isSubjectAssignedToStudent(student.id, sub.id)
-            );
+            const subjectsToDisplay = subjects.filter(sub => {
+                const scheduleItem = examSchedule?.find(s => s.subject_id === sub.id);
+                return scheduledSubjectIds.has(sub.id) && 
+                       isSubjectAssignedToStudent(student.id, sub.id, scheduleItem?.target_batch);
+            });
 
             subjectsToDisplay.forEach(sub => {
                 let subObtained = 0;
@@ -573,7 +580,8 @@ const MarksManagement = ({ config }) => {
             if (markData === '' || markData === undefined || markData === null) return;
 
             // Skip saving marks for subjects the student is not assigned to
-            if (!isSubjectAssignedToStudent(studentId, subjectId)) return;
+            const scheduleItem = examSchedule?.find(s => s.subject_id === parseInt(subjectId));
+            if (!isSubjectAssignedToStudent(studentId, subjectId, scheduleItem?.target_batch)) return;
 
             // For object type (with components), check if total is empty string
             if (typeof markData === 'object' && markData !== null) {
@@ -670,6 +678,18 @@ const MarksManagement = ({ config }) => {
     });
 
     const displaySubjects = subjects.filter(sub => scheduledSubjectIds.has(parseInt(sub.id)));
+
+    const targetBatchesForSchedule = new Set(
+        displaySubjects.map(sub => {
+            const scheduleItem = examSchedule.find(s => s.subject_id === sub.id);
+            return scheduleItem?.target_batch;
+        }).filter(Boolean)
+    );
+
+    const displayStudents = students.filter(student => {
+        if (targetBatchesForSchedule.size === 0) return true;
+        return targetBatchesForSchedule.has(student.exam_batch);
+    });
 
     return (
         <div className="space-y-6 animate-in fade-in">
@@ -806,7 +826,7 @@ const MarksManagement = ({ config }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {students.map(student => (
+                                {displayStudents.map(student => (
                                     <tr key={student.id} className="hover:bg-slate-50">
                                         <td className="border border-slate-200 p-3 text-center font-mono sticky left-0 bg-white">{student.roll_number}</td>
                                         <td className="border border-slate-200 p-3 font-medium">{student.name}</td>
@@ -823,7 +843,7 @@ const MarksManagement = ({ config }) => {
                                             const markValue = marks[key];
                                             
                                             // Check Combination Logic for PUC (11/12)
-                                            const isAssigned = isSubjectAssignedToStudent(student.id, subject.id);
+                                            const isAssigned = isSubjectAssignedToStudent(student.id, subject.id, scheduleItem?.target_batch);
 
                                             return (
                                                 <td key={subject.id} className={`p-2 border-l text-center ${!isAssigned ? 'bg-slate-50' : ''}`}>

@@ -726,7 +726,7 @@ const updateSchoolFeatures = async (req, res) => {
     const updates = req.body; // e.g., { has_hostel: true, has_neet_exams: false }
     
     // Allowed feature flags to prevent arbitrary column updates
-    const allowedFeatures = ['has_hostel', 'has_neet_exams', 'has_face_enrollment', 'has_face_scanner', 'has_biometric', 'has_subject_combinations'];
+    const allowedFeatures = ['has_hostel', 'has_neet_exams', 'has_face_enrollment', 'has_face_scanner', 'has_biometric', 'has_subject_combinations', 'has_exam_batches'];
     
     try {
         const fields = Object.keys(updates).filter(key => allowedFeatures.includes(key));

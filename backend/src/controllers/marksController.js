@@ -457,10 +457,15 @@ exports.getStudentMarksheet = async (req, res) => {
         let marksQuery = `SELECT m.*, 
                     sub.name as subject_name,
                     et.name as exam_name,
-                    et.max_marks
+                    COALESCE(es.max_marks, et.max_marks, 100) as max_marks
              FROM marks m
              JOIN subjects sub ON m.subject_id = sub.id
              JOIN exam_types et ON m.exam_type_id = et.id
+             LEFT JOIN exam_schedules es ON es.subject_id = m.subject_id 
+                    AND es.exam_type_id = m.exam_type_id 
+                    AND es.school_id = m.school_id
+                    AND (es.class_id = m.class_id OR es.class_id IS NULL)
+                    AND (es.section_id = m.section_id OR es.section_id IS NULL)
              WHERE m.student_id = $1 AND m.exam_type_id = $2`;
 
         const marksParams = [student_id, exam_type_id];
@@ -567,10 +572,15 @@ exports.getAllMarksheets = async (req, res) => {
                 `SELECT m.*, 
                         sub.name as subject_name,
                         et.name as exam_name,
-                        et.max_marks
+                        COALESCE(es.max_marks, et.max_marks, 100) as max_marks
                  FROM marks m
                  JOIN subjects sub ON m.subject_id = sub.id
                  JOIN exam_types et ON m.exam_type_id = et.id
+                 LEFT JOIN exam_schedules es ON es.subject_id = m.subject_id 
+                        AND es.exam_type_id = m.exam_type_id 
+                        AND es.school_id = m.school_id
+                        AND (es.class_id = m.class_id OR es.class_id IS NULL)
+                        AND (es.section_id = m.section_id OR es.section_id IS NULL)
                  WHERE m.student_id = $1 AND m.exam_type_id = $2 AND m.school_id = $3
                  ORDER BY sub.name`,
                 [student.id, exam_type_id, school_id]

@@ -360,6 +360,7 @@ exports.updateTeacher = async (req, res) => {
         sendPushNotification(updatedTeacher.id, "Profile Updated", "Your teacher profile has been updated by the administration.", "Teacher")
             .catch(err => console.error('Notification failed:', err));
 
+        await client.query('COMMIT');
         res.json(updatedTeacher);
     } catch (error) {
         await client.query('ROLLBACK');

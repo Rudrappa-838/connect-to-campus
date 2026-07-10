@@ -1,32 +1,4 @@
-const { Pool } = require('pg');
-
-const urls = [
-    'postgresql://postgres.rgtbslnmkuuzeauxiylv:Rudrappa%40838@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres', // original
-    'postgresql://postgres:Rudrappa%40838@db.rgtbslnmkuuzeauxiylv.supabase.co:5432/postgres', // direct
-    'postgresql://postgres.rgtbslnmkuuzeauxiylv:Rudrappa%40838@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres', // alternative pooler
-];
-
-async function testConnection(url) {
-    const pool = new Pool({
-        connectionString: url,
-        ssl: { rejectUnauthorized: false }
-    });
-    try {
-        const client = await pool.connect();
-        console.log(`✅ Success: ${url}`);
-        client.release();
-    } catch (err) {
-        console.log(`❌ Failed: ${url}`);
-        console.log(`   Error: ${err.message}`);
-    } finally {
-        await pool.end();
-    }
-}
-
-async function run() {
-    for (const url of urls) {
-        await testConnection(url);
-    }
-}
-
-run();
+const { pool } = require('./src/config/db.js');
+pool.query(`SELECT u.* FROM users u LEFT JOIN schools s ON u.school_id = s.id WHERE LOWER(u.email) = ANY($1::text[]) AND (u.school_id IS NULL OR s.status IS NULL OR s.status != 'Deleted') ORDER BY u.id DESC`, [['dadt2931', 'DADT2931', 'DADT2931@teacher.school.com', 'dadt2931@teacher.school.com']])
+.then(res => { console.log('Rows:', res.rows); pool.end(); })
+.catch(err => { console.error(err); pool.end(); });

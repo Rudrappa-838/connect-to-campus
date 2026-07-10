@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { Calendar, Clock, Save, Hash, Plus, Printer, Trash2, RefreshCw, Edit2, Settings, X, Copy } from 'lucide-react';
 import ExcelMarksManager from './ExcelMarksManager';
 
-const ExamSchedule = () => {
+const ExamSchedule = ({ config }) => {
     // State
     const [loading, setLoading] = useState(false);
     const [examTypes, setExamTypes] = useState([]);
@@ -24,6 +24,7 @@ const ExamSchedule = () => {
     // subjectConfigs: { [subjectId]: { selected: boolean, date: string, startTime: string, endTime: string, components: [] } }
     const [subjectConfigs, setSubjectConfigs] = useState({});
     const [activeConfigSubject, setActiveConfigSubject] = useState(null); // { id, name, components }
+    const [activeBatchFilter, setActiveBatchFilter] = useState(''); // 'NEET', 'JEE', 'KCET', or ''
 
     // Add Exam Type Modal
     const [showAddExamModal, setShowAddExamModal] = useState(false);
@@ -239,7 +240,8 @@ const ExamSchedule = () => {
                     end_time: sub.endTime,
                     max_marks: sub.max_marks,
                     min_marks: sub.min_marks,
-                    components: sub.components
+                    components: sub.components,
+                    target_batch: sub.target_batch
                 });
             });
         });
@@ -247,6 +249,37 @@ const ExamSchedule = () => {
         setSchedule([...schedule, ...newSchedule]);
         setShowAutoModal(false);
         toast.success(`Generated ${newSchedule.length} schedule items (Unsaved)`);
+    };
+
+    const handleBatchFilter = (batch) => {
+        setActiveBatchFilter(batch);
+        const newConfigs = { ...subjectConfigs };
+
+        if (!batch) {
+            // Clear filter: we don't necessarily select/deselect everything, but let's just clear target_batch
+            Object.keys(newConfigs).forEach(id => {
+                newConfigs[id].target_batch = '';
+            });
+            setSubjectConfigs(newConfigs);
+            return;
+        }
+
+        const batchSubjects = {
+            'NEET': ['biology', 'chemistry', 'physics'],
+            'JEE': ['mathematics', 'physics', 'chemistry'],
+            'KCET': ['mathematics', 'physics', 'chemistry', 'biology']
+        };
+        const reqSubjects = batchSubjects[batch] || [];
+
+        availableSubjects.forEach(sub => {
+            const isMatch = reqSubjects.includes(sub.name.toLowerCase().trim());
+            newConfigs[sub.id] = {
+                ...newConfigs[sub.id],
+                selected: isMatch,
+                target_batch: (isMatch && config?.has_exam_batches) ? batch : ''
+            };
+        });
+        setSubjectConfigs(newConfigs);
     };
 
     // Generate schedule and immediately save to DB in one step
@@ -322,7 +355,8 @@ const ExamSchedule = () => {
                 end_time: item.end_time,
                 max_marks: item.max_marks || 100,
                 min_marks: item.min_marks || 35,
-                components: item.components || []
+                components: item.components || [],
+                target_batch: item.target_batch || null
             }));
             await api.post('/exam-schedule/save', { schedules: payload, delete_existing: true });
             setShowAutoModal(false);
@@ -1106,6 +1140,37 @@ const ExamSchedule = () => {
                             <div className="px-6 py-4 border-b border-slate-200">
                                 <h3 className="font-bold text-lg">Configure Exam Schedule</h3>
                                 <p className="text-sm text-slate-500">Select subjects and set their exam date and timing</p>
+                                {config?.has_exam_batches && (
+                                    <div className="mt-3 flex gap-2">
+                                        <span className="text-sm font-bold text-slate-700 flex items-center mr-2">Auto Generate for:</span>
+                                        <button
+                                            onClick={() => handleBatchFilter('NEET')}
+                                            className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${activeBatchFilter === 'NEET' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+                                        >
+                                            NEET
+                                        </button>
+                                        <button
+                                            onClick={() => handleBatchFilter('JEE')}
+                                            className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${activeBatchFilter === 'JEE' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+                                        >
+                                            JEE
+                                        </button>
+                                        <button
+                                            onClick={() => handleBatchFilter('KCET')}
+                                            className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${activeBatchFilter === 'KCET' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+                                        >
+                                            KCET
+                                        </button>
+                                        {activeBatchFilter && (
+                                            <button
+                                                onClick={() => handleBatchFilter('')}
+                                                className="px-3 py-1 rounded text-xs font-bold border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 transition-colors ml-2"
+                                            >
+                                                Clear Filter
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                                 {selectedExam && (
                                     <div className="mt-2 bg-blue-50 p-2 rounded text-xs text-blue-700 font-bold border border-blue-100 flex gap-4">
                                         <span className="text-indigo-600">
@@ -1156,7 +1221,7 @@ const ExamSchedule = () => {
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {availableSubjects.map(sub => {
-                                            const cfg = subjectConfigs[sub.id] || { selected: false, date: '', startTime: '09:00', endTime: '12:00', max_marks: 100, min_marks: 35 };
+                                            const cfg = subjectConfigs[sub.id] || { selected: false, date: '', startTime: '09:00', endTime: '12:00', max_marks: selectedExamType?.max_marks || 100, min_marks: selectedExamType?.min_marks || 35, target_batch: '' };
 
                                             // Calculate Min/Max Date for this Exam Type
                                             let minDate = '', maxDate = '';
@@ -1173,7 +1238,7 @@ const ExamSchedule = () => {
                                                 }
                                             }
                                             return (
-                                                <tr key={sub.id} className={cfg.selected ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}>
+                                                <tr key={sub.id} className={`${cfg.selected ? 'bg-indigo-50/50' : 'hover:bg-slate-50'} ${activeBatchFilter && !cfg.selected ? 'opacity-40 grayscale' : ''}`}>
                                                     <td className="p-3">
                                                         <input
                                                             type="checkbox"

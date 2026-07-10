@@ -660,6 +660,20 @@ const SuperAdminDashboard = () => {
                                                     <Layers size={10} />
                                                     {school.has_subject_combinations ? 'COMBO ON' : 'COMBO OFF'}
                                                 </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFeature(school, 'has_exam_batches', 'Exam Batches');
+                                                    }}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_exam_batches
+                                                        ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20'
+                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                                        }`}
+                                                    title={school.has_exam_batches ? "Disable Exam Batches" : "Enable Exam Batches"}
+                                                >
+                                                    <Layers size={10} />
+                                                    {school.has_exam_batches ? 'BATCH ON' : 'BATCH OFF'}
+                                                </button>
                                             </div>
                                         </div>
                                     </div>

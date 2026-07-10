@@ -19,6 +19,7 @@ import StudentAttendanceMarking from '../components/dashboard/students/StudentAt
 import StudentAttendanceReports from '../components/dashboard/students/StudentAttendanceReports';
 import StudentReviewManagement from '../components/dashboard/students/StudentReviewManagement';
 import SubjectCombination from '../components/dashboard/students/SubjectCombination';
+import ExamBatches from '../components/dashboard/students/ExamBatches';
 
 // Biometric & Face Recognition Components
 import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
@@ -168,16 +169,16 @@ const SchoolAdminDashboard = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const fetchPendingLeaves = async () => {
+    async function fetchPendingLeaves() {
         try {
             const res = await api.get('/leaves?status=Pending');
             setPendingLeavesCount(Array.isArray(res.data) ? res.data.length : 0);
         } catch (error) {
             console.error("Failed to fetch pending leaves count", error);
         }
-    };
+    }
 
-    const fetchSchoolConfig = async () => {
+    async function fetchSchoolConfig() {
         try {
             const res = await api.get('/schools/my-school');
             setAcademicConfig(res.data);
@@ -186,7 +187,7 @@ const SchoolAdminDashboard = () => {
             const msg = error.response?.data?.message || error.message || 'Failed to load school configuration';
             toast.error(`Config Load Error: ${msg}`);
         }
-    };
+    }
 
     const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -271,6 +272,9 @@ const SchoolAdminDashboard = () => {
                         <NavSubButton active={activeTab === 'student-list'} onClick={() => handleTabChange('student-list')} label="Admission List" />
                         {academicConfig?.has_subject_combinations === true && (
                             <NavSubButton active={activeTab === 'subject-combination'} onClick={() => handleTabChange('subject-combination')} label="Subject Combination" />
+                        )}
+                        {academicConfig?.has_exam_batches === true && (
+                            <NavSubButton active={activeTab === 'exam-batches'} onClick={() => handleTabChange('exam-batches')} label="Exam Batches" />
                         )}
                         <NavSubButton active={activeTab === 'student-reviews-admin'} onClick={() => handleTabChange('student-reviews-admin')} label="Student Reviews" />
                         <NavSubButton active={activeTab === 'student-promotion'} onClick={() => handleTabChange('student-promotion')} label="Promote Students" />
@@ -555,6 +559,7 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'overview' && <Overview config={academicConfig} />}
                         {activeTab === 'student-list' && <StudentManagement key="student-list" config={academicConfig} prefillData={activeTabState} />}
                         {activeTab === 'subject-combination' && <SubjectCombination config={academicConfig} />}
+                        {activeTab === 'exam-batches' && <ExamBatches config={academicConfig} />}
                         {activeTab === 'student-reviews-admin' && <StudentReviewManagement key="student-reviews" config={academicConfig} />}
                         {activeTab === 'student-promotion' && <StudentManagement key="student-promotion" config={academicConfig} isPromotionView={true} />}
                         {activeTab === 'student-bin' && <StudentManagement key="student-bin" config={academicConfig} defaultViewMode="bin" />}
@@ -593,8 +598,8 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'timetable' && <TimetableManagement config={academicConfig} />}
                         {activeTab === 'marks' && <MarksManagement config={academicConfig} />}
                         {activeTab === 'topper-list' && <TopperList config={academicConfig} />}
-                        {activeTab === 'student-overall' && <StudentOverallResult />}
-                        {activeTab === 'exam-schedule' && <ExamSchedule />}
+                        {activeTab === 'student-overall' && <StudentOverallResult config={academicConfig} />}
+                        {activeTab === 'exam-schedule' && <ExamSchedule config={academicConfig} />}
                         {activeTab === 'grading' && <GradeManagement />}
                         {activeTab === 'question-generator' && <QuestionPaperGenerator config={academicConfig} />}
                         {activeTab === 'question-bank' && <DedicatedQuestionBank config={academicConfig} />}
@@ -709,6 +714,7 @@ const getTabTitle = (tab, getLabel = (k, d) => d) => {
         'overview': 'Dashboard Overview',
         'student-list': 'Student Admission List',
         'subject-combination': 'Subject Combination Allocation',
+        'exam-batches': 'Competitive Exam Batches',
         'student-promotion': 'Promote Students',
         'admissions-crm': 'Admissions Enquiry CRM',
         'student-attendance': 'Student Attendance',

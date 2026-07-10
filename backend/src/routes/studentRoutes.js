@@ -27,6 +27,7 @@ router.get('/deleted/certificates', studentController.getDeletedStudentCertifica
 
 router.post('/', studentController.addStudent);
 router.get('/', studentController.getStudents);
+router.put('/bulk-update-exam-batch', studentController.bulkUpdateExamBatch);
 router.put('/:id', studentController.updateStudent);
 router.delete('/:id', studentController.deleteStudent);
 

@@ -190,7 +190,7 @@ const StudentAttendanceMarking = ({ config }) => {
                             <div className="flex gap-2 shrink-0">
                                 {isEditable && (
                                     <>
-                                        <button className="hidden sm:block text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors"
+                                        <button className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors"
                                             onClick={() => {
                                                 const newAttendance = {};
                                                 students.forEach(s => newAttendance[s.id] = 'Present');

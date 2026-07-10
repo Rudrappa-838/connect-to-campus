@@ -891,6 +891,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                 {!isPromotionView && <th className="p-4">Admission Date</th>}
                                 <th className="p-4">Name & ID</th>
                                 <th className="p-4">Class</th>
+                                {!isPromotionView && <th className="p-4 text-center">Face Added</th>}
                                 {!isPromotionView && <th className="p-4">Demographics</th>}
                                 {!isPromotionView && <th className="p-4">Parents / Contact</th>}
                                 {!isPromotionView && <th className="p-4 text-right pr-6">Actions</th>}
@@ -909,6 +910,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                             </div>
                                         </td>
                                         <td className="p-4"><div className="h-6 w-20 bg-slate-200 rounded"></div></td>
+                                        <td className="p-4 text-center"><div className="h-8 w-8 bg-slate-200 rounded-full mx-auto"></div></td>
                                         <td className="p-4">
                                             <div className="space-y-2">
                                                 <div className="h-3 w-12 bg-slate-200 rounded"></div>
@@ -964,6 +966,19 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                                     {student.class_name}{student.section_name ? ` - ${student.section_name}` : ''}
                                                 </span>
                                             </td>
+                                            {!isPromotionView && (
+                                                <td className="p-4 text-center">
+                                                    {student.biometric_template ? (
+                                                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200" title="Face Added">
+                                                            <Check size={16} strokeWidth={3} />
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-rose-50 text-rose-500 border border-rose-200" title="Face Not Added">
+                                                            <X size={16} strokeWidth={3} />
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            )}
                                             {!isPromotionView && (
                                                 <td className="p-4">
                                                     <div className="text-slate-600 text-xs font-medium">{student.gender}</div>

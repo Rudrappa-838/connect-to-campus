@@ -1,32 +1,6 @@
-const { pool } = require('./src/config/db');
-
-async function checkSchema() {
-  try {
-    const res = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'schools'
-    `);
-    console.log('--- schools Table Columns ---');
-    res.rows.forEach(row => {
-      console.log(`${row.column_name}: ${row.data_type}`);
-    });
-
-    const res2 = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'users'
-    `);
-    console.log('\n--- users Table Columns ---');
-    res2.rows.forEach(row => {
-      console.log(`${row.column_name}: ${row.data_type}`);
-    });
-
-  } catch (err) {
-    console.error('Error fetching schema:', err);
-  } finally {
-    process.exit(0);
-  }
-}
-
-checkSchema();
+const sqlite3 = require('sqlite3');
+const db = new sqlite3.Database('c:/SchoolSoftware/backend/database.sqlite');
+db.all("SELECT name, sql FROM sqlite_master WHERE type='table' AND name IN ('exams', 'students', 'settings', 'exam_schedules', 'school_settings', 'marks');", (err, rows) => {
+  if (err) console.error(err);
+  else console.log(JSON.stringify(rows, null, 2));
+});

@@ -120,8 +120,8 @@ exports.saveExamSchedule = async (req, res) => {
                             `UPDATE exam_schedules SET 
                                 exam_date = $1, start_time = $2, end_time = $3, 
                                 components = $4, max_marks = $5, min_marks = $6,
-                                deleted_at = NULL
-                             WHERE id = $7`,
+                                target_batch = $7, deleted_at = NULL
+                             WHERE id = $8`,
                             [
                                 schedule.exam_date,
                                 schedule.start_time,
@@ -129,6 +129,7 @@ exports.saveExamSchedule = async (req, res) => {
                                 JSON.stringify(schedule.components || []),
                                 schedule.max_marks || 100,
                                 schedule.min_marks || 35,
+                                schedule.target_batch || null,
                                 existingId
                             ]
                         );
@@ -136,8 +137,8 @@ exports.saveExamSchedule = async (req, res) => {
                         // INSERT new record
                         const insertQ = `
                             INSERT INTO exam_schedules 
-                            (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks)
-                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                            (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks, target_batch)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                         `;
                         return client.query(insertQ, [
                             school_id,
@@ -150,7 +151,8 @@ exports.saveExamSchedule = async (req, res) => {
                             schedule.end_time,
                             JSON.stringify(schedule.components || []),
                             schedule.max_marks || 100,
-                            schedule.min_marks || 35
+                            schedule.min_marks || 35,
+                            schedule.target_batch || null
                         ]);
                     }
                 });
@@ -179,8 +181,8 @@ exports.saveExamSchedule = async (req, res) => {
             const insertPromises = schedules.map(schedule => {
                 return client.query(
                     `INSERT INTO exam_schedules 
-                     (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                     (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks, target_batch)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
                     [
                         school_id,
                         schedule.exam_type_id,
@@ -192,7 +194,8 @@ exports.saveExamSchedule = async (req, res) => {
                         schedule.end_time,
                         JSON.stringify(schedule.components || []),
                         schedule.max_marks || 100,
-                        schedule.min_marks || 35
+                        schedule.min_marks || 35,
+                        schedule.target_batch || null
                     ]
                 );
             });
