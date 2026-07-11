@@ -564,7 +564,7 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'student-promotion' && <StudentManagement key="student-promotion" config={academicConfig} isPromotionView={true} />}
                         {activeTab === 'student-bin' && <StudentManagement key="student-bin" config={academicConfig} defaultViewMode="bin" />}
                         {activeTab === 'admissions-crm' && <AdmissionCRM onNavigate={(tab, data) => { setActiveTab(tab); setActiveTabState(data); }} />}
-                        {activeTab === 'student-attendance' && <StudentAttendanceMarking config={academicConfig} />}
+                        {activeTab === 'student-attendance' && <StudentAttendanceMarking config={academicConfig} isAdmin={true} />}
                         {activeTab === 'face-enrollment' && <FaceEnrollment config={academicConfig} />}
                         {activeTab === 'face-attendance' && <FaceAttendanceScanner config={academicConfig} />}
                         {activeTab === 'student-daily-status' && <DailyAttendanceStatus config={academicConfig} />}

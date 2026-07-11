@@ -4,9 +4,9 @@ import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 import { Capacitor } from '@capacitor/core';
 
-const StudentAttendanceMarking = ({ config }) => {
-    // Force date to always be TODAY
-    const date = new Date().toISOString().split('T')[0];
+const StudentAttendanceMarking = ({ config, isAdmin = false }) => {
+    // Force date to always be TODAY for non-admins, allow state for admins
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [filterClass, setFilterClass] = useState('');
     const [filterSection, setFilterSection] = useState('');
     const [students, setStudents] = useState([]);
@@ -109,7 +109,7 @@ const StudentAttendanceMarking = ({ config }) => {
         }
     };
 
-    const isEditable = date === new Date().toISOString().split('T')[0];
+    const isEditable = isAdmin ? true : date === new Date().toISOString().split('T')[0];
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-200 shadow-sm animate-pulse">
@@ -125,9 +125,13 @@ const StudentAttendanceMarking = ({ config }) => {
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Date</span>
                     <input
                         type="date"
-                        readOnly
-                        className="input max-w-[150px] bg-slate-100/50 border-slate-200 text-slate-500 font-bold cursor-not-allowed opacity-80"
-                        value={new Date().toISOString().split('T')[0]}
+                        readOnly={!isAdmin}
+                        max={new Date().toISOString().split('T')[0]} // Prevent future dates
+                        onChange={(e) => {
+                            if (isAdmin) setDate(e.target.value);
+                        }}
+                        className={`input max-w-[150px] font-bold ${!isAdmin ? 'bg-slate-100/50 border-slate-200 text-slate-500 cursor-not-allowed opacity-80' : 'bg-white border-slate-200 text-slate-700'}`}
+                        value={date}
                     />
                 </div>
 
