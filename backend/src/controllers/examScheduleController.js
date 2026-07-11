@@ -123,9 +123,9 @@ exports.saveExamSchedule = async (req, res) => {
                                 target_batch = $7, deleted_at = NULL
                              WHERE id = $8`,
                             [
-                                schedule.exam_date,
-                                schedule.start_time,
-                                schedule.end_time,
+                                schedule.exam_date || null,
+                                schedule.start_time || null,
+                                schedule.end_time || null,
                                 JSON.stringify(schedule.components || []),
                                 schedule.max_marks || 100,
                                 schedule.min_marks || 35,
@@ -146,9 +146,9 @@ exports.saveExamSchedule = async (req, res) => {
                             schedule.class_id,
                             schedule.section_id || null, // Ensure null if undefined
                             schedule.subject_id,
-                            schedule.exam_date,
-                            schedule.start_time,
-                            schedule.end_time,
+                            schedule.exam_date || null,
+                            schedule.start_time || null,
+                            schedule.end_time || null,
                             JSON.stringify(schedule.components || []),
                             schedule.max_marks || 100,
                             schedule.min_marks || 35,
@@ -189,9 +189,9 @@ exports.saveExamSchedule = async (req, res) => {
                         schedule.class_id,
                         schedule.section_id || null,
                         schedule.subject_id,
-                        schedule.exam_date,
-                        schedule.start_time,
-                        schedule.end_time,
+                        schedule.exam_date || null,
+                        schedule.start_time || null,
+                        schedule.end_time || null,
                         JSON.stringify(schedule.components || []),
                         schedule.max_marks || 100,
                         schedule.min_marks || 35,
@@ -244,7 +244,11 @@ exports.updateExamScheduleItem = async (req, res) => {
     try {
         const { id } = req.params;
         const school_id = req.user.schoolId;
-        const { exam_date, start_time, end_time, components, max_marks, min_marks, ids } = req.body;
+        let { exam_date, start_time, end_time, components, max_marks, min_marks, ids } = req.body;
+
+        exam_date = exam_date || null;
+        start_time = start_time || null;
+        end_time = end_time || null;
 
         let result;
 
