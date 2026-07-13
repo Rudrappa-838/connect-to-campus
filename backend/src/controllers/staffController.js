@@ -7,7 +7,7 @@ exports.addStaff = async (req, res) => {
     const client = await pool.connect();
     try {
         const school_id = req.user.schoolId;
-        const { name, email, phone, role, gender, address, join_date, salary_per_day, library_access, hostel_access, can_enroll_face, can_take_face_attendance } = req.body;
+        const { name, email, phone, role, gender, address, join_date, salary_per_day, library_access, hostel_access, can_enroll_face, can_take_face_attendance, manual_attendance_classes } = req.body;
 
         await client.query('BEGIN');
 
@@ -71,9 +71,9 @@ exports.addStaff = async (req, res) => {
         }
 
         const result = await client.query(
-            `INSERT INTO staff (school_id, name, email, phone, role, gender, address, join_date, employee_id, salary_per_day, library_access, hostel_access, can_enroll_face, can_take_face_attendance)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-            [school_id, name, email, phone, role, gender, address, join_date || new Date(), employee_id, salary_per_day || 0, library_access || false, hostel_access || false, can_enroll_face || false, can_take_face_attendance || false]
+            `INSERT INTO staff (school_id, name, email, phone, role, gender, address, join_date, employee_id, salary_per_day, library_access, hostel_access, can_enroll_face, can_take_face_attendance, manual_attendance_classes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+            [school_id, name, email, phone, role, gender, address, join_date || new Date(), employee_id, salary_per_day || 0, library_access || false, hostel_access || false, can_enroll_face || false, can_take_face_attendance || false, JSON.stringify(manual_attendance_classes || [])]
         );
 
         // Create User Login - Always Use Employee ID for Login
@@ -143,7 +143,7 @@ exports.updateStaff = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { id } = req.params;
-        const { name, email, phone, role, gender, address, join_date, salary_per_day, employee_id, library_access, hostel_access, can_enroll_face, can_take_face_attendance } = req.body;
+        const { name, email, phone, role, gender, address, join_date, salary_per_day, employee_id, library_access, hostel_access, can_enroll_face, can_take_face_attendance, manual_attendance_classes } = req.body;
 
         await client.query('BEGIN');
 
@@ -208,11 +208,12 @@ exports.updateStaff = async (req, res) => {
             `UPDATE public.staff SET name = $1, email = $2, phone = $3, role = $4, gender = $5, address = $6, join_date = $7, salary_per_day = $8,
              first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id), library_access = $14, hostel_access = $15,
              can_enroll_face = COALESCE($16, can_enroll_face),
-             can_take_face_attendance = COALESCE($17, can_take_face_attendance)
+             can_take_face_attendance = COALESCE($17, can_take_face_attendance),
+             manual_attendance_classes = COALESCE($18, manual_attendance_classes)
              WHERE id = $11 AND school_id = $12 RETURNING *`,
             [name, email, phone, role, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,
-                id, school_id, employee_id, library_access || false, hostel_access || false, can_enroll_face, can_take_face_attendance]
+                id, school_id, employee_id, library_access || false, hostel_access || false, can_enroll_face, can_take_face_attendance, JSON.stringify(manual_attendance_classes || [])]
         );
 
         if (result.rows.length === 0) {

@@ -10,6 +10,8 @@ import {
 import NotificationBell from '../components/NotificationBell';
 import api from '../api/axios';
 import StudentAttendanceMarking from '../components/dashboard/students/StudentAttendanceMarking';
+import DailyAttendanceStatus from '../components/dashboard/students/DailyAttendanceStatus';
+import StudentAttendanceReports from '../components/dashboard/students/StudentAttendanceReports';
 import TeacherMyTimetable from '../components/dashboard/teachers/TeacherMyTimetable';
 import TeacherMySalary from '../components/dashboard/teachers/TeacherMySalary';
 
@@ -101,13 +103,79 @@ const TeacherDashboard = () => {
         navigate('/');
     };
 
-    // Construct Config for StudentAttendanceMarking based on assigned class
+    const getAllowedClasses = () => {
+        if (!teacherProfile || !schoolConfig?.classes) return [];
+        let allowed = [];
+        
+        // Always include assigned class
+        if (teacherProfile.assigned_class_id) {
+            allowed.push({
+                class_id: teacherProfile.assigned_class_id,
+                class_name: teacherProfile.class_name,
+                sections: teacherProfile.assigned_section_id ? [{ id: teacherProfile.assigned_section_id, name: teacherProfile.section_name }] : []
+            });
+        }
+        
+        // Parse manual attendance classes
+        let manualClasses = [];
+        try {
+            manualClasses = typeof teacherProfile.manual_attendance_classes === 'string' 
+                ? JSON.parse(teacherProfile.manual_attendance_classes) 
+                : (teacherProfile.manual_attendance_classes || []);
+        } catch (e) {
+            console.error(e);
+        }
+
+        if (manualClasses.includes('ALL')) {
+            return schoolConfig.classes; // Give full access
+        }
+
+        const classAccess = {}; 
+
+        manualClasses.forEach(item => {
+            if (typeof item === 'number' || (typeof item === 'string' && !isNaN(item))) {
+                classAccess[parseInt(item)] = 'ALL';
+            } else if (item.startsWith('C_')) {
+                classAccess[parseInt(item.replace('C_', ''))] = 'ALL';
+            } else if (item.startsWith('S_')) {
+                const secId = parseInt(item.replace('S_', ''));
+                const schoolClass = schoolConfig.classes.find(c => c.sections && c.sections.find(s => s.id === secId));
+                if (schoolClass) {
+                    if (classAccess[schoolClass.class_id] !== 'ALL') {
+                        if (!classAccess[schoolClass.class_id]) classAccess[schoolClass.class_id] = [];
+                        classAccess[schoolClass.class_id].push(secId);
+                    }
+                }
+            }
+        });
+
+        // Add additional manual classes and sections
+        Object.keys(classAccess).forEach(cIdStr => {
+            const cId = parseInt(cIdStr);
+            if (cId === teacherProfile.assigned_class_id) return; // already added
+
+            const schoolClass = schoolConfig.classes.find(c => c.class_id === cId);
+            if (schoolClass) {
+                if (classAccess[cId] === 'ALL') {
+                    allowed.push(schoolClass);
+                } else {
+                    const filteredSections = schoolClass.sections?.filter(s => classAccess[cId].includes(s.id)) || [];
+                    allowed.push({
+                        ...schoolClass,
+                        sections: filteredSections
+                    });
+                }
+            }
+        });
+
+        return allowed;
+    };
+
+    const allowedClasses = getAllowedClasses();
+    const hasAttendanceAccess = allowedClasses.length > 0;
+
     const attendanceConfig = {
-        classes: teacherProfile?.assigned_class_id ? [{
-            class_id: teacherProfile.assigned_class_id,
-            class_name: teacherProfile.class_name,
-            sections: [{ id: teacherProfile.assigned_section_id, name: teacherProfile.section_name }]
-        }] : (schoolConfig?.classes || []) // Default to all school classes if not assigned
+        classes: hasAttendanceAccess ? allowedClasses : []
     };
 
     return (
@@ -163,7 +231,13 @@ const TeacherDashboard = () => {
                     <NavButton active={activeTab === 'overview'} onClick={() => handleTabChange('overview')} icon={LayoutDashboard} label="Dashboard" />
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Academic</p>
-                    <NavButton active={activeTab === 'attendance'} onClick={() => handleTabChange('attendance')} icon={CheckSquare} label="Mark Attendance" />
+                    {hasAttendanceAccess && (
+                        <>
+                            <NavButton active={activeTab === 'attendance'} onClick={() => handleTabChange('attendance')} icon={CheckSquare} label="Mark Attendance" />
+                            <NavButton active={activeTab === 'daily-status'} onClick={() => handleTabChange('daily-status')} icon={LayoutDashboard} label="Daily Status" />
+                            <NavButton active={activeTab === 'attendance-reports'} onClick={() => handleTabChange('attendance-reports')} icon={ClipboardList} label="Attendance Reports" />
+                        </>
+                    )}
                     
                     {(loading || teacherProfile?.can_enroll_face) && (
                          <NavButton active={activeTab === 'face-enroll'} onClick={() => handleTabChange('face-enroll')} icon={Users} label="Face Enrollment" />
@@ -281,13 +355,9 @@ const TeacherDashboard = () => {
                             <>
                                 {activeTab === 'overview' && <TeacherOverview profile={teacherProfile} schoolName={schoolName} user={user} />}
 
-                                {activeTab === 'attendance' && (
-                                    teacherProfile?.assigned_class_id ?
-                                        <StudentAttendanceMarking config={attendanceConfig} /> :
-                                        <div className="p-12 border-2 border-dashed border-slate-300 rounded-2xl text-center text-slate-400 font-bold">
-                                            You are not assigned as a Class Teacher to mark attendance.
-                                        </div>
-                                )}
+                                {activeTab === 'attendance' && hasAttendanceAccess && <StudentAttendanceMarking config={attendanceConfig} />}
+                                {activeTab === 'daily-status' && hasAttendanceAccess && <DailyAttendanceStatus config={attendanceConfig} />}
+                                {activeTab === 'attendance-reports' && hasAttendanceAccess && <StudentAttendanceReports config={attendanceConfig} />}
 
                                 {activeTab === 'my-attendance' && <TeacherMyAttendance />}
                                 {activeTab === 'salary' && <TeacherMySalary />}
@@ -471,6 +541,8 @@ const getTabTitle = (tab) => {
     switch (tab) {
         case 'overview': return 'Teacher Dashboard';
         case 'attendance': return 'Mark Student Attendance';
+        case 'daily-status': return 'Daily Attendance Status';
+        case 'attendance-reports': return 'Student Attendance Reports';
         case 'my-attendance': return 'My Daily Attendance';
         case 'salary': return 'My Details & Salary Info';
         case 'timetable': return 'Class Timetable';

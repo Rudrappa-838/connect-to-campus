@@ -12,6 +12,9 @@ import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 import SchoolCalendar from '../components/dashboard/calendar/SchoolCalendar';
 import ViewAnnouncements from '../components/dashboard/calendar/ViewAnnouncements';
 import RecentAnnouncements from '../components/dashboard/calendar/RecentAnnouncements';
+import StudentAttendanceMarking from '../components/dashboard/students/StudentAttendanceMarking';
+import DailyAttendanceStatus from '../components/dashboard/students/DailyAttendanceStatus';
+import StudentAttendanceReports from '../components/dashboard/students/StudentAttendanceReports';
 import StaffMyAttendance from '../components/dashboard/staff/StaffMyAttendance';
 import TeacherTransportMap from '../components/dashboard/teachers/TeacherTransportMap';
 import StaffSalarySlips from '../components/dashboard/staff/StaffSalarySlips';
@@ -61,6 +64,7 @@ const StaffDashboard = () => {
         checkMobile();
     }, []);
 
+    const [schoolConfig, setSchoolConfig] = useState(null);
     const [schoolName, setSchoolName] = useState('');
     const [schoolLogo, setSchoolLogo] = useState(null);
     const [staffProfile, setStaffProfile] = useState(null);
@@ -95,6 +99,7 @@ const StaffDashboard = () => {
         const fetchSchoolInfo = async () => {
             try {
                 const res = await api.get('/schools/my-school');
+                setSchoolConfig(res.data);
                 setSchoolName(res.data.name);
                 setSchoolLogo(res.data.logo);
             } catch (error) {
@@ -221,6 +226,69 @@ const StaffDashboard = () => {
         navigate('/');
     };
 
+    const getAllowedClasses = () => {
+        if (!staffProfile || !schoolConfig?.classes) return [];
+        let allowed = [];
+        
+        let manualClasses = [];
+        try {
+            manualClasses = typeof staffProfile.manual_attendance_classes === 'string' 
+                ? JSON.parse(staffProfile.manual_attendance_classes) 
+                : (staffProfile.manual_attendance_classes || []);
+        } catch (e) {
+            console.error(e);
+        }
+
+        if (manualClasses.includes('ALL')) {
+            return schoolConfig.classes; // Give full access
+        }
+
+        const classAccess = {}; 
+
+        manualClasses.forEach(item => {
+            if (typeof item === 'number' || (typeof item === 'string' && !isNaN(item))) {
+                classAccess[parseInt(item)] = 'ALL';
+            } else if (item.startsWith('C_')) {
+                classAccess[parseInt(item.replace('C_', ''))] = 'ALL';
+            } else if (item.startsWith('S_')) {
+                const secId = parseInt(item.replace('S_', ''));
+                const schoolClass = schoolConfig.classes.find(c => c.sections && c.sections.find(s => s.id === secId));
+                if (schoolClass) {
+                    if (classAccess[schoolClass.class_id] !== 'ALL') {
+                        if (!classAccess[schoolClass.class_id]) classAccess[schoolClass.class_id] = [];
+                        classAccess[schoolClass.class_id].push(secId);
+                    }
+                }
+            }
+        });
+
+        // Add additional manual classes and sections
+        Object.keys(classAccess).forEach(cIdStr => {
+            const cId = parseInt(cIdStr);
+            const schoolClass = schoolConfig.classes.find(c => c.class_id === cId);
+            if (schoolClass) {
+                if (classAccess[cId] === 'ALL') {
+                    allowed.push(schoolClass);
+                } else {
+                    const filteredSections = schoolClass.sections?.filter(s => classAccess[cId].includes(s.id)) || [];
+                    allowed.push({
+                        ...schoolClass,
+                        sections: filteredSections
+                    });
+                }
+            }
+        });
+
+        return allowed;
+    };
+
+    const allowedClasses = getAllowedClasses();
+    const hasAttendanceAccess = allowedClasses.length > 0;
+
+    const attendanceConfig = {
+        classes: hasAttendanceAccess ? allowedClasses : []
+    };
+
     return (
         <div className="relative min-h-screen w-full flex font-sans text-slate-900 overflow-hidden">
             {/* Mobile Sidebar Overlay */}
@@ -271,6 +339,15 @@ const StaffDashboard = () => {
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Work</p>
                     <NavButton active={activeTab === 'attendance'} onClick={() => handleTabChange('attendance')} icon={Calendar} label="My Attendance" />
+
+                    {hasAttendanceAccess && (
+                        <>
+                            <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Student Academics</p>
+                            <NavButton active={activeTab === 'student-attendance'} onClick={() => handleTabChange('student-attendance')} icon={CheckSquare} label="Mark Attendance" />
+                            <NavButton active={activeTab === 'daily-status'} onClick={() => handleTabChange('daily-status')} icon={LayoutDashboard} label="Daily Status" />
+                            <NavButton active={activeTab === 'attendance-reports'} onClick={() => handleTabChange('attendance-reports')} icon={FileText} label="Attendance Reports" />
+                        </>
+                    )}
 
                     {(profileLoading || staffProfile?.can_enroll_face || staffProfile?.can_take_face_attendance) && (
                         <div className="mt-6">
@@ -386,6 +463,10 @@ const StaffDashboard = () => {
                     <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
                         {activeTab === 'overview' && <StaffOverview isDriver={isDriver} schoolName={schoolName} profile={staffProfile} user={user} />}
                         {activeTab === 'attendance' && <StaffMyAttendance />}
+
+                        {activeTab === 'student-attendance' && hasAttendanceAccess && <StudentAttendanceMarking config={attendanceConfig} />}
+                        {activeTab === 'daily-status' && hasAttendanceAccess && <DailyAttendanceStatus config={attendanceConfig} />}
+                        {activeTab === 'attendance-reports' && hasAttendanceAccess && <StudentAttendanceReports config={attendanceConfig} />}
 
                         {activeTab === 'face-enroll' && <FaceEnrollment config={{ classes: [] }} preferredFacingMode="environment" />}
                         {activeTab === 'face-scanner' && <FaceAttendanceScanner config={{ classes: [] }} preferredFacingMode="user" />}
@@ -691,6 +772,9 @@ const getTabTitle = (tab, isDriver) => {
         case 'overview': return isDriver ? 'Driver Dashboard' : 'Staff Dashboard';
 
         case 'attendance': return 'Attendance History';
+        case 'student-attendance': return 'Mark Student Attendance';
+        case 'daily-status': return 'Daily Attendance Status';
+        case 'attendance-reports': return 'Student Attendance Reports';
         case 'transport': return 'Trip Tracking';
         case 'fleet-map': return 'Live Fleet Tracking';
         case 'salary': return 'Salary & Payslips';

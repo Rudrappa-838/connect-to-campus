@@ -3,11 +3,11 @@ import { Plus, Edit2, Trash2, X, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 
-const StaffManagement = () => {
+const StaffManagement = ({ config }) => {
     const [staff, setStaff] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '', can_enroll_face: false, can_take_face_attendance: false });
+    const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '', can_enroll_face: false, can_take_face_attendance: false, manual_attendance_classes: [] });
     const [selectedId, setSelectedId] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [loading, setLoading] = useState(true);
@@ -27,7 +27,7 @@ const StaffManagement = () => {
     const openAddModal = () => {
         setIsEditing(false);
         setFieldErrors({});
-        setFormData({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '', can_enroll_face: false, can_take_face_attendance: false });
+        setFormData({ name: '', email: '', phone: '', role: '', gender: '', address: '', join_date: new Date().toISOString().split('T')[0], salary_per_day: '', salary_per_month: '', library_access: false, hostel_access: false, employee_id: '', can_enroll_face: false, can_take_face_attendance: false, manual_attendance_classes: [] });
         setShowModal(true);
     };
 
@@ -177,7 +177,8 @@ const StaffManagement = () => {
                                                             library_access: t.library_access || false,
                                                             hostel_access: t.hostel_access || false,
                                                             can_enroll_face: t.can_enroll_face || false,
-                                                            can_take_face_attendance: t.can_take_face_attendance || false
+                                                            can_take_face_attendance: t.can_take_face_attendance || false,
+                                                            manual_attendance_classes: typeof t.manual_attendance_classes === 'string' ? JSON.parse(t.manual_attendance_classes || '[]') : (t.manual_attendance_classes || [])
                                                         }); 
                                                         setShowModal(true); 
                                                     }} className="text-indigo-500 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={18} /></button>
@@ -395,6 +396,84 @@ const StaffManagement = () => {
                                     </label>
                                 </div>
                                 <p className="text-[10px] text-indigo-400 font-medium leading-tight">Giving these permissions allows this staff member to use biometric features on mobile.</p>
+                            </div>
+
+                            {/* Manual Attendance Permissions */}
+                            <div className="bg-sky-50/50 p-4 rounded-lg border border-sky-100 space-y-3">
+                                <h4 className="text-xs font-black text-sky-600 uppercase tracking-widest mb-1">Manual Attendance Access</h4>
+                                <p className="text-[10px] text-slate-500 mb-2 leading-tight">Select which classes this staff member can manually mark attendance for.</p>
+                                
+                                <label className="flex items-center gap-2 cursor-pointer group mb-3 w-max">
+                                    <input 
+                                        type="checkbox" 
+                                        className="w-4 h-4 text-sky-600 rounded" 
+                                        checked={formData.manual_attendance_classes?.includes('ALL')} 
+                                        onChange={e => {
+                                            if (e.target.checked) {
+                                                setFormData({ ...formData, manual_attendance_classes: ['ALL'] });
+                                            } else {
+                                                setFormData({ ...formData, manual_attendance_classes: [] });
+                                            }
+                                        }} 
+                                    />
+                                    <span className="font-bold text-slate-700 text-sm group-hover:text-sky-600 transition-colors">All Classes (Full Access)</span>
+                                </label>
+
+                                {(!formData.manual_attendance_classes || !formData.manual_attendance_classes.includes('ALL')) && (
+                                    <div className="max-h-60 overflow-y-auto custom-scrollbar border border-slate-200 rounded-lg p-2 bg-white flex flex-col gap-2">
+                                        {config?.classes?.map(c => {
+                                            const isClassChecked = formData.manual_attendance_classes?.includes(c.class_id) || formData.manual_attendance_classes?.includes(`C_${c.class_id}`);
+                                            
+                                            return (
+                                                <div key={c.class_id} className="w-full flex flex-col p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100 transition-colors">
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="w-4 h-4 text-sky-600 rounded"
+                                                            checked={isClassChecked}
+                                                            onChange={e => {
+                                                                const current = formData.manual_attendance_classes || [];
+                                                                if (e.target.checked) {
+                                                                    // Add C_id, remove any S_id under it
+                                                                    const sectionIds = c.sections?.map(s => `S_${s.id}`) || [];
+                                                                    setFormData({ ...formData, manual_attendance_classes: [...current.filter(id => !sectionIds.includes(id) && id !== c.class_id), `C_${c.class_id}`] });
+                                                                } else {
+                                                                    // Remove C_id
+                                                                    setFormData({ ...formData, manual_attendance_classes: current.filter(id => id !== c.class_id && id !== `C_${c.class_id}`) });
+                                                                }
+                                                            }}
+                                                        />
+                                                        <span className="text-sm font-bold text-slate-700 truncate">{c.class_name} {c.sections?.length > 0 ? '(All Sections)' : ''}</span>
+                                                    </label>
+                                                    
+                                                    {/* Render sections if class has sections, and class is NOT checked completely */}
+                                                    {!isClassChecked && c.sections && c.sections.length > 0 && (
+                                                        <div className="ml-6 mt-2 grid grid-cols-2 gap-2 border-l-2 border-slate-200 pl-3">
+                                                            {c.sections.map(s => (
+                                                                <label key={s.id} className="flex items-center gap-2 cursor-pointer w-full p-1.5 hover:bg-slate-100 rounded">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="w-3.5 h-3.5 text-indigo-500 rounded"
+                                                                        checked={formData.manual_attendance_classes?.includes(`S_${s.id}`)}
+                                                                        onChange={e => {
+                                                                            const current = formData.manual_attendance_classes || [];
+                                                                            if (e.target.checked) {
+                                                                                setFormData({ ...formData, manual_attendance_classes: [...current, `S_${s.id}`] });
+                                                                            } else {
+                                                                                setFormData({ ...formData, manual_attendance_classes: current.filter(id => id !== `S_${s.id}`) });
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    <span className="text-xs font-semibold text-slate-600 truncate">Section {s.name}</span>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex justify-end gap-2 mt-4">

@@ -576,7 +576,7 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'teacher-geofence-logs' && <TeacherGeofenceLogs />}
                         {activeTab === 'teacher-report' && <TeacherAttendanceReports />}
 
-                        {activeTab === 'staff-list' && <StaffManagement />}
+                        {activeTab === 'staff-list' && <StaffManagement config={academicConfig} />}
                         {activeTab === 'staff-attendance' && <StaffAttendanceMarking />}
                         {activeTab === 'staff-daily-status' && <StaffDailyStatus />}
                         {activeTab === 'staff-report' && <StaffAttendanceReports />}
