@@ -209,7 +209,7 @@ exports.updateStaff = async (req, res) => {
              first_name = $9, last_name = $10, employee_id = COALESCE($13, employee_id), library_access = $14, hostel_access = $15,
              can_enroll_face = COALESCE($16, can_enroll_face),
              can_take_face_attendance = COALESCE($17, can_take_face_attendance),
-             manual_attendance_classes = COALESCE($18, manual_attendance_classes)
+             manual_attendance_classes = COALESCE($18::jsonb, manual_attendance_classes)
              WHERE id = $11 AND school_id = $12 RETURNING *`,
             [name, email, phone, role, gender, address, safe_join_date, safe_salary,
                 first_name, last_name,

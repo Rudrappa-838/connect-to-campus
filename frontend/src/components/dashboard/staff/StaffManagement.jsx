@@ -178,7 +178,12 @@ const StaffManagement = ({ config }) => {
                                                             hostel_access: t.hostel_access || false,
                                                             can_enroll_face: t.can_enroll_face || false,
                                                             can_take_face_attendance: t.can_take_face_attendance || false,
-                                                            manual_attendance_classes: typeof t.manual_attendance_classes === 'string' ? JSON.parse(t.manual_attendance_classes || '[]') : (t.manual_attendance_classes || [])
+                                                            manual_attendance_classes: (() => {
+                                                                try {
+                                                                    let parsed = typeof t.manual_attendance_classes === 'string' ? JSON.parse(t.manual_attendance_classes) : t.manual_attendance_classes;
+                                                                    return Array.isArray(parsed) ? parsed : [];
+                                                                } catch(e) { return []; }
+                                                            })()
                                                         }); 
                                                         setShowModal(true); 
                                                     }} className="text-indigo-500 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={18} /></button>

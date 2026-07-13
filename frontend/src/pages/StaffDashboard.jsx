@@ -228,15 +228,16 @@ const StaffDashboard = () => {
 
     const getAllowedClasses = () => {
         if (!staffProfile || !schoolConfig?.classes) return [];
-        let allowed = [];
-        
+        // Parse manual attendance classes
         let manualClasses = [];
         try {
-            manualClasses = typeof staffProfile.manual_attendance_classes === 'string' 
+            let parsed = typeof staffProfile.manual_attendance_classes === 'string' 
                 ? JSON.parse(staffProfile.manual_attendance_classes) 
-                : (staffProfile.manual_attendance_classes || []);
+                : staffProfile.manual_attendance_classes;
+            manualClasses = Array.isArray(parsed) ? parsed : [];
         } catch (e) {
             console.error(e);
+            manualClasses = [];
         }
 
         if (manualClasses.includes('ALL')) {

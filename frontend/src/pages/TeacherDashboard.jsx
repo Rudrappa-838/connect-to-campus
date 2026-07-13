@@ -119,11 +119,13 @@ const TeacherDashboard = () => {
         // Parse manual attendance classes
         let manualClasses = [];
         try {
-            manualClasses = typeof teacherProfile.manual_attendance_classes === 'string' 
+            let parsed = typeof teacherProfile.manual_attendance_classes === 'string' 
                 ? JSON.parse(teacherProfile.manual_attendance_classes) 
-                : (teacherProfile.manual_attendance_classes || []);
+                : teacherProfile.manual_attendance_classes;
+            manualClasses = Array.isArray(parsed) ? parsed : [];
         } catch (e) {
             console.error(e);
+            manualClasses = [];
         }
 
         if (manualClasses.includes('ALL')) {

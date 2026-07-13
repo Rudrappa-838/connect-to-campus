@@ -231,7 +231,12 @@ const TeacherManagement = ({ config }) => {
                                                             assign_class_id: t.assigned_class_id || '', 
                                                             assign_section_id: t.assigned_section_id || '', 
                                                             salary_per_month: monthlySalary,
-                                                            manual_attendance_classes: typeof t.manual_attendance_classes === 'string' ? JSON.parse(t.manual_attendance_classes || '[]') : (t.manual_attendance_classes || [])
+                                                            manual_attendance_classes: (() => {
+                                                                try {
+                                                                    let parsed = typeof t.manual_attendance_classes === 'string' ? JSON.parse(t.manual_attendance_classes) : t.manual_attendance_classes;
+                                                                    return Array.isArray(parsed) ? parsed : [];
+                                                                } catch(e) { return []; }
+                                                            })()
                                                         }); 
                                                         setIsClassTeacher(!!t.assigned_class_id); 
                                                         setShowModal(true); 
