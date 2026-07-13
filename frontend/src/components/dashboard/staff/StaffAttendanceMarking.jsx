@@ -32,14 +32,14 @@ const StaffAttendanceMarking = () => {
         finally { setSaving(false); }
     };
 
-    const isEditable = date === new Date().toISOString().split('T')[0];
+    const isEditable = true;
 
     return (
         <div className="space-y-6 animate-in fade-in">
             <div className="flex flex-wrap justify-between items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200 gap-4">
                 <div className="flex items-center gap-4">
                     <h2 className="text-xl font-bold text-slate-800 hidden md:block">Mark Staff Attendance</h2>
-                    <input type="date" className="input max-w-[150px] bg-slate-50 border-slate-200" value={date} onChange={e => setDate(e.target.value)} />
+                    <input type="date" className="input max-w-[150px] bg-slate-50 border-slate-200" value={date} max={new Date().toISOString().split('T')[0]} onChange={e => setDate(e.target.value)} />
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                     {isEditable && (

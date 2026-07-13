@@ -335,7 +335,8 @@ const ExamSchedule = ({ config }) => {
                     end_time: sub.endTime,
                     max_marks: sub.max_marks,
                     min_marks: sub.min_marks,
-                    components: sub.components
+                    components: sub.components,
+                    target_batch: sub.target_batch
                 });
             });
         });
@@ -451,6 +452,7 @@ const ExamSchedule = ({ config }) => {
                     max_marks: tmpl.max_marks,
                     min_marks: tmpl.min_marks,
                     components: tmpl.components ? JSON.parse(JSON.stringify(tmpl.components)) : [], // Deep copy
+                    target_batch: tmpl.target_batch,
 
                     data_new: true // Mark as unsaved
                 });
@@ -490,7 +492,8 @@ const ExamSchedule = ({ config }) => {
                 end_time: item.end_time,
                 max_marks: item.max_marks || 100,
                 min_marks: item.min_marks || 35,
-                components: item.components || []
+                components: item.components || [],
+                target_batch: item.target_batch || null
             }));
 
             await api.post('/exam-schedule/save', {
@@ -705,6 +708,7 @@ const ExamSchedule = ({ config }) => {
                         components: template.components
                             ? JSON.parse(JSON.stringify(template.components))
                             : [],
+                        target_batch: template.target_batch || null,
                         data_new: true
                     });
                 });
@@ -721,7 +725,8 @@ const ExamSchedule = ({ config }) => {
                 end_time: item.end_time,
                 max_marks: item.max_marks || 100,
                 min_marks: item.min_marks || 35,
-                components: item.components || []
+                components: item.components || [],
+                target_batch: item.target_batch || null
             }));
             await api.post('/exam-schedule/save', { schedules: payload, delete_existing: true });
 

@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 
 const HostelAttendanceMarking = () => {
-    const date = new Date().toISOString().split('T')[0];
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [hostels, setHostels] = useState([]);
     const [selectedHostel, setSelectedHostel] = useState('');
     const [rooms, setRooms] = useState([]);
@@ -112,8 +112,9 @@ const HostelAttendanceMarking = () => {
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Date</span>
                     <input
                         type="date"
-                        readOnly
-                        className="px-3 py-2 border border-slate-200 rounded-xl bg-slate-100 text-slate-500 font-bold cursor-not-allowed opacity-80 max-w-[150px] text-sm focus:outline-none"
+                        max={new Date().toISOString().split('T')[0]}
+                        onChange={e => setDate(e.target.value)}
+                        className="px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 text-slate-700 font-bold max-w-[150px] text-sm focus:outline-none"
                         value={date}
                     />
                 </div>

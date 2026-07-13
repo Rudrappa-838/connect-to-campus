@@ -4,8 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 
 const TeacherAttendanceMarking = () => {
-    // Force date to today only
-    const date = new Date().toISOString().split('T')[0];
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [teachers, setTeachers] = useState([]);
     const [attendance, setAttendance] = useState({});
 
@@ -34,7 +33,7 @@ const TeacherAttendanceMarking = () => {
         finally { setSaving(false); }
     };
 
-    const isEditable = date === new Date().toISOString().split('T')[0];
+    const isEditable = true;
 
     return (
         <div className="space-y-6 animate-in fade-in">
@@ -43,9 +42,10 @@ const TeacherAttendanceMarking = () => {
                     <h2 className="text-xl font-bold text-slate-800 hidden md:block">Mark Teacher Attendance</h2>
                     <input
                         type="date"
-                        readOnly
-                        className="input max-w-[150px] bg-slate-100 border-slate-200 text-slate-500 font-bold cursor-not-allowed opacity-80"
-                        value={new Date().toISOString().split('T')[0]}
+                        className="input max-w-[150px] bg-slate-50 border-slate-200"
+                        value={date}
+                        max={new Date().toISOString().split('T')[0]}
+                        onChange={e => setDate(e.target.value)}
                     />
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
