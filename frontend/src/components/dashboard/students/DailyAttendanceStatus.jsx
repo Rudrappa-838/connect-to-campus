@@ -210,7 +210,7 @@ const DailyAttendanceStatus = ({ config }) => {
                     </button>
                     <button
                         onClick={handlePrint}
-                        disabled={!filterClass || !filterSection}
+                        disabled={!filterClass || (availableSections.length > 0 && !filterSection)}
                         className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Printer size={18} />
