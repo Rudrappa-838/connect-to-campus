@@ -1,9 +1,4 @@
-const { Pool } = require('pg');
-require('dotenv').config();
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
-});
+const { pool } = require('./src/config/db.js');
 
 async function runMigration() {
     try {
