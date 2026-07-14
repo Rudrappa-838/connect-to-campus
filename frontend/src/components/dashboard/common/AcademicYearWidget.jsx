@@ -14,7 +14,11 @@ const AcademicYearWidget = ({ onManageClick }) => {
     const fetchCurrentAcademicYear = async () => {
         try {
             const res = await api.get('/academic-years/current');
-            setAcademicYear(res.data);
+            if (res.data && res.data.notFound) {
+                setAcademicYear(null);
+            } else {
+                setAcademicYear(res.data);
+            }
         } catch (error) {
             console.error('Error fetching academic year:', error);
             if (error.response?.status !== 404) {

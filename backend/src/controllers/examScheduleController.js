@@ -203,33 +203,35 @@ exports.saveExamSchedule = async (req, res) => {
         }
 
         await client.query('COMMIT');
-
-        // Notification Logic
-        try {
-            const { sendPushNotification } = require('../services/notificationService');
-            // Notify unique students affected
-            const combos = new Set(schedules.map(s => `${s.class_id}-${s.section_id || 'NULL'}`));
-            for (const combo of combos) {
-                const [cid, sid] = combo.split('-');
-                let stuQuery = 'SELECT id FROM students WHERE school_id = $1 AND class_id = $2';
-                const params = [school_id, cid];
-                if (sid !== 'NULL') {
-                    stuQuery += ' AND section_id = $3';
-                    params.push(sid);
-                }
-                // Only notify active students
-                stuQuery += " AND status = 'Active'";
-
-                const studentsRes = await pool.query(stuQuery, params);
-                for (const stu of studentsRes.rows) {
-                    await sendPushNotification(stu.id, 'Exam Schedule Update', 'The exam schedule for your class has been updated.');
-                }
-            }
-        } catch (notifyError) {
-            console.error('Notification error:', notifyError);
-        }
-
         res.json({ message: 'Exam schedule saved successfully' });
+
+        // Notification Logic in background
+        (async () => {
+            try {
+                const { sendPushNotification } = require('../services/notificationService');
+                // Notify unique students affected
+                const combos = new Set(schedules.map(s => `${s.class_id}-${s.section_id || 'NULL'}`));
+                for (const combo of combos) {
+                    const [cid, sid] = combo.split('-');
+                    let stuQuery = 'SELECT id FROM students WHERE school_id = $1 AND class_id = $2';
+                    const params = [school_id, cid];
+                    if (sid !== 'NULL') {
+                        stuQuery += ' AND section_id = $3';
+                        params.push(sid);
+                    }
+                    // Only notify active students
+                    stuQuery += " AND status = 'Active'";
+
+                    const studentsRes = await pool.query(stuQuery, params);
+                    for (const stu of studentsRes.rows) {
+                        await sendPushNotification(stu.id, 'Exam Schedule Update', 'The exam schedule for your class has been updated.');
+                    }
+                }
+            } catch (notifyError) {
+                console.error('Notification error:', notifyError);
+            }
+        })();
+
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error saving exam schedule:', error);

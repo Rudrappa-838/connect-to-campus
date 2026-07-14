@@ -50,7 +50,11 @@ const Overview = ({ config }) => {
         const fetchAcademicYear = async () => {
             try {
                 const res = await api.get('/academic-years/current');
-                setAcademicYear(res.data);
+                if (res.data && res.data.notFound) {
+                    setAcademicYear(null);
+                } else {
+                    setAcademicYear(res.data);
+                }
             } catch (error) {
                 console.error('Error loading academic year:', error);
             }

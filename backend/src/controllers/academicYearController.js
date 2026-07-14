@@ -32,7 +32,7 @@ exports.getCurrentAcademicYear = async (req, res) => {
         );
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'No active academic year found' });
+            return res.status(200).json({ message: 'No active academic year found', notFound: true });
         }
 
         const academicYear = result.rows[0];
