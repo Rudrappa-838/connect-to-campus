@@ -1111,7 +1111,7 @@ exports.getMyAttendanceReport = async (req, res) => {
         // 2. Fetch Aggregated Stats
         let statsQuery = `
         SELECT 
-            COUNT(*) as total_days,
+            SUM(CASE WHEN status NOT IN ('Holiday', 'Sunday') THEN 1 ELSE 0 END) as total_days,
             SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) as present_days,
             SUM(CASE WHEN status = 'Absent' THEN 1 ELSE 0 END) as absent_days,
             SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) as late_days,
