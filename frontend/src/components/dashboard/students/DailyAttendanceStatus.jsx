@@ -60,9 +60,19 @@ const DailyAttendanceStatus = ({ config }) => {
     const absentStudents = attendanceData.filter(s => s.status === 'Absent' || s.status === 'Unmarked');
     const otherStudents = attendanceData.filter(s => s.status === 'Late');
 
-    const handlePrint = () => {
+    const handlePrint = (type) => {
         const className = config?.classes?.find(c => c.class_id === parseInt(filterClass))?.class_name || 'All Classes';
         const sectionName = availableSections?.find(s => s.id === parseInt(filterSection))?.name || 'All Sections';
+
+        let filteredData = [];
+        let titleSuffix = '';
+        if (type === 'present') {
+            filteredData = presentStudents;
+            titleSuffix = '- Present Students';
+        } else if (type === 'absent') {
+            filteredData = absentStudents;
+            titleSuffix = '- Absent Students';
+        }
 
         const printContent = `
             <!DOCTYPE html>
@@ -75,16 +85,12 @@ const DailyAttendanceStatus = ({ config }) => {
                     .header { text-align: center; margin-bottom: 20px; }
                     h1 { margin: 0; color: #333; }
                     .meta { color: #666; font-size: 14px; margin-top: 5px; }
-                    .stats { display: flex; justify-content: space-between; margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
-                    .stat-item { text-align: center; }
-                    .stat-label { font-size: 10px; text-transform: uppercase; color: #666; font-weight: bold; }
-                    .stat-val { font-size: 18px; font-weight: bold; color: #333; }
                     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
                     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
                     th { background-color: #f3f4f6; }
                     .status-present { color: green; font-weight: bold; }
                     .status-absent { color: red; font-weight: bold; }
-                    .status-late { color: orange; font-weight: bold; }
+                    .status-unmarked { color: gray; font-weight: bold; }
                     @media print {
                         body { padding: 0; }
                         button { display: none; }
@@ -93,28 +99,9 @@ const DailyAttendanceStatus = ({ config }) => {
             </head>
             <body>
                 <div class="header">
-                    <h1>Daily Attendance Status</h1>
+                    <h1>Daily Attendance Status ${titleSuffix}</h1>
                     <div class="meta">
-                        Date: ${new Date(date).toLocaleDateString('en-GB')} | Class: ${className} - ${sectionName}
-                    </div>
-                </div>
-
-                <div class="stats">
-                    <div class="stat-item">
-                        <div class="stat-title">Total</div>
-                        <div class="stat-val">${stats.total}</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-title" style="color: green;">Present</div>
-                        <div class="stat-val" style="color: green;">${stats.present}</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-title" style="color: red;">Absent</div>
-                        <div class="stat-val" style="color: red;">${stats.absent}</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-title" style="color: orange;">Other</div>
-                        <div class="stat-val" style="color: orange;">${stats.late + stats.unmarked}</div>
+                        Date: ${new Date(date).toLocaleDateString('en-GB')} | Class: ${className} - ${sectionName} | Total Count: ${filteredData.length}
                     </div>
                 </div>
 
@@ -128,14 +115,17 @@ const DailyAttendanceStatus = ({ config }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        ${attendanceData.sort((a, b) => parseInt(a.roll_number || 0) - parseInt(b.roll_number || 0)).map(student => `
+                        ${filteredData.sort((a, b) => parseInt(a.roll_number || 0) - parseInt(b.roll_number || 0)).map(student => {
+                            const printStatus = student.status === 'Unmarked' ? 'Absent' : student.status;
+                            return `
                             <tr>
                                 <td>${student.roll_number || '-'}</td>
                                 <td>${student.name}</td>
-                                <td class="status-${student.status?.toLowerCase()}">${student.status}</td>
-                                <td>${student.status === 'Absent' ? (student.contact_number || '-') : ''}</td>
+                                <td class="status-${printStatus?.toLowerCase()}">${printStatus}</td>
+                                <td>${student.contact_number || '-'}</td>
                             </tr>
-                        `).join('')}
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
                 <script>window.onload = function() { window.print(); }</script>
@@ -209,12 +199,20 @@ const DailyAttendanceStatus = ({ config }) => {
                         <span>Notify Absentees</span>
                     </button>
                     <button
-                        onClick={handlePrint}
-                        disabled={!filterClass || (availableSections.length > 0 && !filterSection)}
-                        className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => handlePrint('present')}
+                        disabled={!filterClass || (availableSections.length > 0 && !filterSection) || presentStudents.length === 0}
+                        className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Printer size={18} />
-                        <span>Print Report</span>
+                        <span>Print Present</span>
+                    </button>
+                    <button
+                        onClick={() => handlePrint('absent')}
+                        disabled={!filterClass || (availableSections.length > 0 && !filterSection) || absentStudents.length === 0}
+                        className="flex items-center gap-2 bg-rose-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Printer size={18} />
+                        <span>Print Absent</span>
                     </button>
                 </div>
             </div>
