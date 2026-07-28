@@ -17,7 +17,7 @@ exports.addStudent = async (req, res) => {
             name, gender: raw_gender, dob, age,
             class_id, section_id,
             father_name, mother_name, contact_number, email, address,
-            attendance_id, admission_date
+            attendance_id, admission_date, custom_roll_number
         } = req.body;
         const school_id = req.user.schoolId;
 
@@ -113,11 +113,11 @@ exports.addStudent = async (req, res) => {
         // 1. Insert Student
         const result = await client.query(
             `INSERT INTO public.students 
-            (school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, age, class_id, section_id, 
+            (school_id, name, first_name, last_name, admission_no, roll_number, custom_roll_number, gender, dob, age, class_id, section_id, 
              father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
+            VALUES ($1, $2, $3, $4, $5, $6, $19, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
             [school_id, name, first_name, last_name, admission_no, roll_number, gender, safe_dob, safe_age, safe_class_id, safe_section_id,
-                safe_father, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date || new Date()]
+                safe_father, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date || new Date(), custom_roll_number]
         );
         const newStudent = result.rows[0];
 
@@ -546,7 +546,7 @@ exports.updateStudent = async (req, res) => {
             name, gender: raw_gender, dob, age,
             class_id, section_id,
             father_name, mother_name, contact_number, email, address,
-            attendance_id, admission_date, status, admission_no, roll_number
+            attendance_id, admission_date, status, admission_no, roll_number, custom_roll_number
         } = req.body;
 
         const gender = raw_gender ? (raw_gender.trim().charAt(0).toUpperCase() + raw_gender.trim().slice(1).toLowerCase()) : '';
@@ -613,12 +613,12 @@ exports.updateStudent = async (req, res) => {
             name = $1, gender = $2, dob = $3, age = $4, class_id = $5, section_id = $6, 
             father_name = $7, mother_name = $8, contact_number = $9, email = $10, address = $11, attendance_id = $12, admission_date = $13,
             first_name = $14, last_name = $15, status = $16, admission_no = COALESCE($19, admission_no),
-            roll_number = COALESCE($20, roll_number)
+            roll_number = COALESCE($20, roll_number), custom_roll_number = $21
             WHERE id = $17 AND school_id = $18 RETURNING *`,
             [name, gender, safe_dob, safe_age, safe_class_id, safe_section_id,
                 father_name, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date,
                 first_name, last_name, status,
-                id, req.user.schoolId, safe_admission_no, final_roll_number]
+                id, req.user.schoolId, safe_admission_no, final_roll_number, custom_roll_number]
         );
 
         if (result.rows.length === 0) {

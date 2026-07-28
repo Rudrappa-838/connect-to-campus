@@ -18,6 +18,7 @@ const ExcelMarksManager = ({ examTypeId }) => {
     const [uploading, setUploading] = useState(false);
     const [activeUpload, setActiveUpload] = useState(null); // { class_id, section_id, class_name, section_name }
     const [includeSats, setIncludeSats] = useState(false);
+    const [matchBy, setMatchBy] = useState('student_id'); // 'student_id' | 'custom_roll'
     const fileInputRef = useRef(null);
 
     useEffect(() => {
@@ -47,7 +48,8 @@ const ExcelMarksManager = ({ examTypeId }) => {
                     exam_type_id: examTypeId,
                     class_id: combo.class_id,
                     section_id: combo.section_id || '',
-                    include_sats: includeSats
+                    include_sats: includeSats,
+                    match_by: matchBy
                 },
                 responseType: 'blob'
             });
@@ -155,15 +157,36 @@ const ExcelMarksManager = ({ examTypeId }) => {
                                 <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
                                     Download template, fill marks offline, then upload:
                                 </p>
-                                <label className="flex items-center gap-2 cursor-pointer bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-all group">
-                                    <input
-                                        type="checkbox"
-                                        checked={includeSats}
-                                        onChange={(e) => setIncludeSats(e.target.checked)}
-                                        className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                    />
-                                    <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900">Include SATS Number</span>
-                                </label>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all group ${matchBy === 'custom_roll' ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer bg-slate-100 hover:bg-slate-200'}`}>
+                                        <input
+                                            type="checkbox"
+                                            disabled={matchBy === 'custom_roll'}
+                                            checked={matchBy === 'custom_roll' ? false : includeSats}
+                                            onChange={(e) => setIncludeSats(e.target.checked)}
+                                            className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:cursor-not-allowed"
+                                        />
+                                        <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900">Include SATS Number</span>
+                                    </label>
+                                    
+                                    <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-700">Match Students By:</span>
+                                        <select
+                                            value={matchBy}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setMatchBy(val);
+                                                if (val === 'custom_roll') {
+                                                    setIncludeSats(false);
+                                                }
+                                            }}
+                                            className="text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded px-2 py-0.5 outline-none cursor-pointer focus:border-emerald-500"
+                                        >
+                                            <option value="student_id">Student ID (Normal)</option>
+                                            <option value="custom_roll">Custom ID</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                             <div className="grid gap-3 md:grid-cols-2">
                                 {combos.map((combo, idx) => {

@@ -51,6 +51,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
         address: '',
         attendance_id: '',
         roll_number: '',
+        custom_roll_number: '',
         admission_date: new Date().toISOString().split('T')[0]
     });
 
@@ -315,6 +316,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             address: student.address || '',
             attendance_id: student.attendance_id || '',
             roll_number: student.roll_number || '',
+            custom_roll_number: student.custom_roll_number || '',
             admission_date: student.admission_date ? student.admission_date.split('T')[0] : ''
         });
         setShowModal(true);
@@ -343,6 +345,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             address: '',
             attendance_id: autoAttendanceId, // Auto preset
             roll_number: '',
+            custom_roll_number: '',
             admission_date: new Date().toISOString().split('T')[0]
         });
         setShowModal(true);
@@ -959,7 +962,12 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                             )}
                                             <td className="p-4">
                                                 <div className="font-bold text-slate-700">{student.name}</div>
-                                                <div className="text-[10px] text-indigo-500 font-mono font-medium bg-indigo-50 inline-block px-1.5 py-0.5 rounded mt-0.5 border border-indigo-100">ID: {student.admission_no}</div>
+                                                <div className="flex flex-wrap gap-1.5 mt-0.5">
+                                                    <div className="text-[10px] text-indigo-500 font-mono font-medium bg-indigo-50 inline-block px-1.5 py-0.5 rounded border border-indigo-100">ID: {student.admission_no}</div>
+                                                    {student.custom_roll_number && (
+                                                        <div className="text-[10px] text-amber-600 font-mono font-medium bg-amber-50 inline-block px-1.5 py-0.5 rounded border border-amber-100">Custom Roll: {student.custom_roll_number}</div>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="p-4">
                                                 <span className="bg-white text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 shadow-sm">
@@ -1119,6 +1127,19 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                             autoComplete="off"
                                             value={formData.roll_number || ''}
                                             onChange={e => setFormData({ ...formData, roll_number: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="label">Custom Roll Number</label>
+                                        <input
+                                            type="text"
+                                            className="input"
+                                            id="student-custom-roll-no"
+                                            name="custom_roll_number"
+                                            placeholder="Custom Roll Number"
+                                            autoComplete="off"
+                                            value={formData.custom_roll_number || ''}
+                                            onChange={e => setFormData({ ...formData, custom_roll_number: e.target.value })}
                                         />
                                     </div>
                                     {isEditing && (

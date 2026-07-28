@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// Force Vite to open Google Chrome specifically on dev startup
+process.env.BROWSER = 'chrome';
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -12,6 +15,7 @@ export default defineConfig({
   base: '/',
   server: {
     host: true,
+    open: true,
   },
   build: {
     sourcemap: false,

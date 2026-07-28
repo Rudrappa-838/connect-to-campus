@@ -23,6 +23,8 @@ const MarksManagement = ({ config }) => {
     const [marksheetData, setMarksheetData] = useState(null);
     const [scheduledExams, setScheduledExams] = useState([]);
     const [scheduledPeriod, setScheduledPeriod] = useState(''); // Text to display e.g., "Jan 2026 - Feb 2026"
+    const [studentSearchQuery, setStudentSearchQuery] = useState('');
+    const [allSchedules, setAllSchedules] = useState([]);
     
     // New states for Subject Combinations
     const [assignments, setAssignments] = useState({});
@@ -103,6 +105,52 @@ const MarksManagement = ({ config }) => {
         setSelectedExam(examId);
         setShowExamModal(false);
     };
+
+    const fetchAllSchedules = async () => {
+        try {
+            const res = await api.get('/exam-schedule');
+            const uniqueBlocks = [];
+            const seen = new Set();
+            if (Array.isArray(res.data)) {
+                res.data.forEach(item => {
+                    const key = `${item.class_id}-${item.section_id || 'NULL'}-${item.exam_type_id}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        uniqueBlocks.push({
+                            class_id: item.class_id,
+                            class_name: item.class_name,
+                            section_id: item.section_id,
+                            section_name: item.section_name,
+                            exam_type_id: item.exam_type_id,
+                            exam_type_name: item.exam_type_name
+                        });
+                    }
+                });
+            }
+            setAllSchedules(uniqueBlocks);
+        } catch (error) {
+            console.error('Error fetching all schedules:', error);
+        }
+    };
+
+    const handleSelectScheduledBlock = (blockKey) => {
+        if (!blockKey) {
+            setSelectedClass('');
+            setSelectedSection('');
+            setSelectedExam('');
+            return;
+        }
+        const [classId, sectionId, examTypeId] = blockKey.split('-');
+        const secIdVal = sectionId === 'NULL' ? '' : sectionId;
+        
+        setSelectedClass(classId);
+        setSelectedSection(secIdVal);
+        setSelectedExam(examTypeId);
+    };
+
+    useEffect(() => {
+        fetchAllSchedules();
+    }, []);
 
     // New Exam with Components
     const [newExam, setNewExam] = useState({
@@ -691,6 +739,14 @@ const MarksManagement = ({ config }) => {
         return targetBatchesForSchedule.has(student.exam_batch);
     });
 
+    const filteredStudents = displayStudents.filter(student => {
+        const query = studentSearchQuery.toLowerCase().trim();
+        if (!query) return true;
+        return (student.name || '').toLowerCase().includes(query) ||
+               (student.roll_number || '').toString().toLowerCase().includes(query) ||
+               (student.admission_no || '').toLowerCase().includes(query);
+    });
+
     return (
         <div className="space-y-6 animate-in fade-in">
 
@@ -706,6 +762,34 @@ const MarksManagement = ({ config }) => {
 
             {/* Filters */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 print:hidden">
+                {allSchedules.length > 0 && (
+                    <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-1.5">
+                                <span className="inline-block w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                                Quick Select Scheduled Exam
+                            </h4>
+                            <p className="text-xs text-indigo-600">Select an active schedule to load filters and students instantly.</p>
+                        </div>
+                        <div className="w-full md:w-80">
+                            <select 
+                                onChange={(e) => handleSelectScheduledBlock(e.target.value)} 
+                                value={selectedClass && selectedExam ? `${selectedClass}-${selectedSection || 'NULL'}-${selectedExam}` : ''}
+                                className="w-full px-4 py-2 border border-indigo-300 rounded-lg text-sm bg-white font-medium text-indigo-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            >
+                                <option value="">-- Choose Active Schedule --</option>
+                                {allSchedules.map((item, idx) => {
+                                    const key = `${item.class_id}-${item.section_id || 'NULL'}-${item.exam_type_id}`;
+                                    return (
+                                        <option key={idx} value={key}>
+                                            {item.exam_type_name} - {item.class_name} {item.section_name ? `(${item.section_name})` : ''}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+                    </div>
+                )}
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
 
                     <div>
@@ -785,6 +869,28 @@ const MarksManagement = ({ config }) => {
             {/* Marks Entry Grid - ENHANCED FOR COMPONENTS */}
             {students.length > 0 && displaySubjects.length > 0 && selectedExam ? (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:hidden">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="text-sm font-bold text-slate-700">
+                            Students List ({filteredStudents.length} of {displayStudents.length})
+                        </div>
+                        <div className="relative w-full sm:max-w-xs">
+                            <input
+                                type="text"
+                                placeholder="Search student name or roll..."
+                                value={studentSearchQuery}
+                                onChange={(e) => setStudentSearchQuery(e.target.value)}
+                                className="w-full pl-3 pr-8 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none bg-white"
+                            />
+                            {studentSearchQuery && (
+                                <button 
+                                    onClick={() => setStudentSearchQuery('')}
+                                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm border-collapse">
                             <thead className="bg-amber-50">
@@ -800,15 +906,15 @@ const MarksManagement = ({ config }) => {
                                             try { components = JSON.parse(components); } catch (e) { components = []; }
                                         }
                                         const hasComponents = Array.isArray(components) && components.length > 0;
-
+ 
                                         // If components exist, render a column for each component? No, render sub-columns or inputs in same cell.
                                         // Table Header is dynamic? No, we are mapping rows.
                                         // If we have varied components per subject, the table structure becomes complex if subjects are columns.
                                         // Here subjects are COLUMNS.
                                         // If Subject A has Theory/Practical, and Subject B has only Theory, alignment is tricky.
-
+ 
                                         // Solution: Render a mini-table or stacked inputs within the cell.
-
+ 
                                         return (
                                             <th key={subject.id} className="p-3 border-b border-l min-w-[120px]">
                                                 <div className="flex flex-col">
@@ -826,7 +932,7 @@ const MarksManagement = ({ config }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {displayStudents.map(student => (
+                                {filteredStudents.map(student => (
                                     <tr key={student.id} className="hover:bg-slate-50">
                                         <td className="border border-slate-200 p-3 text-center font-mono sticky left-0 bg-white">{student.roll_number}</td>
                                         <td className="border border-slate-200 p-3 font-medium">{student.name}</td>

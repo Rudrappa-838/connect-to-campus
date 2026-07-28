@@ -83,8 +83,9 @@ exports.getExamCombos = async (req, res) => {
 exports.downloadTemplate = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
-        const { exam_type_id, class_id, section_id, include_sats } = req.query;
+        const { exam_type_id, class_id, section_id, include_sats, match_by } = req.query;
         const includeSats = include_sats === 'true';
+        const matchBy = match_by === 'custom_roll' ? 'custom_roll' : 'student_id';
 
         if (!exam_type_id || !class_id) {
             return res.status(400).json({ message: 'exam_type_id and class_id are required' });
@@ -111,7 +112,7 @@ exports.downloadTemplate = async (req, res) => {
 
         // 2. Get students for this class+section
         let studentQuery = `
-            SELECT st.id as student_id, st.name as student_name, st.admission_no, st.roll_number,
+            SELECT st.id as student_id, st.name as student_name, st.admission_no, st.roll_number, st.custom_roll_number,
                    c.name as class_name, sec.name as section_name
             FROM students st
             JOIN classes c ON st.class_id = c.id
@@ -142,16 +143,22 @@ exports.downloadTemplate = async (req, res) => {
         workbook.creator = 'School Management System';
         const sheet = workbook.addWorksheet(`${className}${sectionName ? ` - ${sectionName}` : ''}`);
 
-        // Build column headers
-        const columns = [
-            { header: 'Student ID', key: 'student_id', width: 15 },
-            { header: 'Admission No', key: 'admission_no', width: 18 },
-            { header: 'Roll No', key: 'roll_number', width: 10 },
-            { header: 'Student Name', key: 'student_name', width: 30 },
-        ];
-
-        if (includeSats) {
-            columns.push({ header: 'SATS Number', key: 'sats_number', width: 20 });
+        // Build column headers dynamically
+        const columns = [];
+        if (matchBy === 'custom_roll') {
+            columns.push(
+                { header: 'Custom ID', key: 'custom_roll_number', width: 20 }
+            );
+        } else {
+            columns.push(
+                { header: 'Student ID', key: 'student_id', width: 15 },
+                { header: 'Admission No', key: 'admission_no', width: 18 },
+                { header: 'Roll No', key: 'roll_number', width: 10 },
+                { header: 'Student Name', key: 'student_name', width: 30 }
+            );
+            if (includeSats) {
+                columns.push({ header: 'SATS Number', key: 'sats_number', width: 20 });
+            }
         }
 
         for (const sub of subjects) {
@@ -186,29 +193,36 @@ exports.downloadTemplate = async (req, res) => {
         headerRow.height = 40;
 
         // Student rows
-        for (const stu of students) {
-            const rowData = { 
-                student_id: stu.student_id, 
-                admission_no: stu.admission_no || '', 
-                roll_number: stu.roll_number || '', 
-                student_name: stu.student_name,
-            };
-            if (includeSats) {
-                rowData.sats_number = stu.sats_number || '';
-            }
-            const dataRow = sheet.addRow(rowData);
+        if (matchBy !== 'custom_roll') {
+            for (const stu of students) {
+                const rowData = {
+                    student_id: stu.student_id,
+                    admission_no: stu.admission_no || '',
+                    roll_number: stu.roll_number || '',
+                    student_name: stu.student_name
+                };
+                if (includeSats) {
+                    rowData.sats_number = stu.sats_number || '';
+                }
+                const dataRow = sheet.addRow(rowData);
 
-            // Lock student info columns (light blue)
-            const lockCount = includeSats ? 5 : 4;
-            for (let i = 1; i <= lockCount; i++) {
-                const cell = dataRow.getCell(i);
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
-                cell.font = { bold: i === 4 };
+                // Lock student info columns (light blue)
+                const lockCount = includeSats ? 5 : 4;
+                const nameColIndex = 4;
+                
+                for (let i = 1; i <= lockCount; i++) {
+                    const cell = dataRow.getCell(i);
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+                    if (i === nameColIndex) {
+                        cell.font = { bold: true };
+                    }
+                }
+                dataRow.height = 20;
             }
-            dataRow.height = 20;
         }
 
-        sheet.views = [{ state: 'frozen', xSplit: includeSats ? 5 : 4, ySplit: 1 }]; // freeze name columns + header
+        const lockCount = matchBy === 'custom_roll' ? 1 : (includeSats ? 5 : 4);
+        sheet.views = [{ state: 'frozen', xSplit: lockCount, ySplit: 1 }]; // freeze name columns + header
 
         // ── Metadata in a hidden sheet (avoids row shifting issues)
         const metaSheet = workbook.addWorksheet('__meta__');
@@ -217,6 +231,7 @@ exports.downloadTemplate = async (req, res) => {
         metaSheet.getCell('A2').value = `class_id=${class_id}`;
         metaSheet.getCell('A3').value = `section_id=${section_id || ''}`;
         metaSheet.getCell('A4').value = `school_id=${school_id}`;
+        metaSheet.getCell('A5').value = `match_by=${matchBy}`;
 
         // File name
         const safeClass = className.replace(/[^a-zA-Z0-9]/g, '_');
@@ -283,6 +298,7 @@ exports.uploadMarks = async (req, res) => {
         console.log('[Excel Upload] A2:', metaSheet.getCell('A2').value);
         console.log('[Excel Upload] A3:', metaSheet.getCell('A3').value);
         console.log('[Excel Upload] A4:', metaSheet.getCell('A4').value);
+        console.log('[Excel Upload] A5:', metaSheet.getCell('A5').value);
 
         const parseMeta = (row) => {
             const val = metaSheet.getCell(`A${row}`).value || '';
@@ -293,6 +309,7 @@ exports.uploadMarks = async (req, res) => {
         const class_id = parseMeta(2);
         const section_id = parseMeta(3);
         const templateSchoolId = parseMeta(4);
+        const matchBy = parseMeta(5) || 'student_id';
 
         if (String(templateSchoolId) !== String(school_id)) {
             return res.status(403).json({ message: 'This template belongs to a different school.' });
@@ -304,7 +321,7 @@ exports.uploadMarks = async (req, res) => {
 
         // 2. Get valid students for this class+section
         let studentQuery = `
-            SELECT st.id, st.name, st.admission_no
+            SELECT st.id, st.name, st.admission_no, st.custom_roll_number
             FROM students st
             WHERE st.school_id = $1 AND st.class_id = $2
               AND (st.status IS NULL OR st.status != 'Deleted')
@@ -312,7 +329,16 @@ exports.uploadMarks = async (req, res) => {
         const sp = [school_id, class_id];
         if (section_id) { studentQuery += ` AND st.section_id = $3`; sp.push(section_id); }
         const studentRes = await pool.query(studentQuery, sp);
-        const studentMap = new Map(studentRes.rows.map(s => [String(s.id), s]));
+        
+        // Build lookup maps
+        const studentMapById = new Map();
+        const studentMapByCustomRoll = new Map();
+        studentRes.rows.forEach(s => {
+            studentMapById.set(String(s.id), s);
+            if (s.custom_roll_number) {
+                studentMapByCustomRoll.set(String(s.custom_roll_number).trim().toLowerCase(), s);
+            }
+        });
 
         // 3. Get subjects for this exam+class+section and build header-to-subject map
         const scheduleRes = await pool.query(`
@@ -346,8 +372,18 @@ exports.uploadMarks = async (req, res) => {
             headers[colNum] = cell.value ? String(cell.value).trim() : '';
         });
 
-        const hasSatsColumn = headers[5] === 'SATS Number';
-        const startMarksColNum = hasSatsColumn ? 6 : 5;
+        // Find header columns dynamically
+        const satsColNum = headers.indexOf('SATS Number');
+        const nameColNum = headers.indexOf('Student Name');
+        const hasSatsColumn = satsColNum !== -1;
+        
+        let startMarksColNum = 5;
+        for (let colNum = 1; colNum <= headers.length; colNum++) {
+            if (headers[colNum] && subjectByHeader[headers[colNum]]) {
+                startMarksColNum = colNum;
+                break;
+            }
+        }
 
         const year = new Date().getFullYear();
         await client.query('BEGIN');
@@ -360,21 +396,36 @@ exports.uploadMarks = async (req, res) => {
         sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
             if (rowNum <= 1) return; // skip header only
 
-            const studentId = String(row.getCell(1).value || '').trim();
-            const studentName = String(row.getCell(4).value || '').trim();
+            const studentIdRaw = String(row.getCell(1).value || '').trim();
+            if (!studentIdRaw) return;
+            const studentName = nameColNum !== -1 ? String(row.getCell(nameColNum).value || '').trim() : '';
             
             let satsNumber = '';
             if (hasSatsColumn) {
-                satsNumber = String(row.getCell(5).value || '').trim();
+                satsNumber = String(row.getCell(satsColNum).value || '').trim();
             }
 
-            if (!studentId) return;
+            let matchedStudent = null;
+            if (matchBy === 'custom_roll') {
+                const customRollVal = studentIdRaw.toLowerCase();
+                if (customRollVal && studentMapByCustomRoll.has(customRollVal)) {
+                    matchedStudent = studentMapByCustomRoll.get(customRollVal);
+                }
+            } else {
+                if (studentIdRaw && studentMapById.has(studentIdRaw)) {
+                    matchedStudent = studentMapById.get(studentIdRaw);
+                }
+            }
 
-            if (!studentMap.has(studentId)) {
-                errors.push({ row: rowNum, student: studentName, error: 'Student ID not found in this class/section' });
+            if (!matchedStudent) {
+                const label = matchBy === 'custom_roll' ? 'Custom ID' : 'Student ID';
+                errors.push({ row: rowNum, student: studentName || `Custom ID: ${studentIdRaw}`, error: `Student not found by ${label}: "${studentIdRaw}"` });
                 skippedCount++;
                 return;
             }
+
+            const studentId = String(matchedStudent.id);
+            row._resolvedStudentId = studentId;
 
             // Update SATS number if provided
             if (hasSatsColumn && satsNumber) {
@@ -394,18 +445,17 @@ exports.uploadMarks = async (req, res) => {
                 }
 
                 if (isNaN(marks)) {
-                    errors.push({ row: rowNum, student: studentName, col: header, error: 'Invalid marks value' });
+                    errors.push({ row: rowNum, student: studentName || `Custom ID: ${studentIdRaw}`, col: header, error: 'Invalid marks value' });
                     continue;
                 }
 
                 const subInfo = subjectByHeader[header];
                 if (marks > subInfo.comp_max || marks > subInfo.max_marks) {
-                    errors.push({ row: rowNum, student: studentName, col: header, error: `Marks ${marks} exceed maximum allowed` });
+                    errors.push({ row: rowNum, student: studentName || `Custom ID: ${studentIdRaw}`, col: header, error: `Marks ${marks} exceed maximum allowed` });
                     continue;
                 }
 
                 // We'll accumulate for saving after all rows are read
-                // (accumulate in a list to save in batch via saveMarks logic)
                 row._marksToSave = row._marksToSave || [];
                 row._marksToSave.push({
                     student_id: studentId,
@@ -465,12 +515,11 @@ exports.uploadMarks = async (req, res) => {
 
         // 7. Update SATS Numbers in a separate pass
         for (const row of sheet._rows) {
-            if (row._satsToUpdate) {
-                const studentId = String(row.getCell(1).value).trim();
+            if (row._satsToUpdate && row._resolvedStudentId) {
                 try {
-                    await client.query('UPDATE students SET sats_number = $1 WHERE id = $2 AND school_id = $3', [row._satsToUpdate, studentId, school_id]);
+                    await client.query('UPDATE students SET sats_number = $1 WHERE id = $2 AND school_id = $3', [row._satsToUpdate, row._resolvedStudentId, school_id]);
                 } catch (e) {
-                    console.log(`[Excel Upload] Failed to update SATS for student ${studentId}:`, e.message);
+                    console.log(`[Excel Upload] Failed to update SATS for student ${row._resolvedStudentId}:`, e.message);
                 }
             }
         }

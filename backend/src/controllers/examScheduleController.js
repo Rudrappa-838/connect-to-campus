@@ -6,9 +6,10 @@ exports.getExamSchedule = async (req, res) => {
         const school_id = req.user.schoolId;
         const { class_id, section_id, exam_type_id } = req.query;
 
-        if (!exam_type_id && !class_id) {
+        // Option to fetch all schedules for a school if no filters are provided
+        /* if (!exam_type_id && !class_id) {
             return res.status(400).json({ message: 'Exam Type or Class ID is required' });
-        }
+        } */
 
         let query = `
             SELECT es.*, sub.name as subject_name, c.name as class_name, s.name as section_name, et.name as exam_type_name
