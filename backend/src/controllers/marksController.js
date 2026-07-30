@@ -792,7 +792,7 @@ exports.getStudentAllMarks = async (req, res) => {
             const marksQuery = `
                  SELECT DISTINCT ON (m.id) 
                         m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
-                        m.exam_type_id,
+                        m.exam_type_id, es.exam_date,
                         COALESCE(es.max_marks, et.max_marks, 100) as max_marks
                  FROM marks m
                  JOIN subjects sub ON m.subject_id = sub.id
@@ -830,7 +830,8 @@ exports.getStudentAllMarks = async (req, res) => {
                     subject: mark.subject_name,
                     subject_code: mark.subject_code || null,
                     marks: obtained,
-                    max: max
+                    max: max,
+                    exam_date: mark.exam_date ? (mark.exam_date instanceof Date ? mark.exam_date.toISOString().split('T')[0] : mark.exam_date) : null
                 });
 
                 examsMap[examName].total_obtained += obtained;
@@ -866,7 +867,7 @@ exports.getStudentAllMarks = async (req, res) => {
                    m.marks_obtained, 
                    sub.name as subject_name, 
                    et.name as exam_name,
-                   m.exam_type_id,
+                   m.exam_type_id, es.exam_date,
                    COALESCE(es.max_marks, et.max_marks, 100) as max_marks,
                    m.deleted_student_name,
                    m.deleted_student_admission_no
@@ -919,7 +920,8 @@ exports.getStudentAllMarks = async (req, res) => {
             examsMap[examName].subjects.push({
                 subject: mark.subject_name,
                 marks: obtained,
-                max: max
+                max: max,
+                exam_date: mark.exam_date ? (mark.exam_date instanceof Date ? mark.exam_date.toISOString().split('T')[0] : mark.exam_date) : null
             });
 
             examsMap[examName].total_obtained += obtained;
@@ -1201,6 +1203,99 @@ exports.generateWordMarksheet = async (req, res) => {
     } catch (error) {
         console.error('Error generating Word template:', error);
         res.status(500).json({ message: 'Failed to generate Word template' });
+    }
+};
+
+exports.getAllTestsReport = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const { class_id, section_id } = req.query;
+
+        if (!class_id) {
+            return res.status(400).json({ message: 'Class ID is required' });
+        }
+
+        // 1. Get all students in this class/section
+        let studentsQuery = `
+            SELECT id, name, admission_no, roll_number 
+            FROM students 
+            WHERE class_id = $1 AND school_id = $2 AND (status IS NULL OR status != 'Deleted')
+        `;
+        const studentParams = [parseInt(class_id), school_id];
+        if (section_id) {
+            studentParams.push(parseInt(section_id));
+            studentsQuery += ` AND section_id = $3`;
+        }
+        studentsQuery += ` ORDER BY roll_number, name`;
+        const studentsRes = await pool.query(studentsQuery, studentParams);
+        const students = studentsRes.rows;
+
+        if (students.length === 0) {
+            return res.json({ students: [], subjects: [], exams: [], schedules: [], marks: [] });
+        }
+
+        const studentIds = students.map(s => s.id);
+
+        // 2. Get all subjects for this class
+        const subjectsRes = await pool.query(
+            'SELECT id, name, code FROM subjects WHERE class_id = $1 ORDER BY name',
+            [parseInt(class_id)]
+        );
+        const subjects = subjectsRes.rows;
+
+        // 3. Get all exam types that have schedules for this class
+        let examsQuery = `
+            SELECT DISTINCT et.id, et.name, et.max_marks, et.min_marks
+            FROM exam_types et
+            JOIN exam_schedules es ON es.exam_type_id = et.id
+            WHERE es.class_id = $1 AND es.school_id = $2
+        `;
+        const examParams = [parseInt(class_id), school_id];
+        if (section_id) {
+            examParams.push(parseInt(section_id));
+            examsQuery += ` AND (es.section_id = $3 OR es.section_id IS NULL)`;
+        }
+        examsQuery += ` ORDER BY et.name`;
+        const examsRes = await pool.query(examsQuery, examParams);
+        const exams = examsRes.rows;
+
+        // 4. Get exam schedules (for dates, max/min marks)
+        let schedulesQuery = `
+            SELECT exam_type_id, subject_id, exam_date, max_marks, min_marks
+            FROM exam_schedules
+            WHERE class_id = $1 AND school_id = $2
+        `;
+        const scheduleParams = [parseInt(class_id), school_id];
+        if (section_id) {
+            scheduleParams.push(parseInt(section_id));
+            schedulesQuery += ` AND (section_id = $3 OR section_id IS NULL)`;
+        }
+        const schedulesRes = await pool.query(schedulesQuery, scheduleParams);
+        const schedules = schedulesRes.rows.map(item => ({
+            ...item,
+            exam_date: item.exam_date ? item.exam_date.toISOString().split('T')[0] : null
+        }));
+
+        // 5. Get all marks for these students
+        const marksRes = await pool.query(
+            `SELECT student_id, exam_type_id, subject_id, marks_obtained
+             FROM marks
+             WHERE school_id = $1 AND student_id = ANY($2::int[])`,
+            [school_id, studentIds]
+        );
+        const marks = marksRes.rows;
+
+        res.json({
+            students,
+            subjects,
+            exams,
+            schedules,
+            marks
+        });
+
+    } catch (error) {
+        console.error('Error generating all tests report:', error);
+        res.status(500).json({ message: 'Server error generating all tests report', error: error.message });
     }
 };
 

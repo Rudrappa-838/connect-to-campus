@@ -49,6 +49,12 @@ const ExamSchedule = ({ config }) => {
     const [copyDateOverrides, setCopyDateOverrides] = useState({}); // { [subject_id]: 'YYYY-MM-DD' }
     const [copyTargetClasses, setCopyTargetClasses] = useState([]); // [{ class_id, section_id, class_name, section_name }]
 
+    // Enhanced Copy states
+    const [copySubjectList, setCopySubjectList] = useState([]); // [{ subject_id, subject_name, original_date, exam_date, is_dirty_date, start_time, end_time, max_marks, min_marks, components, target_batch }]
+    const [copyClassSubjects, setCopyClassSubjects] = useState([]);
+    const [copyingLoadingSubjects, setCopyingLoadingSubjects] = useState(false);
+    const [selectedAddSubjectId, setSelectedAddSubjectId] = useState('');
+
     // Ref to suppress the auto-fetch when we intentionally set a new exam (e.g. after copy)
     const skipNextFetchRef = useRef(false);
 
@@ -64,6 +70,16 @@ const ExamSchedule = ({ config }) => {
     }, [targetClasses]);
 
     useEffect(() => {
+        if (selectedNewClass) {
+            api.get(`/classes/${selectedNewClass}/sections`)
+                .then(res => setNewClassSections(res.data))
+                .catch(err => console.error('Failed to fetch sections for selectedNewClass:', err));
+        } else {
+            setNewClassSections([]);
+        }
+    }, [selectedNewClass]);
+
+    useEffect(() => {
         if (selectedExam) {
             // If copy just set this exam, skip the DB fetch — we already have the schedule in state
             if (skipNextFetchRef.current) {
@@ -75,6 +91,149 @@ const ExamSchedule = ({ config }) => {
             setSchedule([]);
         }
     }, [selectedExam]);
+
+    useEffect(() => {
+        if (showCopyModal) {
+            fetchCopyTargetSubjects();
+        } else {
+            setCopyClassSubjects([]);
+        }
+    }, [copyTargetClasses, showCopyModal]);
+
+    const fetchCopyTargetSubjects = async () => {
+        if (copyTargetClasses.length === 0) {
+            setCopyClassSubjects([]);
+            setCopySubjectList([]);
+            return;
+        }
+
+        setCopyingLoadingSubjects(true);
+        try {
+            const uniqueSubjects = new Map();
+            for (const target of copyTargetClasses) {
+                const url = target.section_id
+                    ? `/classes/${target.class_id}/sections/${target.section_id}/subjects`
+                    : `/classes/${target.class_id}/subjects`;
+                const res = await api.get(url);
+                res.data.forEach(sub => {
+                    if (!uniqueSubjects.has(sub.id)) {
+                        uniqueSubjects.set(sub.id, sub);
+                    }
+                });
+            }
+            const allTargetSubjects = Array.from(uniqueSubjects.values());
+            setCopyClassSubjects(allTargetSubjects);
+
+            // Create subject list from original schedule items that are valid for target classes
+            const originalUniqueSubjects = [];
+            const seen = new Set();
+            schedule.forEach(item => {
+                if (!seen.has(item.subject_id)) {
+                    seen.add(item.subject_id);
+                    originalUniqueSubjects.push(item);
+                }
+            });
+
+            setCopySubjectList(prev => {
+                const targetSubjectIds = new Set(allTargetSubjects.map(s => s.id));
+                const preserved = prev.filter(item => targetSubjectIds.has(item.subject_id));
+
+                const originalUniqueSubjectsInTarget = originalUniqueSubjects.filter(orig => 
+                    targetSubjectIds.has(orig.subject_id) && !preserved.some(p => p.subject_id === orig.subject_id)
+                );
+
+                const newMapped = originalUniqueSubjectsInTarget.map(orig => {
+                    const origDate = new Date(orig.exam_date + 'T00:00:00');
+                    const shifted = new Date(origDate);
+                    shifted.setDate(shifted.getDate() + (parseInt(copyDateShift) || 0));
+                    const newDateStr = shifted.toISOString().split('T')[0];
+
+                    return {
+                        subject_id: orig.subject_id,
+                        subject_name: orig.subject_name,
+                        original_date: orig.exam_date,
+                        exam_date: newDateStr,
+                        is_dirty_date: false,
+                        start_time: orig.start_time || '09:00',
+                        end_time: orig.end_time || '12:00',
+                        max_marks: orig.max_marks || 100,
+                        min_marks: orig.min_marks || 35,
+                        components: orig.components ? JSON.parse(JSON.stringify(orig.components)) : [],
+                        target_batch: orig.target_batch || null
+                    };
+                });
+
+                return [...preserved, ...newMapped];
+            });
+
+        } catch (error) {
+            console.error("Error fetching target classes subjects:", error);
+            toast.error("Failed to fetch subjects for target classes");
+        } finally {
+            setCopyingLoadingSubjects(false);
+        }
+    };
+
+    const handleCopyDateShiftChange = (shiftValue) => {
+        setCopyDateShift(shiftValue);
+        const shift = parseInt(shiftValue) || 0;
+        setCopySubjectList(prev => prev.map(item => {
+            if (!item.is_dirty_date && item.original_date) {
+                const origDate = new Date(item.original_date + 'T00:00:00');
+                const shifted = new Date(origDate);
+                shifted.setDate(shifted.getDate() + shift);
+                return {
+                    ...item,
+                    exam_date: shifted.toISOString().split('T')[0]
+                };
+            }
+            return item;
+        }));
+    };
+
+    const handleCopyAddSubject = () => {
+        if (!selectedAddSubjectId) return;
+        const subId = parseInt(selectedAddSubjectId);
+        const sub = copyClassSubjects.find(s => s.id === subId);
+        if (!sub) return;
+
+        if (copySubjectList.some(s => s.subject_id === subId)) {
+            toast.error("Subject is already in the list");
+            return;
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        setCopySubjectList(prev => [
+            ...prev,
+            {
+                subject_id: sub.id,
+                subject_name: sub.name,
+                original_date: null,
+                exam_date: todayStr,
+                is_dirty_date: true,
+                start_time: '09:00',
+                end_time: '12:00',
+                max_marks: 100,
+                min_marks: 35,
+                components: [],
+                target_batch: null
+            }
+        ]);
+        setSelectedAddSubjectId('');
+        toast.success(`Added ${sub.name} to copy preview`);
+    };
+
+    const handleCopyDeleteSubject = (subjectId) => {
+        setCopySubjectList(prev => prev.filter(s => s.subject_id !== subjectId));
+        toast.success("Subject removed from copy preview");
+    };
+
+    const availableToCopyAdd = useMemo(() => {
+        // Unique subjects of target classes minus subjects currently in copySubjectList
+        const activeIds = new Set(copySubjectList.map(s => s.subject_id));
+        return copyClassSubjects.filter(sub => !activeIds.has(sub.id));
+    }, [copyClassSubjects, copySubjectList]);
 
     // Format time to 12-hour format
     const formatTime12Hour = (time24) => {
@@ -114,32 +273,44 @@ const ExamSchedule = ({ config }) => {
     };
 
     const fetchSubjects = async () => {
-        // Collect all unique subjects for selected classes
-        // For simplicity, we'll fetch subjects for the FIRST selected class and assume uniformity 
-        // OR fetch all and deduplicate.
         if (targetClasses.length === 0) return;
 
         try {
-            const uniqueSubjects = new Map();
+            const subjectMap = new Map(); // lowercase_name -> { id: string, name: string, classSubjects: { [class_id]: sub_obj } }
             for (const target of targetClasses) {
-                const res = await api.get(`/classes/${target.class_id}/sections/${target.section_id}/subjects`);
+                // Fetch subjects at the class level (robust, no section needed)
+                const res = await api.get(`/classes/${target.class_id}/subjects`);
                 res.data.forEach(sub => {
-                    if (!uniqueSubjects.has(sub.id)) {
-                        uniqueSubjects.set(sub.id, sub);
+                    const key = sub.name.toLowerCase().trim();
+                    if (!subjectMap.has(key)) {
+                        subjectMap.set(key, {
+                            id: key, // Use key as pseudo-id
+                            name: sub.name,
+                            classSubjects: {
+                                [target.class_id]: sub
+                            }
+                        });
+                    } else {
+                        const existing = subjectMap.get(key);
+                        existing.classSubjects[target.class_id] = sub;
                     }
                 });
             }
-            setAvailableSubjects(Array.from(uniqueSubjects.values()));
+            const uniqueSubs = Array.from(subjectMap.values());
+            setAvailableSubjects(uniqueSubs);
 
             // Initialize subject configs
             const initialConfigs = {};
-            Array.from(uniqueSubjects.values()).forEach(sub => {
+            uniqueSubs.forEach(sub => {
                 initialConfigs[sub.id] = {
                     selected: false,
                     date: '',
                     startTime: '09:00',
                     endTime: '12:00',
-                    components: [] // [{ name: 'Theory', max_marks: 70 }]
+                    components: [],
+                    max_marks: 100,
+                    min_marks: 35,
+                    target_batch: ''
                 };
             });
             setSubjectConfigs(initialConfigs);
@@ -151,9 +322,6 @@ const ExamSchedule = ({ config }) => {
     const handleAddClass = (classId, sectionId) => {
         if (!classId || !sectionId) return;
         const cls = classes.find(c => c.id === parseInt(classId));
-        // We need section name, which implies we need to fetch sections or have them
-        // Let's assume sections are fetched when class is selected in a dropdown
-        // Implementation detail: create a mini form for adding class
     };
 
     const fetchExistingSchedule = async () => {
@@ -162,12 +330,8 @@ const ExamSchedule = ({ config }) => {
             const res = await api.get('/exam-schedule', {
                 params: { exam_type_id: selectedExam }
             });
-            // Map keys if necessary, but backend now returns matching keys
-            // Need to ensure keys match state shape: id, class_id, section_id, class_name, section_name, subject_id, subject_name, exam_date, start_time, end_time
-            // Backend returns: id, school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, created_at, subject_name, class_name, section_name
             const mapped = res.data.map(item => ({
                 ...item,
-                // Ensure date string is YYYY-MM-DD
                 exam_date: item.exam_date.split('T')[0]
             }));
             setSchedule(mapped);
@@ -182,7 +346,7 @@ const ExamSchedule = ({ config }) => {
     const handleGenerate = () => {
         const selectedSubs = Object.entries(subjectConfigs)
             .filter(([_, conf]) => conf.selected)
-            .map(([id, conf]) => ({ id: parseInt(id), ...conf }));
+            .map(([id, conf]) => ({ id, ...conf }));
 
         if (selectedSubs.length === 0) {
             toast.error('Please select at least one subject');
@@ -224,6 +388,19 @@ const ExamSchedule = ({ config }) => {
         const newSchedule = [];
         targetClasses.forEach(cls => {
             selectedSubs.forEach(sub => {
+                const availableSubObj = availableSubjects.find(s => s.id === sub.id);
+                const classSub = availableSubObj?.classSubjects?.[cls.class_id];
+                
+                if (!classSub) return; // Skip if subject is not applicable to this class
+
+                // Skip duplicates in schedule
+                const isDuplicate = schedule.some(s =>
+                    s.class_id === cls.class_id &&
+                    (cls.section_id ? s.section_id === cls.section_id : !s.section_id) &&
+                    s.subject_id === classSub.id
+                );
+                if (isDuplicate) return;
+
                 newSchedule.push({
                     id: Date.now() + Math.random(),
                     data_new: true,
@@ -231,10 +408,10 @@ const ExamSchedule = ({ config }) => {
                     exam_type_id: parseInt(selectedExam),
                     class_id: cls.class_id,
                     section_id: cls.section_id,
-                    subject_id: sub.id,
+                    subject_id: classSub.id, // Use actual class-specific subject ID
                     class_name: cls.class_name,
                     section_name: cls.section_name,
-                    subject_name: availableSubjects.find(s => s.id === sub.id)?.name,
+                    subject_name: classSub.name,
                     exam_date: sub.date,
                     start_time: sub.startTime,
                     end_time: sub.endTime,
@@ -256,7 +433,6 @@ const ExamSchedule = ({ config }) => {
         const newConfigs = { ...subjectConfigs };
 
         if (!batch) {
-            // Clear filter: we don't necessarily select/deselect everything, but let's just clear target_batch
             Object.keys(newConfigs).forEach(id => {
                 newConfigs[id].target_batch = '';
             });
@@ -288,7 +464,7 @@ const ExamSchedule = ({ config }) => {
 
         const selectedSubs = Object.entries(subjectConfigs)
             .filter(([_, conf]) => conf.selected)
-            .map(([id, conf]) => ({ id: parseInt(id), ...conf }));
+            .map(([id, conf]) => ({ id, ...conf }));
 
         if (selectedSubs.length === 0) { toast.error('Please select at least one subject'); return; }
         const incomplete = selectedSubs.find(s => !s.date || !s.startTime || !s.endTime);
@@ -320,19 +496,33 @@ const ExamSchedule = ({ config }) => {
         const newScheduleItems = [];
         targetClasses.forEach(cls => {
             selectedSubs.forEach(sub => {
+                const availableSubObj = availableSubjects.find(s => s.id === sub.id);
+                const classSub = availableSubObj?.classSubjects?.[cls.class_id];
+                
+                if (!classSub) return;
+
+                // Skip duplicates in schedule
+                const isDuplicate = schedule.some(s =>
+                    !s.data_new && // Check against saved items
+                    s.class_id === cls.class_id &&
+                    (cls.section_id ? s.section_id === cls.section_id : !s.section_id) &&
+                    s.subject_id === classSub.id
+                );
+                if (isDuplicate) return;
+
                 newScheduleItems.push({
                     id: Date.now() + Math.random(),
                     school_id: cls.school_id,
                     exam_type_id: parseInt(selectedExam),
                     class_id: cls.class_id,
                     section_id: cls.section_id,
-                    subject_id: sub.id,
+                    subject_id: classSub.id, // Use actual class-specific subject ID
                     class_name: cls.class_name,
                     section_name: cls.section_name,
-                    subject_name: availableSubjects.find(s => s.id === sub.id)?.name,
+                    subject_name: classSub.name,
                     exam_date: sub.date,
-                    start_time: sub.startTime,
-                    end_time: sub.endTime,
+                    start_time: sub.start_time || sub.startTime,
+                    end_time: sub.end_time || sub.endTime,
                     max_marks: sub.max_marks,
                     min_marks: sub.min_marks,
                     components: sub.components,
@@ -652,9 +842,23 @@ const ExamSchedule = ({ config }) => {
             toast.error('Please select at least one class for the copy');
             return;
         }
-        if (schedule.length === 0) {
-            toast.error('No schedule to copy');
+        if (copySubjectList.length === 0) {
+            toast.error('Please configure at least one subject to copy');
             return;
+        }
+
+        // Validate Subject Configs
+        const incomplete = copySubjectList.find(s => !s.exam_date || !s.start_time || !s.end_time);
+        if (incomplete) {
+            toast.error(`Please fill date and time fields for all selected subjects (e.g. ${incomplete.subject_name})`);
+            return;
+        }
+
+        for (const sub of copySubjectList) {
+            if (parseFloat(sub.min_marks) > parseFloat(sub.max_marks)) {
+                toast.error(`Subject '${sub.subject_name}' Min Marks (${sub.min_marks}) cannot be greater than Max Marks (${sub.max_marks})`);
+                return;
+            }
         }
 
         setLoading(true);
@@ -671,48 +875,47 @@ const ExamSchedule = ({ config }) => {
             });
             const newExamType = res.data;
 
-            // 2. Copy all schedule rows with shifted dates
-            const shiftDays = parseInt(copyDateShift) || 0;
+            let copiedSchedule = [];
+            // Build entries for each selected class × each unique subject matching the class
+            for (const cls of copyTargetClasses) {
+                const url = cls.section_id
+                    ? `/classes/${cls.class_id}/sections/${cls.section_id}/subjects`
+                    : `/classes/${cls.class_id}/subjects`;
+                const sRes = await api.get(url);
+                const classSubjectIds = new Set(sRes.data.map(sub => sub.id));
 
-            // Get unique subjects from original schedule as templates
-            const subjectTemplates = [...new Map(schedule.map(s => [s.subject_id, s])).values()];
-
-            // Helper: resolve new date for a subject (override > global shift)
-            const getNewDate = (template) => {
-                if (copyDateOverrides[template.subject_id]) return copyDateOverrides[template.subject_id];
-                const d = new Date(template.exam_date + 'T00:00:00');
-                d.setDate(d.getDate() + shiftDays);
-                return d.toISOString().split('T')[0];
-            };
-
-            let copiedSchedule;
-            // Build entries for each selected class × each unique subject
-            copiedSchedule = [];
-            copyTargetClasses.forEach(cls => {
-                subjectTemplates.forEach(template => {
-                    copiedSchedule.push({
-                        id: Date.now() + Math.random(),
-                        school_id: template.school_id,
-                        exam_type_id: newExamType.id,
-                        class_id: cls.class_id,
-                        section_id: cls.section_id,
-                        subject_id: template.subject_id,
-                        class_name: cls.class_name,
-                        section_name: cls.section_name,
-                        subject_name: template.subject_name,
-                        exam_date: getNewDate(template),
-                        start_time: template.start_time,
-                        end_time: template.end_time,
-                        max_marks: template.max_marks,
-                        min_marks: template.min_marks,
-                        components: template.components
-                            ? JSON.parse(JSON.stringify(template.components))
-                            : [],
-                        target_batch: template.target_batch || null,
-                        data_new: true
-                    });
+                copySubjectList.forEach(item => {
+                    if (classSubjectIds.has(item.subject_id)) {
+                        copiedSchedule.push({
+                            id: Date.now() + Math.random(),
+                            school_id: sourceExam?.school_id || cls.school_id,
+                            exam_type_id: newExamType.id,
+                            class_id: cls.class_id,
+                            section_id: cls.section_id,
+                            subject_id: item.subject_id,
+                            class_name: cls.class_name,
+                            section_name: cls.section_name,
+                            subject_name: item.subject_name,
+                            exam_date: item.exam_date,
+                            start_time: item.start_time,
+                            end_time: item.end_time,
+                            max_marks: item.max_marks,
+                            min_marks: item.min_marks,
+                            components: item.components ? JSON.parse(JSON.stringify(item.components)) : [],
+                            target_batch: item.target_batch || null,
+                            data_new: true
+                        });
+                    }
                 });
-            });
+            }
+
+            if (copiedSchedule.length === 0) {
+                // If no matching subjects, delete the newly created exam type to clean up
+                await api.delete(`/marks/exam-types/${newExamType.id}`);
+                toast.error('None of the target classes support the selected subjects');
+                setLoading(false);
+                return;
+            }
 
             // 3. Save the copied schedule directly to DB
             const payload = copiedSchedule.map(item => ({
@@ -738,6 +941,8 @@ const ExamSchedule = ({ config }) => {
             setCopyDateShift(30);
             setCopyDateOverrides({});
             setCopyTargetClasses([]);
+            setCopySubjectList([]);
+            setCopyClassSubjects([]);
             toast.success(`✅ "${newExamType.name}" created and saved!`);
         } catch (error) {
             console.error(error);
@@ -860,6 +1065,9 @@ const ExamSchedule = ({ config }) => {
                                 setCopyDateShift(30);
                                 setCopyDateOverrides({});
                                 setCopyTargetClasses([]);
+                                setCopySubjectList([]);
+                                setCopyClassSubjects([]);
+                                setSelectedAddSubjectId('');
                                 setShowCopyModal(true);
                             }}
                             disabled={!selectedExam || schedule.length === 0 || schedule.some(s => s.data_new)}
@@ -1602,7 +1810,7 @@ const ExamSchedule = ({ config }) => {
                                     {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
-                            {sections.length > 0 && (
+                            {newClassSections.length > 0 && (
                                 <div>
                                     <label className="block text-sm font-bold mb-1">Select Section</label>
                                     <select
@@ -1611,7 +1819,7 @@ const ExamSchedule = ({ config }) => {
                                         className="w-full border p-2 rounded"
                                     >
                                         <option value="">-- Section --</option>
-                                        {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                        {newClassSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                     </select>
                                 </div>
                             )}
@@ -1844,9 +2052,9 @@ const ExamSchedule = ({ config }) => {
             {/* Copy Timetable Modal */}
             {showCopyModal && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 print:hidden">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                         {/* Modal Header */}
-                        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-start">
+                        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-start flex-shrink-0">
                             <div>
                                 <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                                     <Copy size={20} className="text-purple-600" /> Copy Exam Schedule
@@ -1855,12 +2063,12 @@ const ExamSchedule = ({ config }) => {
                                     Duplicate &ldquo;{examTypes.find(e => e.id === parseInt(selectedExam))?.name}&rdquo; as a new exam type
                                 </p>
                             </div>
-                            <button onClick={() => { setShowCopyModal(false); setCopyDateOverrides({}); setCopyTargetClasses([]); }} className="text-slate-400 hover:text-slate-700 mt-0.5">
+                            <button onClick={() => { setShowCopyModal(false); setCopyDateOverrides({}); setCopyTargetClasses([]); setCopySubjectList([]); setCopyClassSubjects([]); setSelectedAddSubjectId(''); }} className="text-slate-400 hover:text-slate-700 mt-0.5">
                                 <X size={22} />
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-5">
+                        <div className="p-6 space-y-5 overflow-y-auto flex-1 font-sans">
                             {/* New Exam Name */}
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1">
@@ -1871,7 +2079,7 @@ const ExamSchedule = ({ config }) => {
                                     value={copyExamName}
                                     onChange={e => setCopyExamName(e.target.value)}
                                     placeholder="e.g. Term 2 Exam 2026"
-                                    className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm"
+                                    className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm font-medium"
                                 />
                             </div>
 
@@ -1882,7 +2090,7 @@ const ExamSchedule = ({ config }) => {
                                     <input
                                         type="number"
                                         value={copyDateShift}
-                                        onChange={e => setCopyDateShift(e.target.value)}
+                                        onChange={e => handleCopyDateShiftChange(e.target.value)}
                                         className="w-28 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 outline-none text-sm text-center font-bold"
                                     />
                                     <span className="text-sm text-slate-500 font-medium">
@@ -1892,17 +2100,8 @@ const ExamSchedule = ({ config }) => {
                                             ? `${copyDateShift} days backward`
                                             : 'Same dates (no shift)'}
                                     </span>
-                                    {Object.keys(copyDateOverrides).length > 0 && (
-                                        <button
-                                            onClick={() => setCopyDateOverrides({})}
-                                            className="text-xs text-red-500 hover:text-red-700 underline font-medium flex-shrink-0"
-                                            title="Clear all individually-set dates and use the global shift"
-                                        >
-                                            ↺ Reset custom dates ({Object.keys(copyDateOverrides).length})
-                                        </button>
-                                    )}
                                 </div>
-                                <p className="text-xs text-slate-400 mt-1">You can also edit each subject's date individually in the table below.</p>
+                                <p className="text-xs text-slate-400 mt-1">You can also edit each subject's configuration individually in the table below.</p>
                             </div>
 
                             {/* Target Classes */}
@@ -1933,71 +2132,176 @@ const ExamSchedule = ({ config }) => {
 
                             {/* Live Preview Table */}
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">Date Preview</label>
-                                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                                    <div className="max-h-48 overflow-y-auto">
-                                        <table className="w-full text-xs">
-                                            <thead className="bg-slate-100 sticky top-0 z-10">
-                                                <tr>
-                                                    <th className="px-3 py-2 text-left text-slate-600 font-bold">Subject</th>
-                                                    <th className="px-3 py-2 text-left text-slate-500 font-bold">Original</th>
-                                                    <th className="px-3 py-2 text-left text-purple-700 font-bold">→ New Date <span className="font-normal text-purple-400">(editable)</span></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {[...new Map(schedule.map(s => [s.subject_id, s])).values()]
-                                                    .sort((a, b) => new Date(a.exam_date) - new Date(b.exam_date))
-                                                    .map((item, i) => {
-                                                        const origDate = new Date(item.exam_date + 'T00:00:00');
-                                                        const shifted = new Date(origDate);
-                                                        shifted.setDate(shifted.getDate() + (parseInt(copyDateShift) || 0));
-                                                        const newDateStr = shifted.toISOString().split('T')[0];
-                                                        const dateChanged = newDateStr !== item.exam_date;
-                                                        return (
-                                                            <tr key={i} className="hover:bg-purple-50">
-                                                                <td className="px-3 py-2 font-medium text-slate-700">
-                                                                    {item.subject_name}
-                                                                    {copyDateOverrides[item.subject_id] && (
-                                                                        <span className="ml-1 text-purple-500 text-xs font-bold">•</span>
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-3 py-2 text-slate-400">{item.exam_date}</td>
-                                                                <td className="px-2 py-1.5">
-                                                                    <input
-                                                                        type="date"
-                                                                        value={copyDateOverrides[item.subject_id] || newDateStr}
-                                                                        onChange={e => setCopyDateOverrides(prev => ({
-                                                                            ...prev,
-                                                                            [item.subject_id]: e.target.value
-                                                                        }))}
-                                                                        className={`border rounded px-2 py-1 text-xs font-bold outline-none w-full focus:ring-2 ${
-                                                                            copyDateOverrides[item.subject_id]
-                                                                                ? 'border-purple-400 text-purple-700 bg-purple-50 focus:ring-purple-400'
-                                                                                : 'border-slate-300 text-slate-600 focus:ring-purple-300'
-                                                                        }`}
-                                                                    />
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                            </tbody>
-                                        </table>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Subject Schedule & Marks Preview</label>
+                                {copyingLoadingSubjects ? (
+                                    <div className="flex items-center justify-center py-8 text-slate-500 gap-2">
+                                        <RefreshCw className="animate-spin text-purple-600" size={20} />
+                                        <span className="text-sm font-medium">Fetching subjects for target classes...</span>
                                     </div>
-                                </div>
+                                ) : copyTargetClasses.length === 0 ? (
+                                    <div className="border border-dashed border-slate-300 rounded-lg p-6 text-center text-slate-400 text-sm">
+                                        Select at least one target class above to preview and edit subjects.
+                                    </div>
+                                ) : copySubjectList.length === 0 ? (
+                                    <div className="border border-dashed border-slate-300 rounded-lg p-6 text-center text-slate-400 text-sm">
+                                        No subjects scheduled. Add some subjects from the section below.
+                                    </div>
+                                ) : (
+                                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                        <div className="max-h-60 overflow-y-auto">
+                                            <table className="w-full text-xs text-left">
+                                                <thead className="bg-slate-100 sticky top-0 z-10 text-slate-700 font-bold">
+                                                    <tr>
+                                                        <th className="px-3 py-2">Subject</th>
+                                                        <th className="px-3 py-2 w-24">Original Date</th>
+                                                        <th className="px-3 py-2 w-32">→ New Date</th>
+                                                        <th className="px-3 py-2 w-24">Start Time</th>
+                                                        <th className="px-3 py-2 w-24">End Time</th>
+                                                        <th className="px-3 py-2 w-16">Max</th>
+                                                        <th className="px-3 py-2 w-16">Min</th>
+                                                        <th className="px-2 py-2 text-center w-8"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {copySubjectList.map((item, i) => (
+                                                        <tr key={i} className="hover:bg-purple-50/50">
+                                                            <td className="px-3 py-1.5 font-bold text-slate-800">
+                                                                {item.subject_name}
+                                                            </td>
+                                                            <td className="px-3 py-1.5 text-slate-400 font-medium">
+                                                                {item.original_date || <span className="text-purple-600 font-semibold italic text-[10px]">New</span>}
+                                                            </td>
+                                                            <td className="px-2 py-1">
+                                                                <input
+                                                                    type="date"
+                                                                    value={item.exam_date}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        setCopySubjectList(prev => prev.map(s =>
+                                                                            s.subject_id === item.subject_id
+                                                                                ? { ...s, exam_date: val, is_dirty_date: true }
+                                                                                : s
+                                                                        ));
+                                                                    }}
+                                                                    className="border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold outline-none w-full focus:ring-1 focus:ring-purple-400 text-slate-700"
+                                                                />
+                                                            </td>
+                                                            <td className="px-2 py-1">
+                                                                <input
+                                                                    type="time"
+                                                                    value={item.start_time}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        setCopySubjectList(prev => prev.map(s =>
+                                                                            s.subject_id === item.subject_id
+                                                                                ? { ...s, start_time: val }
+                                                                                : s
+                                                                        ));
+                                                                    }}
+                                                                    className="border border-slate-300 rounded px-1.5 py-0.5 text-xs outline-none w-full focus:ring-1 focus:ring-purple-400 text-slate-700 font-medium"
+                                                                />
+                                                            </td>
+                                                            <td className="px-2 py-1">
+                                                                <input
+                                                                    type="time"
+                                                                    value={item.end_time}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        setCopySubjectList(prev => prev.map(s =>
+                                                                            s.subject_id === item.subject_id
+                                                                                ? { ...s, end_time: val }
+                                                                                : s
+                                                                        ));
+                                                                    }}
+                                                                    className="border border-slate-300 rounded px-1.5 py-0.5 text-xs outline-none w-full focus:ring-1 focus:ring-purple-400 text-slate-700 font-medium"
+                                                                />
+                                                            </td>
+                                                            <td className="px-2 py-1">
+                                                                <input
+                                                                    type="number"
+                                                                    value={item.max_marks}
+                                                                    onChange={e => {
+                                                                        const val = parseFloat(e.target.value) || 0;
+                                                                        setCopySubjectList(prev => prev.map(s =>
+                                                                            s.subject_id === item.subject_id
+                                                                                ? { ...s, max_marks: val }
+                                                                                : s
+                                                                        ));
+                                                                    }}
+                                                                    className="border border-slate-300 rounded px-1 py-0.5 text-xs text-center outline-none w-full focus:ring-1 focus:ring-purple-400 text-slate-700 font-semibold"
+                                                                />
+                                                            </td>
+                                                            <td className="px-2 py-1">
+                                                                <input
+                                                                    type="number"
+                                                                    value={item.min_marks}
+                                                                    onChange={e => {
+                                                                        const val = parseFloat(e.target.value) || 0;
+                                                                        setCopySubjectList(prev => prev.map(s =>
+                                                                            s.subject_id === item.subject_id
+                                                                                ? { ...s, min_marks: val }
+                                                                                : s
+                                                                        ));
+                                                                    }}
+                                                                    className="border border-slate-300 rounded px-1 py-0.5 text-xs text-center outline-none w-full focus:ring-1 focus:ring-purple-400 text-slate-700 font-semibold"
+                                                                />
+                                                            </td>
+                                                            <td className="px-2 py-1 text-center">
+                                                                <button
+                                                                    onClick={() => handleCopyDeleteSubject(item.subject_id)}
+                                                                    className="text-slate-400 hover:text-red-500 transition-colors p-0.5"
+                                                                    title="Delete Subject"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
+                            {/* Add Additional Subjects Dropdown */}
+                            {copyTargetClasses.length > 0 && availableToCopyAdd.length > 0 && (
+                                <div className="bg-purple-50/50 p-3 rounded-lg border border-purple-100 flex items-center justify-between gap-3">
+                                    <div className="flex-1">
+                                        <label className="block text-[11px] font-bold text-purple-700 uppercase tracking-wider mb-1">Add Another Subject</label>
+                                        <select
+                                            value={selectedAddSubjectId}
+                                            onChange={e => setSelectedAddSubjectId(e.target.value)}
+                                            className="w-full px-2 py-1.5 border border-purple-200 rounded-md focus:ring-2 focus:ring-purple-500 outline-none text-xs bg-white font-medium text-slate-700"
+                                        >
+                                            <option value="">-- Select Subject to Add --</option>
+                                            {availableToCopyAdd.map(sub => (
+                                                <option key={sub.id} value={sub.id}>{sub.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <button
+                                        onClick={handleCopyAddSubject}
+                                        disabled={!selectedAddSubjectId}
+                                        className="bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3.5 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 mt-4"
+                                    >
+                                        <Plus size={14} /> Add Subject
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
+                        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex justify-end gap-3 flex-shrink-0">
                             <button
-                                onClick={() => { setShowCopyModal(false); setCopyDateOverrides({}); setCopyTargetClasses([]); }}
+                                onClick={() => { setShowCopyModal(false); setCopyDateOverrides({}); setCopyTargetClasses([]); setCopySubjectList([]); setCopyClassSubjects([]); setSelectedAddSubjectId(''); }}
                                 className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-bold text-sm transition-all"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleCopyExam}
-                                disabled={loading || !copyExamName.trim() || copyTargetClasses.length === 0}
+                                disabled={loading || !copyExamName.trim() || copyTargetClasses.length === 0 || copySubjectList.length === 0}
                                 className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-sm"
                             >
                                 <Copy size={15} /> Create &amp; Save

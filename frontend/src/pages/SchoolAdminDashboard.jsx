@@ -69,6 +69,7 @@ import DedicatedQuestionBank from '../components/dashboard/academics/question-pa
 import GradeManagement from '../components/dashboard/academics/GradeManagement';
 import TopperList from '../components/dashboard/academics/TopperList';
 import StudentOverallResult from '../components/dashboard/academics/StudentOverallResult';
+import AllTestsReport from '../components/dashboard/academics/AllTestsReport';
 
 // Hostel Components
 import HostelOverview from '../components/dashboard/hostel/HostelOverview';
@@ -376,6 +377,7 @@ const SchoolAdminDashboard = () => {
                         <NavSubButton active={activeTab === 'marks'} onClick={() => handleTabChange('marks')} label="Marks" />
                         <NavSubButton active={activeTab === 'topper-list'} onClick={() => handleTabChange('topper-list')} label="Topper List" />
                         <NavSubButton active={activeTab === 'student-overall'} onClick={() => handleTabChange('student-overall')} label="Student Overall Result" />
+                        <NavSubButton active={activeTab === 'all-tests'} onClick={() => handleTabChange('all-tests')} label="All Tests" />
                     </NavGroup>
 
                     {academicConfig.has_neet_exams && (
@@ -600,6 +602,7 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'topper-list' && <TopperList config={academicConfig} />}
                         {activeTab === 'student-overall' && <StudentOverallResult config={academicConfig} />}
                         {activeTab === 'exam-schedule' && <ExamSchedule config={academicConfig} />}
+                        {activeTab === 'all-tests' && <AllTestsReport config={academicConfig} />}
                         {activeTab === 'grading' && <GradeManagement />}
                         {activeTab === 'question-generator' && <QuestionPaperGenerator config={academicConfig} />}
                         {activeTab === 'question-bank' && <DedicatedQuestionBank config={academicConfig} />}
@@ -744,6 +747,7 @@ const getTabTitle = (tab, getLabel = (k, d) => d) => {
         'marks': 'Marks Management',
         'topper-list': 'Class Toppers',
         'exam-schedule': 'Exam Schedule',
+        'all-tests': 'All Exams Marksheet',
         'grading': 'Grade Configuration',
         'question-bank': 'NEET & JEE Master Bank',
         'question-generator': 'AI Question Paper Generator',

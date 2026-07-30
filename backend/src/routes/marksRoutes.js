@@ -26,6 +26,7 @@ router.get('/marksheet/word/:templateId', marksController.generateWordMarksheet)
 // Toppers List
 router.get('/toppers', marksController.getToppers);
 router.get('/student-all', marksController.getStudentAllMarks);
+router.get('/all-tests-report', marksController.getAllTestsReport);
 
 // Excel Bulk Marks Import/Export
 router.get('/excel/combos', excelController.getExamCombos);

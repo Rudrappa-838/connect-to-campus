@@ -243,11 +243,11 @@ const ProfessionalMarksheet = ({ student, exam, school }) => {
                                 </td>
                                 <td style={{ ...tdStyle, textAlign: 'center' }}>
                                     {s.marks_obtained !== null && s.marks_obtained !== undefined && s.marks_obtained !== ''
-                                        ? s.marks_obtained : '-'}
+                                        ? s.marks_obtained : 'ABSENT'}
                                 </td>
                                 <td style={{ ...tdStyle, textAlign: 'center' }}>
                                     {s.marks_obtained !== null && s.marks_obtained !== undefined && s.marks_obtained !== ''
-                                        ? numberToWords(s.marks_obtained) : '-'}
+                                        ? numberToWords(s.marks_obtained) : 'ABSENT'}
                                 </td>
                             </tr>
                         ))}
@@ -274,11 +274,11 @@ const ProfessionalMarksheet = ({ student, exam, school }) => {
                                 </td>
                                 <td style={{ ...tdStyle, textAlign: 'center' }}>
                                     {s.marks_obtained !== null && s.marks_obtained !== undefined && s.marks_obtained !== ''
-                                        ? s.marks_obtained : '-'}
+                                        ? s.marks_obtained : 'ABSENT'}
                                 </td>
                                 <td style={{ ...tdStyle, textAlign: 'center' }}>
                                     {s.marks_obtained !== null && s.marks_obtained !== undefined && s.marks_obtained !== ''
-                                        ? numberToWords(s.marks_obtained) : '-'}
+                                        ? numberToWords(s.marks_obtained) : 'ABSENT'}
                                 </td>
                             </tr>
                         ))}

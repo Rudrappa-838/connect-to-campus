@@ -309,17 +309,6 @@ const MarksManagement = ({ config }) => {
     };
 
     const isSubjectAssignedToStudent = (studentId, subjectId, targetBatch = null) => {
-        if (targetBatch && config?.has_exam_batches === true) {
-            const studentObj = students.find(s => parseInt(s.id) === parseInt(studentId));
-            if (studentObj && studentObj.exam_batch !== targetBatch) {
-                return false;
-            }
-        }
-        // Guard 1: Only apply combinations if enabled for this school
-        if (config?.has_subject_combinations !== true) {
-            return true;
-        }
-
         const currentClassObj = config?.classes?.find(c => c.class_id === parseInt(selectedClass));
         const className = (currentClassObj?.class_name || '').toLowerCase().trim();
         const isPUC = className === 'class 1' || 
@@ -330,7 +319,23 @@ const MarksManagement = ({ config }) => {
                       className === '1' || 
                       className === '2';
         
-        if (!isPUC) return true;
+        // For school level (not PUC/college), all scheduled subjects are active for everyone
+        if (!isPUC) {
+            return true;
+        }
+
+        // Apply NEET/JEE/KCET target batch checking for PU colleges
+        if (targetBatch && config?.has_exam_batches === true) {
+            const studentObj = students.find(s => parseInt(s.id) === parseInt(studentId));
+            if (studentObj && studentObj.exam_batch !== targetBatch) {
+                return false;
+            }
+        }
+
+        // Guard 1: Only apply combinations if enabled for this school
+        if (config?.has_subject_combinations !== true) {
+            return true;
+        }
         
         // Guard 2: If no allocations are configured for this class/section at all,
         // fallback to normal behavior (show all scheduled subjects) instead of showing N/A.
@@ -727,17 +732,7 @@ const MarksManagement = ({ config }) => {
 
     const displaySubjects = subjects.filter(sub => scheduledSubjectIds.has(parseInt(sub.id)));
 
-    const targetBatchesForSchedule = new Set(
-        displaySubjects.map(sub => {
-            const scheduleItem = examSchedule.find(s => s.subject_id === sub.id);
-            return scheduleItem?.target_batch;
-        }).filter(Boolean)
-    );
-
-    const displayStudents = students.filter(student => {
-        if (targetBatchesForSchedule.size === 0) return true;
-        return targetBatchesForSchedule.has(student.exam_batch);
-    });
+    const displayStudents = students;
 
     const filteredStudents = displayStudents.filter(student => {
         const query = studentSearchQuery.toLowerCase().trim();
