@@ -316,6 +316,7 @@ const MarksManagement = ({ config }) => {
                       className.includes('11') || 
                       className.includes('12') || 
                       className.includes('puc') || 
+                      className.includes('pu') || 
                       className === '1' || 
                       className === '2';
         
@@ -327,8 +328,12 @@ const MarksManagement = ({ config }) => {
         // Apply NEET/JEE/KCET target batch checking for PU colleges
         if (targetBatch && config?.has_exam_batches === true) {
             const studentObj = students.find(s => parseInt(s.id) === parseInt(studentId));
-            if (studentObj && studentObj.exam_batch !== targetBatch) {
-                return false;
+            if (studentObj) {
+                const sBatch = (studentObj.exam_batch || '').toLowerCase().trim();
+                const tBatch = targetBatch.toLowerCase().trim();
+                if (sBatch !== tBatch) {
+                    return false;
+                }
             }
         }
 

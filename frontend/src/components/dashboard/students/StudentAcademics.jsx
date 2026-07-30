@@ -83,6 +83,7 @@ const StudentAcademics = () => {
                       className.includes('11') || 
                       className.includes('12') || 
                       className.includes('puc') || 
+                      className.includes('pu') || 
                       className === '1' || 
                       className === '2';
         
