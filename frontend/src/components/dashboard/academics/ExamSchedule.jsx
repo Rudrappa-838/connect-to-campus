@@ -135,12 +135,17 @@ const ExamSchedule = ({ config }) => {
             });
 
             setCopySubjectList(prev => {
-                const targetSubjectIds = new Set(allTargetSubjects.map(s => s.id));
-                const preserved = prev.filter(item => targetSubjectIds.has(item.subject_id));
+                const allTargetSubjectNames = new Set(allTargetSubjects.map(s => s.name.toLowerCase().trim()));
+                const preserved = prev.filter(item => {
+                    const nameKey = item.subject_name.toLowerCase().trim();
+                    return allTargetSubjectNames.has(nameKey);
+                });
 
-                const originalUniqueSubjectsInTarget = originalUniqueSubjects.filter(orig => 
-                    targetSubjectIds.has(orig.subject_id) && !preserved.some(p => p.subject_id === orig.subject_id)
-                );
+                const originalUniqueSubjectsInTarget = originalUniqueSubjects.filter(orig => {
+                    const nameKey = orig.subject_name.toLowerCase().trim();
+                    return allTargetSubjectNames.has(nameKey) && 
+                           !preserved.some(p => p.subject_name.toLowerCase().trim() === nameKey);
+                });
 
                 const newMapped = originalUniqueSubjectsInTarget.map(orig => {
                     const origDate = new Date(orig.exam_date + 'T00:00:00');
@@ -197,7 +202,8 @@ const ExamSchedule = ({ config }) => {
         const sub = copyClassSubjects.find(s => s.id === subId);
         if (!sub) return;
 
-        if (copySubjectList.some(s => s.subject_id === subId)) {
+        const nameKey = sub.name.toLowerCase().trim();
+        if (copySubjectList.some(s => s.subject_name.toLowerCase().trim() === nameKey)) {
             toast.error("Subject is already in the list");
             return;
         }
@@ -231,8 +237,8 @@ const ExamSchedule = ({ config }) => {
 
     const availableToCopyAdd = useMemo(() => {
         // Unique subjects of target classes minus subjects currently in copySubjectList
-        const activeIds = new Set(copySubjectList.map(s => s.subject_id));
-        return copyClassSubjects.filter(sub => !activeIds.has(sub.id));
+        const activeNames = new Set(copySubjectList.map(s => s.subject_name.toLowerCase().trim()));
+        return copyClassSubjects.filter(sub => !activeNames.has(sub.name.toLowerCase().trim()));
     }, [copyClassSubjects, copySubjectList]);
 
     // Format time to 12-hour format
@@ -583,42 +589,43 @@ const ExamSchedule = ({ config }) => {
             return;
         }
 
-        // 2. Identify Unique Subjects in Current Schedule
-        // Map SubjectID -> Template Item (to copy Date/Time/Marks)
+        // 2. Identify Unique Subjects in Current Schedule by Name
+        // Map lowercase name -> Template Item (to copy Date/Time/Marks)
         const templates = new Map();
         schedule.forEach(item => {
-            // Only take the first occurrence of a subject to use as template
-            if (!templates.has(item.subject_id)) {
-                templates.set(item.subject_id, item);
+            const nameKey = item.subject_name.toLowerCase().trim();
+            if (!templates.has(nameKey)) {
+                templates.set(nameKey, item);
             }
         });
-
+ 
         // 3. Match & Generate
         const newItems = [];
         let skippedDuplicates = 0;
-
+ 
         const clsId = parseInt(selectedNewClass);
         const secId = selectedNewSection ? parseInt(selectedNewSection) : null;
-
+ 
         const targetCls = classes.find(c => c.id == clsId);
         const targetSec = newClassSections.find(s => s.id == secId);
-
+ 
         classSubjects.forEach(sub => {
-            if (templates.has(sub.id)) {
-
+            const nameKey = sub.name.toLowerCase().trim();
+            if (templates.has(nameKey)) {
+ 
                 // Check for duplicates in existing schedule
                 const isDuplicate = schedule.some(s =>
                     s.class_id === clsId &&
                     (secId ? s.section_id === secId : !s.section_id) &&
                     s.subject_id === sub.id
                 );
-
+ 
                 if (isDuplicate) {
                     skippedDuplicates++;
                     return;
                 }
-
-                const tmpl = templates.get(sub.id);
+ 
+                const tmpl = templates.get(nameKey);
                 // Create new item
                 newItems.push({
                     id: Date.now() + Math.random(), // Temp unique ID
@@ -627,23 +634,23 @@ const ExamSchedule = ({ config }) => {
                     class_id: clsId,
                     section_id: secId,
                     subject_id: sub.id,
-
+ 
                     // Display Names
                     class_name: targetCls?.name,
                     section_name: targetSec?.name || (secId ? 'Unknown Section' : 'No Section'),
                     subject_name: sub.name,
-
+ 
                     // Copied Schedule Config
                     exam_date: tmpl.exam_date,
                     start_time: tmpl.start_time,
                     end_time: tmpl.end_time,
-
+ 
                     // Copied Marks Config
                     max_marks: tmpl.max_marks,
                     min_marks: tmpl.min_marks,
                     components: tmpl.components ? JSON.parse(JSON.stringify(tmpl.components)) : [], // Deep copy
                     target_batch: tmpl.target_batch,
-
+ 
                     data_new: true // Mark as unsaved
                 });
             }
@@ -876,26 +883,33 @@ const ExamSchedule = ({ config }) => {
             const newExamType = res.data;
 
             let copiedSchedule = [];
-            // Build entries for each selected class × each unique subject matching the class
+            // Build entries for each selected class × each unique subject matching the class by name
             for (const cls of copyTargetClasses) {
                 const url = cls.section_id
                     ? `/classes/${cls.class_id}/sections/${cls.section_id}/subjects`
                     : `/classes/${cls.class_id}/subjects`;
                 const sRes = await api.get(url);
-                const classSubjectIds = new Set(sRes.data.map(sub => sub.id));
+                
+                // Map lowercase subject name to target class subject object
+                const classSubjectsByName = new Map();
+                sRes.data.forEach(sub => {
+                    classSubjectsByName.set(sub.name.toLowerCase().trim(), sub);
+                });
 
                 copySubjectList.forEach(item => {
-                    if (classSubjectIds.has(item.subject_id)) {
+                    const nameKey = item.subject_name.toLowerCase().trim();
+                    if (classSubjectsByName.has(nameKey)) {
+                        const targetSub = classSubjectsByName.get(nameKey);
                         copiedSchedule.push({
                             id: Date.now() + Math.random(),
                             school_id: sourceExam?.school_id || cls.school_id,
                             exam_type_id: newExamType.id,
                             class_id: cls.class_id,
                             section_id: cls.section_id,
-                            subject_id: item.subject_id,
+                            subject_id: targetSub.id, // Use class-specific subject ID
                             class_name: cls.class_name,
                             section_name: cls.section_name,
-                            subject_name: item.subject_name,
+                            subject_name: targetSub.name,
                             exam_date: item.exam_date,
                             start_time: item.start_time,
                             end_time: item.end_time,
@@ -981,7 +995,7 @@ const ExamSchedule = ({ config }) => {
 
         filtered.forEach(item => {
             // Group by Subject + Date + Time
-            const key = `${item.subject_id}-${item.exam_date}-${item.start_time}-${item.end_time}`;
+            const key = `${item.subject_name.toLowerCase().trim()}-${item.exam_date}-${item.start_time}-${item.end_time}`;
 
             if (!groups[key]) {
                 groups[key] = {
