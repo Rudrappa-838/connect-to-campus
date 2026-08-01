@@ -353,7 +353,15 @@ exports.getDailyAttendance = async (req, res) => {
         if (!date) return res.status(400).json({ message: 'Date is required' });
 
         const query = `
-            SELECT t.id, t.name, t.phone, t.role, COALESCE(a.status, 'Unmarked') as status
+            SELECT 
+                t.id, 
+                t.name, 
+                t.phone, 
+                t.role, 
+                COALESCE(a.status, 'Unmarked') as status,
+                a.check_in_time,
+                a.check_out_time,
+                a.working_hours
             FROM staff t
             LEFT JOIN staff_attendance a ON t.id = a.staff_id AND a.date = $2
             WHERE t.school_id = $1
@@ -533,5 +541,288 @@ exports.getSalarySlips = async (req, res) => {
         }
         console.error('Error fetching salary slips:', error);
         res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// Calculate distance between two GPS coordinates using Haversine formula
+function getDistanceMeters(lat1, lon1, lat2, lon2) {
+    if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) return null;
+    const R = 6371000; // Radius of the earth in meters
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c; // Distance in meters
+    return d;
+}
+
+// Check-in Staff
+exports.checkInStaff = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const email = req.user.email;
+        const { latitude, longitude } = req.body;
+
+        if (latitude === undefined || longitude === undefined) {
+            return res.status(400).json({ message: 'Latitude and Longitude are required for check-in.' });
+        }
+
+        // Find staff ID
+        let staff_id = req.user.linkedId;
+        if (!staff_id) {
+            const tRes = await pool.query(
+                'SELECT id FROM staff WHERE (LOWER(TRIM(email)) = LOWER(TRIM($1)) OR employee_id ILIKE $2) AND school_id = $3',
+                [email, email.includes('@') ? email.split('@')[0] : email, school_id]
+            );
+            if (tRes.rows.length === 0) return res.status(404).json({ message: 'Staff profile not found' });
+            staff_id = tRes.rows[0].id;
+        }
+
+        // Fetch School Location
+        const schoolRes = await pool.query('SELECT latitude, longitude, attendance_radius FROM schools WHERE id = $1', [school_id]);
+        if (schoolRes.rows.length === 0) return res.status(404).json({ message: 'School not found' });
+        
+        const school = schoolRes.rows[0];
+        if (!school.latitude || !school.longitude) {
+            return res.status(400).json({ message: 'School GPS location is not configured by the admin yet.' });
+        }
+
+        const schoolLat = parseFloat(school.latitude);
+        const schoolLng = parseFloat(school.longitude);
+        const radius = school.attendance_radius || 200;
+
+        // Calculate distance
+        const distance = getDistanceMeters(latitude, longitude, schoolLat, schoolLng);
+        if (distance > radius) {
+            return res.status(400).json({
+                message: `You are out of the school zone. Distance: ${Math.round(distance)}m, Allowed Radius: ${radius}m.`
+            });
+        }
+
+        // Today's Date
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+        // Check if today's record already exists
+        const existing = await pool.query(
+            'SELECT id, check_in_time, check_out_time FROM staff_attendance WHERE staff_id = $1 AND date = $2',
+            [staff_id, today]
+        );
+
+        if (existing.rows.length > 0) {
+            const record = existing.rows[0];
+            if (record.check_in_time && !record.check_out_time) {
+                return res.status(400).json({ message: 'You have already checked in.' });
+            }
+            
+            // Re-check-in: check_out_time is NOT null. We clear it and update check-in coordinates and check-in time.
+            await pool.query(
+                `UPDATE staff_attendance 
+                 SET status = 'Present',
+                     check_in_time = CURRENT_TIMESTAMP, 
+                     check_out_time = NULL, 
+                     check_in_lat = $1, 
+                     check_in_lng = $2, 
+                     marking_mode = 'gps'
+                 WHERE id = $3`,
+                [latitude, longitude, record.id]
+            );
+        } else {
+            // First check-in today
+            await pool.query(
+                `INSERT INTO staff_attendance(school_id, staff_id, date, status, check_in_time, check_in_lat, check_in_lng, marking_mode, working_hours)
+                 VALUES($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6, 'gps', 0)`,
+                [school_id, staff_id, today, 'Present', latitude, longitude]
+            );
+        }
+
+        // Insert geofence log
+        await pool.query(
+            `INSERT INTO staff_attendance_geofence_logs (school_id, staff_id, date, event_type, latitude, longitude, distance)
+             VALUES ($1, $2, $3, 'CHECK_IN', $4, $5, $6)`,
+            [school_id, staff_id, today, latitude, longitude, parseFloat(distance.toFixed(2))]
+        );
+
+        res.json({ message: 'Check-in successful. Attendance marked as Present.' });
+    } catch (error) {
+        console.error('Error during staff check-in:', error);
+        res.status(500).json({ message: 'Server error during check-in.' });
+    }
+};
+
+// Check-out Staff
+exports.checkOutStaff = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const email = req.user.email;
+        const { latitude, longitude } = req.body;
+
+        if (latitude === undefined || longitude === undefined) {
+            return res.status(400).json({ message: 'Latitude and Longitude are required for check-out.' });
+        }
+
+        // Find staff ID
+        let staff_id = req.user.linkedId;
+        if (!staff_id) {
+            const tRes = await pool.query(
+                'SELECT id FROM staff WHERE (LOWER(TRIM(email)) = LOWER(TRIM($1)) OR employee_id ILIKE $2) AND school_id = $3',
+                [email, email.includes('@') ? email.split('@')[0] : email, school_id]
+            );
+            if (tRes.rows.length === 0) return res.status(404).json({ message: 'Staff profile not found' });
+            staff_id = tRes.rows[0].id;
+        }
+
+        // Fetch School Location
+        const schoolRes = await pool.query('SELECT latitude, longitude, attendance_radius FROM schools WHERE id = $1', [school_id]);
+        if (schoolRes.rows.length === 0) return res.status(404).json({ message: 'School not found' });
+        
+        const school = schoolRes.rows[0];
+        if (!school.latitude || !school.longitude) {
+            return res.status(400).json({ message: 'School GPS location is not configured.' });
+        }
+
+        const schoolLat = parseFloat(school.latitude);
+        const schoolLng = parseFloat(school.longitude);
+
+        // Calculate distance
+        const distance = getDistanceMeters(latitude, longitude, schoolLat, schoolLng);
+
+        // Today's Date
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+        // Get existing record
+        const existing = await pool.query(
+            'SELECT id, check_in_time, check_out_time, working_hours FROM staff_attendance WHERE staff_id = $1 AND date = $2',
+            [staff_id, today]
+        );
+
+        if (existing.rows.length === 0 || !existing.rows[0].check_in_time || existing.rows[0].check_out_time) {
+            return res.status(400).json({ message: 'You are not checked in currently.' });
+        }
+
+        // Calculate working hours for this session
+        const checkInTime = new Date(existing.rows[0].check_in_time);
+        const checkOutTime = new Date();
+        const diffMs = checkOutTime - checkInTime;
+        const sessionHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(4));
+        const newWorkingHours = parseFloat((parseFloat(existing.rows[0].working_hours || 0) + sessionHours).toFixed(2));
+
+        // Update record
+        await pool.query(
+            `UPDATE staff_attendance 
+             SET check_out_time = CURRENT_TIMESTAMP, 
+                 check_out_lat = $1, 
+                 check_out_lng = $2, 
+                 working_hours = $3
+             WHERE id = $4`,
+            [latitude, longitude, newWorkingHours, existing.rows[0].id]
+        );
+
+        // Insert geofence log
+        await pool.query(
+            `INSERT INTO staff_attendance_geofence_logs (school_id, staff_id, date, event_type, latitude, longitude, distance)
+             VALUES ($1, $2, $3, 'CHECK_OUT', $4, $5, $6)`,
+            [school_id, staff_id, today, latitude, longitude, parseFloat(distance.toFixed(2))]
+        );
+
+        res.json({
+            message: 'Check-out successful.',
+            workingHours: newWorkingHours
+        });
+    } catch (error) {
+        console.error('Error during staff check-out:', error);
+        res.status(500).json({ message: 'Server error during check-out.' });
+    }
+};
+
+// Get geofence check-in/out logs for staff
+exports.getStaffGeofenceLogs = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const { date, staffId } = req.query;
+
+        if (!date) return res.status(400).json({ message: 'Date is required' });
+
+        let query = `
+            SELECT l.*, t.name as staff_name, t.employee_id, t.phone, t.role
+            FROM staff_attendance_geofence_logs l
+            JOIN staff t ON l.staff_id = t.id
+            WHERE l.school_id = $1 AND l.date = $2
+        `;
+        const params = [school_id, date];
+
+        if (staffId) {
+            query += ` AND l.staff_id = $3`;
+            params.push(parseInt(staffId));
+        }
+
+        query += ` ORDER BY l.timestamp ASC`;
+
+        const logsRes = await pool.query(query, params);
+        res.json(logsRes.rows);
+    } catch (error) {
+        console.error('Error fetching staff geofence logs:', error);
+        res.status(500).json({ message: 'Server error fetching staff geofence logs' });
+    }
+};
+
+// Get today's check-in / check-out status for staff
+exports.getTodayAttendanceStatus = async (req, res) => {
+    try {
+        const school_id = req.user.schoolId;
+        const email = req.user.email;
+
+        // Find staff ID
+        let staff_id = req.user.linkedId;
+        if (!staff_id) {
+            const tRes = await pool.query(
+                'SELECT id FROM staff WHERE (LOWER(TRIM(email)) = LOWER(TRIM($1)) OR employee_id ILIKE $2) AND school_id = $3',
+                [email, email.includes('@') ? email.split('@')[0] : email, school_id]
+            );
+            if (tRes.rows.length === 0) return res.status(404).json({ message: 'Staff profile not found' });
+            staff_id = tRes.rows[0].id;
+        }
+
+        // Fetch School GPS configurations
+        const schoolRes = await pool.query('SELECT name, latitude, longitude, attendance_radius FROM schools WHERE id = $1', [school_id]);
+        if (schoolRes.rows.length === 0) return res.status(404).json({ message: 'School not found' });
+        const school = schoolRes.rows[0];
+
+        // Fetch today's record (using Asia/Kolkata timezone for local school date)
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        const attRes = await pool.query(
+            'SELECT * FROM staff_attendance WHERE staff_id = $1 AND date = $2',
+            [staff_id, today]
+        );
+
+        const attendance = attRes.rows[0] || null;
+
+        const hasCheckedInToday = !!(attendance && attendance.check_in_time);
+        const currentlyCheckedIn = !!(attendance && attendance.check_in_time && !attendance.check_out_time);
+        const currentlyCheckedOut = !!(attendance && attendance.check_in_time && attendance.check_out_time);
+
+        res.json({
+            today,
+            hasCheckedInToday,
+            currentlyCheckedIn,
+            currentlyCheckedOut,
+            checkedIn: currentlyCheckedIn, // backwards compatibility
+            checkedOut: currentlyCheckedOut, // backwards compatibility
+            checkInTime: attendance ? attendance.check_in_time : null,
+            checkOutTime: attendance ? attendance.check_out_time : null,
+            workingHours: attendance ? parseFloat(attendance.working_hours || 0) : 0,
+            status: attendance ? attendance.status : 'Unmarked',
+            schoolConfig: {
+                latitude: school.latitude ? parseFloat(school.latitude) : null,
+                longitude: school.longitude ? parseFloat(school.longitude) : null,
+                radius: school.attendance_radius || 200,
+                name: school.name
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching staff today attendance status:', error);
+        res.status(500).json({ message: 'Server error fetching today attendance status' });
     }
 };

@@ -37,6 +37,7 @@ import TeacherAttendanceReports from '../components/dashboard/teachers/TeacherAt
 import StaffManagement from '../components/dashboard/staff/StaffManagement';
 import StaffAttendanceMarking from '../components/dashboard/staff/StaffAttendanceMarking';
 import StaffDailyStatus from '../components/dashboard/staff/StaffDailyStatus';
+import StaffGeofenceLogs from '../components/dashboard/staff/StaffGeofenceLogs';
 import StaffAttendanceReports from '../components/dashboard/staff/StaffAttendanceReports';
 
 // Fee Components
@@ -316,6 +317,7 @@ const SchoolAdminDashboard = () => {
                         <NavSubButton active={activeTab === 'staff-list'} onClick={() => handleTabChange('staff-list')} label="Staff List" />
                         <NavSubButton active={activeTab === 'staff-attendance'} onClick={() => handleTabChange('staff-attendance')} label="Mark Attendance" />
                         <NavSubButton active={activeTab === 'staff-daily-status'} onClick={() => handleTabChange('staff-daily-status')} label="Daily Status" />
+                        <NavSubButton active={activeTab === 'staff-geofence-logs'} onClick={() => handleTabChange('staff-geofence-logs')} label="Geofence Logs" />
                         <NavSubButton active={activeTab === 'staff-report'} onClick={() => handleTabChange('staff-report')} label="Reports" />
                     </NavGroup>
 
@@ -581,6 +583,7 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'staff-list' && <StaffManagement config={academicConfig} />}
                         {activeTab === 'staff-attendance' && <StaffAttendanceMarking />}
                         {activeTab === 'staff-daily-status' && <StaffDailyStatus />}
+                        {activeTab === 'staff-geofence-logs' && <StaffGeofenceLogs />}
                         {activeTab === 'staff-report' && <StaffAttendanceReports />}
 
                         {activeTab === 'out-passes' && <OutPassAdmin />}
@@ -733,6 +736,7 @@ const getTabTitle = (tab, getLabel = (k, d) => d) => {
         'staff-list': 'Staff Management',
         'staff-attendance': 'Staff Attendance',
         'staff-daily-status': 'Staff Status',
+        'staff-geofence-logs': 'Staff Geofence Logs',
         'staff-report': 'Staff Reports',
         'out-passes': 'Out Passes',
         'fee-config': 'Fee Structure Configuration',

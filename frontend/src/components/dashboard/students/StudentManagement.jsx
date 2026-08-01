@@ -452,6 +452,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                         <tr>
                             <th style="width: 60px;">Roll No</th>
                             <th style="width: 100px;">Admission ID</th>
+                            <th style="width: 100px;">Custom ID</th>
                             <th style="width: 180px;">Student Full Name</th>
                             <th style="width: 150px;">Demographics</th>
                             <th>Parents / Contact</th>
@@ -462,6 +463,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                             <tr>
                                 <td style="text-align: center; font-weight: bold;">${student.roll_number || '-'}</td>
                                 <td style="font-family: monospace;">${student.admission_no}</td>
+                                <td style="font-family: monospace;">${student.custom_roll_number || ''}</td>
                                 <td style="font-weight: bold; font-size: 12px;">${student.name}</td>
                                 <td class="demo-cell">
                                     <div><span class="demo-label">Gender:</span> ${student.gender || '-'}</div>
@@ -574,9 +576,10 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 50%;">Student Name</th>
-                            <th style="width: 25%;">Class & Section</th>
-                            <th style="width: 25%;">Student ID (Login ID)</th>
+                            <th style="width: 40%;">Student Name</th>
+                            <th style="width: 20%;">Class & Section</th>
+                            <th style="width: 20%;">Student ID (Login ID)</th>
+                            <th style="width: 20%;">Custom ID</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -590,6 +593,7 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                 <td style="font-weight: bold;">${formattedName}</td>
                                 <td>${student.class_name || className} ${student.section_name || (sectionName !== 'All Sections' ? sectionName : '')}</td>
                                 <td class="login-id">${student.admission_no || student.id}</td>
+                                <td style="font-family: monospace;">${student.custom_roll_number || ''}</td>
                             </tr>
                             `;
                         }).join('')}

@@ -250,6 +250,20 @@ const startServer = async () => {
                         distance NUMERIC(10, 2)
                     );
                     CREATE INDEX IF NOT EXISTS idx_geofence_logs_teacher_date ON teacher_attendance_geofence_logs(teacher_id, date);
+
+                    -- F. GEOFENCE LOGS FOR STAFF
+                    CREATE TABLE IF NOT EXISTS staff_attendance_geofence_logs (
+                        id SERIAL PRIMARY KEY,
+                        school_id INTEGER NOT NULL,
+                        staff_id INTEGER NOT NULL,
+                        date DATE NOT NULL,
+                        event_type VARCHAR(20) NOT NULL, -- 'CHECK_IN' or 'CHECK_OUT'
+                        timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        latitude DECIMAL(9, 6),
+                        longitude DECIMAL(9, 6),
+                        distance NUMERIC(10, 2)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_geofence_logs_staff_date ON staff_attendance_geofence_logs(staff_id, date);
                 END $$;
             `);
             // Fix: Add missing columns to schools table (institution_type, gemini_api_key, marksheet_template)
