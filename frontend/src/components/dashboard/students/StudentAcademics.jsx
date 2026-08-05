@@ -71,12 +71,7 @@ const StudentAcademics = () => {
         }
     };
 
-    const isSubjectAssignedToStudent = (subjectId) => {
-        // Guard 1: Only apply combinations if enabled for this school
-        if (schoolConfig?.has_subject_combinations !== true) {
-            return true;
-        }
-
+    const isSubjectAssignedToStudent = (subjectId, targetBatch = null) => {
         const className = (profile?.class_name || '').toLowerCase().trim();
         const isPUC = className === 'class 1' || 
                       className === 'class 2' || 
@@ -86,6 +81,20 @@ const StudentAcademics = () => {
                       className.includes('pu') || 
                       className === '1' || 
                       className === '2';
+
+        // Check target batch compatibility first (only for PUC classes and if exam batches enabled)
+        if (isPUC && targetBatch && schoolConfig?.has_exam_batches === true && profile) {
+            const sBatches = (profile.exam_batch || '').toLowerCase().split(',').map(b => b.trim()).filter(Boolean);
+            const tBatch = targetBatch.toLowerCase().trim();
+            if (!sBatches.includes(tBatch)) {
+                return false;
+            }
+        }
+
+        // Guard 1: Only apply combinations if enabled for this school
+        if (schoolConfig?.has_subject_combinations !== true) {
+            return true;
+        }
         
         if (!isPUC) return true;
         
@@ -594,7 +603,7 @@ const StudentAcademics = () => {
                 ) : (
                     <>
                         {activeTab === 'schedule' && (() => {
-                            const filteredSchedule = schedule.filter(item => isSubjectAssignedToStudent(item.subject_id));
+                            const filteredSchedule = schedule.filter(item => isSubjectAssignedToStudent(item.subject_id, item.target_batch));
                             return (
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                                     {filteredSchedule.length === 0 ? (
@@ -632,7 +641,10 @@ const StudentAcademics = () => {
                         })()}
 
                         {activeTab === 'marks' && (() => {
-                            const filteredMarks = marksheet ? marksheet.marks.filter(mark => isSubjectAssignedToStudent(mark.subject_id)) : [];
+                            const filteredMarks = marksheet ? marksheet.marks.filter(mark => {
+                                const schItem = schedule.find(s => s.subject_id === mark.subject_id);
+                                return isSubjectAssignedToStudent(mark.subject_id, schItem?.target_batch);
+                            }) : [];
                             const summaryTotalMarks = filteredMarks.reduce((sum, m) => sum + parseFloat(m.marks_obtained || 0), 0);
                             const summaryMaxMarks = filteredMarks.reduce((sum, m) => sum + parseFloat(m.max_marks || 0), 0);
                             const summaryPercentage = summaryMaxMarks > 0 ? ((summaryTotalMarks / summaryMaxMarks) * 100).toFixed(2) : 0;

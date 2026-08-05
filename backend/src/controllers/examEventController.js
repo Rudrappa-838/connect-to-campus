@@ -216,7 +216,7 @@ exports.getStudentsForSlot = async (req, res) => {
         // If subject is common to all, get all students in class
         // Otherwise, get only students whose group contains this subject
         let studentQuery;
-        let batchFilter = slot.target_batch ? ` AND s.exam_batch = '${slot.target_batch}'` : '';
+        let batchFilter = slot.target_batch ? ` AND ',' || LOWER(REPLACE(s.exam_batch, ' ', '')) || ',' LIKE '%,${slot.target_batch.trim().toLowerCase()},%'` : '';
 
         if (slot.is_common_to_all) {
             studentQuery = await pool.query(

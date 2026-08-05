@@ -214,7 +214,17 @@ exports.saveExamSchedule = async (req, res) => {
                 const combos = new Set(schedules.map(s => `${s.class_id}-${s.section_id || 'NULL'}`));
                 for (const combo of combos) {
                     const [cid, sid] = combo.split('-');
-                    let stuQuery = 'SELECT id FROM students WHERE school_id = $1 AND class_id = $2';
+                    
+                    // Find schedules for this class/section combo
+                    const comboSchedules = schedules.filter(s => 
+                        String(s.class_id) === cid && 
+                        (sid === 'NULL' ? !s.section_id : String(s.section_id) === sid)
+                    );
+                    
+                    const hasBatchSpecificSchedule = comboSchedules.some(s => s.target_batch);
+                    const hasGeneralSchedule = comboSchedules.some(s => !s.target_batch);
+
+                    let stuQuery = 'SELECT id, exam_batch FROM students WHERE school_id = $1 AND class_id = $2';
                     const params = [school_id, cid];
                     if (sid !== 'NULL') {
                         stuQuery += ' AND section_id = $3';
@@ -225,7 +235,21 @@ exports.saveExamSchedule = async (req, res) => {
 
                     const studentsRes = await pool.query(stuQuery, params);
                     for (const stu of studentsRes.rows) {
-                        await sendPushNotification(stu.id, 'Exam Schedule Update', 'The exam schedule for your class has been updated.');
+                        const studentBatches = (stu.exam_batch || '').toLowerCase().split(',').map(b => b.trim()).filter(Boolean);
+                        
+                        let shouldNotify = false;
+                        if (hasGeneralSchedule) {
+                            shouldNotify = true;
+                        } else if (hasBatchSpecificSchedule) {
+                            shouldNotify = comboSchedules.some(s => {
+                                if (!s.target_batch) return false;
+                                return studentBatches.includes(s.target_batch.toLowerCase().trim());
+                            });
+                        }
+                        
+                        if (shouldNotify) {
+                            await sendPushNotification(stu.id, 'Exam Schedule Update', 'The exam schedule for your class/batch has been updated.');
+                        }
                     }
                 }
             } catch (notifyError) {

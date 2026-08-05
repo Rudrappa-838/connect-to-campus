@@ -273,7 +273,7 @@ const MarksManagement = ({ config }) => {
 
     const fetchStudents = async () => {
         try {
-            let url = `/students?class_id=${selectedClass}`;
+            let url = `/students?class_id=${selectedClass}&limit=1000`;
             if (selectedSection) url += `&section_id=${selectedSection}`;
 
             const res = await api.get(url);
@@ -329,9 +329,9 @@ const MarksManagement = ({ config }) => {
         if (targetBatch && config?.has_exam_batches === true) {
             const studentObj = students.find(s => parseInt(s.id) === parseInt(studentId));
             if (studentObj) {
-                const sBatch = (studentObj.exam_batch || '').toLowerCase().trim();
+                const sBatches = (studentObj.exam_batch || '').toLowerCase().split(',').map(b => b.trim());
                 const tBatch = targetBatch.toLowerCase().trim();
-                if (sBatch !== tBatch) {
+                if (!sBatches.includes(tBatch)) {
                     return false;
                 }
             }
@@ -630,45 +630,93 @@ const MarksManagement = ({ config }) => {
         const marksArray = [];
         const sectionIdVal = selectedSection ? parseInt(selectedSection) : null;
 
-        Object.keys(marks).forEach(key => {
-            const [studentId, subjectId] = key.split('-');
-            const markData = marks[key];
+        const currentClassObj = config?.classes?.find(c => c.class_id === parseInt(selectedClass));
+        const classNameStr = (currentClassObj?.class_name || '').toLowerCase().trim();
+        const isPUC = classNameStr === 'class 1' || 
+                      classNameStr === 'class 2' || 
+                      classNameStr.includes('11') || 
+                      classNameStr.includes('12') || 
+                      classNameStr.includes('puc') || 
+                      classNameStr.includes('pu') || 
+                      classNameStr === '1' || 
+                      classNameStr === '2';
 
-            // Skip ONLY if completely empty (not 0, which is valid)
-            if (markData === '' || markData === undefined || markData === null) return;
+        if (isPUC) {
+            // For college: Iterate over all displayed/filtered students and subjects.
+            // If they are assigned but have no mark value, save as null (absent).
+            filteredStudents.forEach(student => {
+                displaySubjects.forEach(subject => {
+                    const key = `${student.id}-${subject.id}`;
+                    const scheduleItem = examSchedule?.find(s => s.subject_id === subject.id);
+                    
+                    if (!isSubjectAssignedToStudent(student.id, subject.id, scheduleItem?.target_batch)) return;
 
-            // Skip saving marks for subjects the student is not assigned to
-            const scheduleItem = examSchedule?.find(s => s.subject_id === parseInt(subjectId));
-            if (!isSubjectAssignedToStudent(studentId, subjectId, scheduleItem?.target_batch)) return;
+                    const markData = marks[key];
+                    let finalMark = null;
+                    let componentScores = {};
 
-            // For object type (with components), check if total is empty string
-            if (typeof markData === 'object' && markData !== null) {
-                // If it's an object but total is empty string and no components, skip
-                if (markData.total === '' && (!markData.components || Object.keys(markData.components).length === 0)) {
-                    return;
-                }
-            }
+                    if (markData !== undefined && markData !== null && markData !== '') {
+                        if (typeof markData === 'object' && markData.total !== undefined) {
+                            finalMark = markData.total === '' ? null : parseFloat(markData.total);
+                            componentScores = markData.components || {};
+                        } else {
+                            finalMark = parseFloat(markData);
+                        }
+                    }
 
-            let finalMark = 0;
-            let componentScores = {};
-
-            if (typeof markData === 'object' && markData !== null && markData.total !== undefined) {
-                finalMark = parseFloat(markData.total) || 0;
-                componentScores = markData.components || {};
-            } else {
-                finalMark = parseFloat(markData) || 0;
-            }
-
-            marksArray.push({
-                student_id: parseInt(studentId),
-                class_id: parseInt(selectedClass),
-                section_id: sectionIdVal,
-                subject_id: parseInt(subjectId),
-                exam_type_id: parseInt(selectedExam),
-                marks_obtained: finalMark,
-                component_scores: componentScores
+                    marksArray.push({
+                        student_id: student.id,
+                        class_id: parseInt(selectedClass),
+                        section_id: sectionIdVal,
+                        subject_id: subject.id,
+                        exam_type_id: parseInt(selectedExam),
+                        marks_obtained: finalMark,
+                        component_scores: componentScores
+                    });
+                });
             });
-        });
+        } else {
+            // Original school behavior
+            Object.keys(marks).forEach(key => {
+                const [studentId, subjectId] = key.split('-');
+                const markData = marks[key];
+
+                // Skip ONLY if completely empty (not 0, which is valid)
+                if (markData === '' || markData === undefined || markData === null) return;
+
+                // Skip saving marks for subjects the student is not assigned to
+                const scheduleItem = examSchedule?.find(s => s.subject_id === parseInt(subjectId));
+                if (!isSubjectAssignedToStudent(studentId, subjectId, scheduleItem?.target_batch)) return;
+
+                // For object type (with components), check if total is empty string
+                if (typeof markData === 'object' && markData !== null) {
+                    // If it's an object but total is empty string and no components, skip
+                    if (markData.total === '' && (!markData.components || Object.keys(markData.components).length === 0)) {
+                        return;
+                    }
+                }
+
+                let finalMark = 0;
+                let componentScores = {};
+
+                if (typeof markData === 'object' && markData !== null && markData.total !== undefined) {
+                    finalMark = parseFloat(markData.total) || 0;
+                    componentScores = markData.components || {};
+                } else {
+                    finalMark = parseFloat(markData) || 0;
+                }
+
+                marksArray.push({
+                    student_id: parseInt(studentId),
+                    class_id: parseInt(selectedClass),
+                    section_id: sectionIdVal,
+                    subject_id: parseInt(subjectId),
+                    exam_type_id: parseInt(selectedExam),
+                    marks_obtained: finalMark,
+                    component_scores: componentScores
+                });
+            });
+        }
 
         if (marksArray.length === 0) {
             toast.error('Please enter at least one mark');
@@ -735,16 +783,70 @@ const MarksManagement = ({ config }) => {
         }
     });
 
-    const displaySubjects = subjects.filter(sub => scheduledSubjectIds.has(parseInt(sub.id)));
+    // Ensure we also show subjects that are in the schedule or have marks, even if they aren't in the class's default subjects list
+    // (useful for NEET/JEE/KCET batches where subjects are shared across classes).
+    const allUniqueSubjects = [...subjects];
+    examSchedule?.forEach(sch => {
+        if (sch.subject_id && !allUniqueSubjects.some(sub => parseInt(sub.id) === parseInt(sch.subject_id))) {
+            allUniqueSubjects.push({
+                id: sch.subject_id,
+                name: sch.subject_name,
+                type: 'Theory'
+            });
+        }
+    });
+    
+    // Also check if any existing marks reference subjects not in class list
+    Object.keys(marks).forEach(key => {
+        const [studentId, subjectId] = key.split('-');
+        if (subjectId && !allUniqueSubjects.some(sub => parseInt(sub.id) === parseInt(subjectId))) {
+            // Find in exam schedule first to get a proper name
+            const sch = examSchedule?.find(s => parseInt(s.subject_id) === parseInt(subjectId));
+            allUniqueSubjects.push({
+                id: parseInt(subjectId),
+                name: sch ? sch.subject_name : `Subject #${subjectId}`,
+                type: 'Theory'
+            });
+        }
+    });
+
+    const displaySubjects = allUniqueSubjects.filter(sub => scheduledSubjectIds.has(parseInt(sub.id)));
+
+    const currentClassObj = config?.classes?.find(c => c.class_id === parseInt(selectedClass));
+    const classNameStr = (currentClassObj?.class_name || '').toLowerCase().trim();
+    const isPUC = classNameStr === 'class 1' || 
+                  classNameStr === 'class 2' || 
+                  classNameStr.includes('11') || 
+                  classNameStr.includes('12') || 
+                  classNameStr.includes('puc') || 
+                  classNameStr.includes('pu') || 
+                  classNameStr === '1' || 
+                  classNameStr === '2';
 
     const displayStudents = students;
 
+    // Get active schedule target batches
+    const scheduledBatches = examSchedule
+        ? examSchedule.map(s => (s.target_batch || '').toLowerCase().trim()).filter(Boolean)
+        : [];
+
     const filteredStudents = displayStudents.filter(student => {
         const query = studentSearchQuery.toLowerCase().trim();
-        if (!query) return true;
-        return (student.name || '').toLowerCase().includes(query) ||
-               (student.roll_number || '').toString().toLowerCase().includes(query) ||
-               (student.admission_no || '').toLowerCase().includes(query);
+        if (query) {
+            const matchSearch = (student.name || '').toLowerCase().includes(query) ||
+                   (student.roll_number || '').toString().toLowerCase().includes(query) ||
+                   (student.admission_no || '').toLowerCase().includes(query);
+            if (!matchSearch) return false;
+        }
+
+        // College exam batch filter (NEET/JEE/KCET)
+        if (isPUC && config?.has_exam_batches === true && scheduledBatches.length > 0) {
+            const studentBatches = (student.exam_batch || '').toLowerCase().split(',').map(b => b.trim()).filter(Boolean);
+            const matchesBatch = studentBatches.some(b => scheduledBatches.includes(b));
+            if (!matchesBatch) return false;
+        }
+
+        return true;
     });
 
     return (

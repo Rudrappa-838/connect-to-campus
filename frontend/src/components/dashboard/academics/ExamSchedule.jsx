@@ -395,7 +395,14 @@ const ExamSchedule = ({ config }) => {
         targetClasses.forEach(cls => {
             selectedSubs.forEach(sub => {
                 const availableSubObj = availableSubjects.find(s => s.id === sub.id);
-                const classSub = availableSubObj?.classSubjects?.[cls.class_id];
+                let classSub = availableSubObj?.classSubjects?.[cls.class_id];
+                
+                if (!classSub && sub.target_batch) {
+                    const otherClassIds = Object.keys(availableSubObj?.classSubjects || {});
+                    if (otherClassIds.length > 0) {
+                        classSub = availableSubObj.classSubjects[otherClassIds[0]];
+                    }
+                }
                 
                 if (!classSub) return; // Skip if subject is not applicable to this class
 
@@ -447,14 +454,15 @@ const ExamSchedule = ({ config }) => {
         }
 
         const batchSubjects = {
-            'NEET': ['biology', 'chemistry', 'physics'],
-            'JEE': ['mathematics', 'physics', 'chemistry'],
-            'KCET': ['mathematics', 'physics', 'chemistry', 'biology']
+            'NEET': ['biology', 'bio', 'chemistry', 'chem', 'physics', 'phys'],
+            'JEE': ['mathematics', 'maths', 'math', 'physics', 'phys', 'chemistry', 'chem'],
+            'KCET': ['mathematics', 'maths', 'math', 'physics', 'phys', 'chemistry', 'chem', 'biology', 'bio']
         };
         const reqSubjects = batchSubjects[batch] || [];
 
         availableSubjects.forEach(sub => {
-            const isMatch = reqSubjects.includes(sub.name.toLowerCase().trim());
+            const name = sub.name.toLowerCase().trim();
+            const isMatch = reqSubjects.some(pattern => name === pattern || name.includes(pattern));
             newConfigs[sub.id] = {
                 ...newConfigs[sub.id],
                 selected: isMatch,
@@ -503,7 +511,14 @@ const ExamSchedule = ({ config }) => {
         targetClasses.forEach(cls => {
             selectedSubs.forEach(sub => {
                 const availableSubObj = availableSubjects.find(s => s.id === sub.id);
-                const classSub = availableSubObj?.classSubjects?.[cls.class_id];
+                let classSub = availableSubObj?.classSubjects?.[cls.class_id];
+                
+                if (!classSub && sub.target_batch) {
+                    const otherClassIds = Object.keys(availableSubObj?.classSubjects || {});
+                    if (otherClassIds.length > 0) {
+                        classSub = availableSubObj.classSubjects[otherClassIds[0]];
+                    }
+                }
                 
                 if (!classSub) return;
 

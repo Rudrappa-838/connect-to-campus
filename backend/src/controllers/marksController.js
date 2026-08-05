@@ -353,8 +353,10 @@ exports.saveMarks = async (req, res) => {
             const sectionVal = mark.section_id || null;
 
             // Handle possible NaN values gracefully (if frontend sends "AB" or empty incorrectly parsed)
-            let marksObt = parseFloat(mark.marks_obtained);
-            if (isNaN(marksObt)) marksObt = 0;
+            let marksObt = (mark.marks_obtained === null || mark.marks_obtained === undefined || mark.marks_obtained === '')
+                ? null
+                : parseFloat(mark.marks_obtained);
+            if (marksObt !== null && isNaN(marksObt)) marksObt = 0;
 
             if (mark.component_id) {
                 // Component-based mark logic (if used by backend)
@@ -823,7 +825,7 @@ exports.getStudentAllMarks = async (req, res) => {
                     };
                 }
 
-                const obtained = parseFloat(mark.marks_obtained || 0);
+                const obtained = mark.marks_obtained === null || mark.marks_obtained === undefined ? null : parseFloat(mark.marks_obtained);
                 const max = parseFloat(mark.max_marks || 100);
 
                 examsMap[examName].subjects.push({
@@ -834,7 +836,9 @@ exports.getStudentAllMarks = async (req, res) => {
                     exam_date: mark.exam_date ? (mark.exam_date instanceof Date ? mark.exam_date.toISOString().split('T')[0] : mark.exam_date) : null
                 });
 
-                examsMap[examName].total_obtained += obtained;
+                if (obtained !== null) {
+                    examsMap[examName].total_obtained += obtained;
+                }
                 examsMap[examName].total_max += max;
             });
 
@@ -914,7 +918,7 @@ exports.getStudentAllMarks = async (req, res) => {
                 };
             }
 
-            const obtained = parseFloat(mark.marks_obtained || 0);
+            const obtained = mark.marks_obtained === null || mark.marks_obtained === undefined ? null : parseFloat(mark.marks_obtained);
             const max = parseFloat(mark.max_marks || 100);
 
             examsMap[examName].subjects.push({
@@ -924,7 +928,9 @@ exports.getStudentAllMarks = async (req, res) => {
                 exam_date: mark.exam_date ? (mark.exam_date instanceof Date ? mark.exam_date.toISOString().split('T')[0] : mark.exam_date) : null
             });
 
-            examsMap[examName].total_obtained += obtained;
+            if (obtained !== null) {
+                examsMap[examName].total_obtained += obtained;
+            }
             examsMap[examName].total_max += max;
         });
 

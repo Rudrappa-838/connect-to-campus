@@ -65,18 +65,49 @@ const ExamBatches = ({ config }) => {
         }
     };
 
+    const isBatchActive = (studentId, batch) => {
+        const val = currentBatches[studentId] || 'None';
+        if (batch === 'None') {
+            return val === 'None';
+        }
+        return val.split(',').map(s => s.trim()).includes(batch);
+    };
+
     const handleBatchChange = (studentId, batch) => {
-        setCurrentBatches(prev => ({
-            ...prev,
-            [studentId]: batch
-        }));
+        setCurrentBatches(prev => {
+            const currentVal = prev[studentId] || 'None';
+            if (batch === 'None') {
+                return { ...prev, [studentId]: 'None' };
+            }
+            let selectedList = currentVal === 'None' ? [] : currentVal.split(',').map(s => s.trim()).filter(Boolean);
+            if (selectedList.includes(batch)) {
+                selectedList = selectedList.filter(b => b !== batch);
+            } else {
+                selectedList.push(batch);
+            }
+            const newVal = selectedList.length === 0 ? 'None' : selectedList.join(', ');
+            return { ...prev, [studentId]: newVal };
+        });
     };
 
     const handleBulkAssign = (batch) => {
         if (selectedRows.size === 0) return;
         setCurrentBatches(prev => {
             const next = { ...prev };
-            selectedRows.forEach(id => next[id] = batch);
+            selectedRows.forEach(id => {
+                const currentVal = next[id] || 'None';
+                if (batch === 'None') {
+                    next[id] = 'None';
+                } else {
+                    let selectedList = currentVal === 'None' ? [] : currentVal.split(',').map(s => s.trim()).filter(Boolean);
+                    if (!selectedList.includes(batch)) {
+                        selectedList.push(batch);
+                    } else {
+                        selectedList = selectedList.filter(b => b !== batch);
+                    }
+                    next[id] = selectedList.length === 0 ? 'None' : selectedList.join(', ');
+                }
+            });
             return next;
         });
     };
@@ -219,7 +250,7 @@ const ExamBatches = ({ config }) => {
                                                         key={batch}
                                                         onClick={() => handleBatchChange(student.id, batch)}
                                                         className={`px-3 py-1 rounded-full text-xs font-bold border transition-colors ${
-                                                            currentBatches[student.id] === batch
+                                                            isBatchActive(student.id, batch)
                                                                 ? batch === 'None' 
                                                                     ? 'bg-slate-200 border-slate-300 text-slate-700'
                                                                     : 'bg-indigo-100 border-indigo-200 text-indigo-700'
