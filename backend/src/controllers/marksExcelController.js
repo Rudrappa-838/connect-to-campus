@@ -513,8 +513,8 @@ exports.uploadMarks = async (req, res) => {
                 row._marksToSave = row._marksToSave || [];
                 row._marksToSave.push({
                     student_id: studentId,
-                    class_id,
-                    section_id: section_id || null,
+                    class_id: matchedStudent.class_id,
+                    section_id: matchedStudent.section_id || null,
                     subject_id: subInfo.subject_id,
                     exam_type_id,
                     marks_obtained: marks,
