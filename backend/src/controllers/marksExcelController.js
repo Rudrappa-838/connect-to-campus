@@ -71,7 +71,19 @@ exports.getExamCombos = async (req, res) => {
             });
         }
 
-        res.json(Object.values(combos));
+        const comboList = Object.values(combos);
+        if (comboList.length > 1) {
+            comboList.unshift({
+                class_id: 'ALL',
+                class_name: 'All Scheduled Classes',
+                section_id: null,
+                section_name: 'Combined Sheet',
+                exam_type_name: comboList[0]?.exam_type_name || '',
+                subjects: []
+            });
+        }
+
+        res.json(comboList);
     } catch (error) {
         console.error('[Excel Combos]', error);
         res.status(500).json({ message: 'Server error fetching exam combos' });
@@ -91,42 +103,63 @@ exports.downloadTemplate = async (req, res) => {
             return res.status(400).json({ message: 'exam_type_id and class_id are required' });
         }
 
-        // 1. Get subjects for this class+section+exam
-        const scheduleResult = await pool.query(`
+        const isAllClasses = String(class_id).toUpperCase() === 'ALL';
+
+        // 1. Get subjects for this class+section+exam (or ALL classes)
+        let scheduleQuery = `
             SELECT es.subject_id, es.max_marks, es.components, sub.name as subject_name, et.name as exam_type_name
             FROM exam_schedules es
             JOIN subjects sub ON es.subject_id = sub.id
             JOIN exam_types et ON es.exam_type_id = et.id
-            WHERE es.school_id = $1 AND es.exam_type_id = $2 AND es.class_id = $3
-              AND es.deleted_at IS NULL
-              AND (es.section_id = $4 OR es.section_id IS NULL)
-            ORDER BY sub.name
-        `, [school_id, exam_type_id, class_id, section_id || null]);
+            WHERE es.school_id = $1 AND es.exam_type_id = $2 AND es.deleted_at IS NULL
+        `;
+        const scheduleParams = [school_id, exam_type_id];
+
+        if (!isAllClasses) {
+            scheduleQuery += ` AND es.class_id = $3 AND (es.section_id = $4 OR es.section_id IS NULL)`;
+            scheduleParams.push(class_id, section_id || null);
+        }
+        scheduleQuery += ` ORDER BY sub.name`;
+
+        const scheduleResult = await pool.query(scheduleQuery, scheduleParams);
 
         if (scheduleResult.rows.length === 0) {
             return res.status(404).json({ message: 'No exam schedule found for this class/section' });
         }
 
+        // Deduplicate subjects by subject_id
+        const subjectsMap = new Map();
+        scheduleResult.rows.forEach(r => {
+            if (!subjectsMap.has(r.subject_id)) {
+                subjectsMap.set(r.subject_id, r);
+            }
+        });
+        const subjects = Array.from(subjectsMap.values());
         const examTypeName = scheduleResult.rows[0].exam_type_name;
-        const subjects = scheduleResult.rows;
 
-        // 2. Get students for this class+section
+        // 2. Get students for this class+section or ALL scheduled classes
         let studentQuery = `
             SELECT st.id as student_id, st.name as student_name, st.admission_no, st.roll_number, st.custom_roll_number,
                    c.name as class_name, sec.name as section_name
             FROM students st
             JOIN classes c ON st.class_id = c.id
             LEFT JOIN sections sec ON st.section_id = sec.id
-            WHERE st.school_id = $1 AND st.class_id = $2
-              AND (st.status IS NULL OR st.status != 'Deleted')
+            WHERE st.school_id = $1 AND (st.status IS NULL OR st.status != 'Deleted')
         `;
-        const studentParams = [school_id, class_id];
+        const studentParams = [school_id];
 
-        if (section_id) {
-            studentQuery += ` AND st.section_id = $3`;
-            studentParams.push(section_id);
+        if (isAllClasses) {
+            studentQuery += ` AND st.class_id IN (SELECT class_id FROM exam_schedules WHERE school_id = $1 AND exam_type_id = $2 AND deleted_at IS NULL)`;
+            studentParams.push(exam_type_id);
+        } else {
+            studentQuery += ` AND st.class_id = $2`;
+            studentParams.push(class_id);
+            if (section_id) {
+                studentQuery += ` AND st.section_id = $3`;
+                studentParams.push(section_id);
+            }
         }
-        studentQuery += ` ORDER BY st.roll_number, st.name`;
+        studentQuery += ` ORDER BY c.name, sec.name, st.roll_number, st.name`;
 
         const studentResult = await pool.query(studentQuery, studentParams);
 
@@ -135,8 +168,8 @@ exports.downloadTemplate = async (req, res) => {
         }
 
         const students = studentResult.rows;
-        const className = students[0].class_name;
-        const sectionName = students[0].section_name || '';
+        const className = isAllClasses ? 'All Classes' : students[0].class_name;
+        const sectionName = isAllClasses ? 'Combined' : (students[0].section_name || '');
 
         // 3. Build Excel
         const workbook = new ExcelJS.Workbook();
@@ -319,36 +352,53 @@ exports.uploadMarks = async (req, res) => {
         const sheet = workbook.worksheets.find(ws => ws.name !== '__meta__');
         if (!sheet) return res.status(400).json({ message: 'Excel file has no data worksheets' });
 
-        // 2. Get valid students for this class+section
+        const isAllClasses = String(class_id).toUpperCase() === 'ALL';
+
+        // 2. Get valid students for this class+section or ALL scheduled classes
         let studentQuery = `
-            SELECT st.id, st.name, st.admission_no, st.custom_roll_number
+            SELECT st.id, st.name, st.admission_no, st.custom_roll_number, st.class_id, st.section_id
             FROM students st
-            WHERE st.school_id = $1 AND st.class_id = $2
-              AND (st.status IS NULL OR st.status != 'Deleted')
+            WHERE st.school_id = $1 AND (st.status IS NULL OR st.status != 'Deleted')
         `;
-        const sp = [school_id, class_id];
-        if (section_id) { studentQuery += ` AND st.section_id = $3`; sp.push(section_id); }
+        const sp = [school_id];
+        if (isAllClasses) {
+            studentQuery += ` AND st.class_id IN (SELECT class_id FROM exam_schedules WHERE school_id = $1 AND exam_type_id = $2 AND deleted_at IS NULL)`;
+            sp.push(exam_type_id);
+        } else {
+            studentQuery += ` AND st.class_id = $2`;
+            sp.push(class_id);
+            if (section_id) { studentQuery += ` AND st.section_id = $3`; sp.push(section_id); }
+        }
         const studentRes = await pool.query(studentQuery, sp);
         
         // Build lookup maps
         const studentMapById = new Map();
         const studentMapByCustomRoll = new Map();
+        const studentMapByAdmissionNo = new Map();
         studentRes.rows.forEach(s => {
             studentMapById.set(String(s.id), s);
             if (s.custom_roll_number) {
                 studentMapByCustomRoll.set(String(s.custom_roll_number).trim().toLowerCase(), s);
             }
+            if (s.admission_no) {
+                studentMapByAdmissionNo.set(String(s.admission_no).trim().toLowerCase(), s);
+            }
         });
 
-        // 3. Get subjects for this exam+class+section and build header-to-subject map
-        const scheduleRes = await pool.query(`
+        // 3. Get subjects for this exam+class+section (or ALL classes) and build header-to-subject map
+        let scheduleQuery = `
             SELECT es.subject_id, es.max_marks, es.components, sub.name as subject_name
             FROM exam_schedules es
             JOIN subjects sub ON es.subject_id = sub.id
-            WHERE es.school_id = $1 AND es.exam_type_id = $2 AND es.class_id = $3
-              AND es.deleted_at IS NULL
-              AND (es.section_id = $4 OR es.section_id IS NULL)
-        `, [school_id, exam_type_id, class_id, section_id || null]);
+            WHERE es.school_id = $1 AND es.exam_type_id = $2 AND es.deleted_at IS NULL
+        `;
+        const schedParams = [school_id, exam_type_id];
+
+        if (!isAllClasses) {
+            scheduleQuery += ` AND es.class_id = $3 AND (es.section_id = $4 OR es.section_id IS NULL)`;
+            schedParams.push(class_id, section_id || null);
+        }
+        const scheduleRes = await pool.query(scheduleQuery, schedParams);
 
         // Build subject map by header
         const subjectByHeader = {};
@@ -410,10 +460,14 @@ exports.uploadMarks = async (req, res) => {
                 const customRollVal = studentIdRaw.toLowerCase();
                 if (customRollVal && studentMapByCustomRoll.has(customRollVal)) {
                     matchedStudent = studentMapByCustomRoll.get(customRollVal);
+                } else if (customRollVal && studentMapByAdmissionNo.has(customRollVal)) {
+                    matchedStudent = studentMapByAdmissionNo.get(customRollVal);
                 }
             } else {
                 if (studentIdRaw && studentMapById.has(studentIdRaw)) {
                     matchedStudent = studentMapById.get(studentIdRaw);
+                } else if (studentIdRaw && studentMapByAdmissionNo.has(studentIdRaw.toLowerCase())) {
+                    matchedStudent = studentMapByAdmissionNo.get(studentIdRaw.toLowerCase());
                 }
             }
 

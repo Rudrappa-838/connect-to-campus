@@ -779,10 +779,14 @@ exports.getStudentAllMarks = async (req, res) => {
             return res.status(400).json({ message: 'Admission Number is required' });
         }
 
-        // First, try to find active student
+        // First, try to find active student (by admission_no, custom_roll_number, or roll_number)
         const studentRes = await pool.query(
-            `SELECT * FROM students 
-             WHERE admission_no ILIKE $1 AND school_id = $2 AND (status IS NULL OR status != 'Deleted')`,
+            `SELECT st.*, c.name as class_name
+             FROM students st
+             LEFT JOIN classes c ON st.class_id = c.id
+             WHERE (st.admission_no ILIKE $1 OR st.custom_roll_number ILIKE $1 OR st.roll_number ILIKE $1)
+               AND st.school_id = $2 
+               AND (st.status IS NULL OR st.status != 'Deleted')`,
             [admission_no.trim(), school_id]
         );
 
@@ -850,9 +854,12 @@ exports.getStudentAllMarks = async (req, res) => {
 
             return res.json({
                 student: {
+                    id: student.id,
                     name: student.name,
                     admission_no: student.admission_no,
                     roll_number: student.roll_number,
+                    custom_roll_number: student.custom_roll_number,
+                    class_name: student.class_name,
                     class_id: student.class_id,
                     father_name: student.father_name,
                     mother_name: student.mother_name,

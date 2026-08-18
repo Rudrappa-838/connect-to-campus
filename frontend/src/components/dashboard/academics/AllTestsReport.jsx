@@ -112,45 +112,74 @@ const AllTestsReport = () => {
         return name.length > 5 ? name.substring(0, 4).toUpperCase() : name.toUpperCase();
     };
 
-    // Filter and group exams (JEE vs Theory)
+    // Filter and group exams into separate categories (JEE, NEET, KCET, Theory)
     const groupedExams = React.useMemo(() => {
-        if (!result || !result.exams) return { jeeExams: [], theoryExams: [] };
+        if (!result || !result.exams) return { jeeExams: [], neetExams: [], kcetExams: [], theoryExams: [] };
         
         const jeeExams = [];
+        const neetExams = [];
+        const kcetExams = [];
         const theoryExams = [];
         
         result.exams.forEach(exam => {
             const name = exam.exam_name.toUpperCase();
-            if (name.includes('JEE') || name.includes('CET') || name.includes('KCET') || name.includes('NEET') || name.includes('COMPETITIVE')) {
+            if (name.includes('JEE')) {
                 jeeExams.push(exam);
+            } else if (name.includes('NEET')) {
+                neetExams.push(exam);
+            } else if (name.includes('KCET') || name.includes('CET')) {
+                kcetExams.push(exam);
             } else {
                 theoryExams.push(exam);
             }
         });
         
-        return { jeeExams, theoryExams };
+        return { jeeExams, neetExams, kcetExams, theoryExams };
     }, [result]);
 
-    // Find unique subjects for a subset of exams
+    // Find unique subjects for a subset of exams (dynamically excludes subjects with no marks/entries, e.g. Biology for CS students)
     const getTableSubjects = (examsList) => {
         const subjectsMap = {};
         examsList.forEach(exam => {
             if (exam.subjects) {
                 exam.subjects.forEach(sub => {
                     const name = sub.subject;
-                    if (!subjectsMap[name]) {
-                        subjectsMap[name] = {
-                            name: name,
-                            code: sub.subject_code || ''
-                        };
+                    const marksVal = sub.marks;
+                    // Only include subject if student has valid marks entry or recorded subject in this exam
+                    if (marksVal !== null && marksVal !== undefined && marksVal !== '' && marksVal !== 'ABSENT') {
+                        if (!subjectsMap[name]) {
+                            subjectsMap[name] = {
+                                name: name,
+                                code: sub.subject_code || ''
+                            };
+                        }
                     }
                 });
             }
         });
+
+        // Fallback: If all exam marks were ABSENT/empty, include all subjects present in the exams
+        if (Object.keys(subjectsMap).length === 0) {
+            examsList.forEach(exam => {
+                if (exam.subjects) {
+                    exam.subjects.forEach(sub => {
+                        const name = sub.subject;
+                        if (!subjectsMap[name]) {
+                            subjectsMap[name] = {
+                                name: name,
+                                code: sub.subject_code || ''
+                            };
+                        }
+                    });
+                }
+            });
+        }
         return Object.values(subjectsMap).sort((a, b) => a.name.localeCompare(b.name));
     };
 
     const jeeSubjects = React.useMemo(() => getTableSubjects(groupedExams.jeeExams), [groupedExams.jeeExams]);
+    const neetSubjects = React.useMemo(() => getTableSubjects(groupedExams.neetExams), [groupedExams.neetExams]);
+    const kcetSubjects = React.useMemo(() => getTableSubjects(groupedExams.kcetExams), [groupedExams.kcetExams]);
     const theorySubjects = React.useMemo(() => getTableSubjects(groupedExams.theoryExams), [groupedExams.theoryExams]);
 
     // Calculate row total (numeric sum or 'AB' if all are absent)
@@ -262,7 +291,7 @@ const AllTestsReport = () => {
                                     </div>
                                     <div></div>
                                     <div className="text-right">
-                                        ROLL NO : <span className="text-slate-700 font-bold">{result.student.roll_number || result.student.admission_no || '-'}</span>
+                                        ROLL NO / ID : <span className="text-slate-700 font-bold">{result.student.custom_roll_number || result.student.roll_number || result.student.admission_no || '-'}</span>
                                     </div>
                                     <div className="col-span-3 mt-1">
                                         STUDENT NAME : <span className="text-slate-700 font-bold">{result.student.name}</span>
@@ -275,10 +304,10 @@ const AllTestsReport = () => {
                                 <div className="mb-6">
                                     <div className="text-center mb-2">
                                         <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">
-                                            JEE MAX MARKS – 300
+                                            JEE EXAMS MARKS CARD (MAX MARKS – 300)
                                         </h3>
                                         <p className="text-[11px] font-black uppercase text-slate-800 tracking-widest decoration-dotted underline underline-offset-2">
-                                            MARKS CARD
+                                            COMPETITIVE TEST RESULTS
                                         </p>
                                     </div>
 
@@ -287,7 +316,7 @@ const AllTestsReport = () => {
                                             <thead className="bg-slate-100 text-slate-900 font-extrabold uppercase border-b border-slate-900 text-center">
                                                 <tr>
                                                     <th className="p-1.5 border-r border-slate-900 w-14">SL NO</th>
-                                                    <th className="p-1.5 border-r border-slate-900 w-28">W.E.TEST DATE</th>
+                                                    <th className="p-1.5 border-r border-slate-900 w-28">TEST DATE</th>
                                                     {jeeSubjects.map(sub => (
                                                         <th key={sub.name} className="p-1.5 border-r border-slate-900">
                                                             {abbreviateSubject(sub.name)}
@@ -331,7 +360,129 @@ const AllTestsReport = () => {
                                 </div>
                             )}
 
-                            {/* TABLE 2: THEORY UNIT TEST */}
+                            {/* TABLE 2: NEET EXAMS */}
+                            {groupedExams.neetExams.length > 0 && (
+                                <div className="mb-6">
+                                    <div className="text-center mb-2">
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">
+                                            NEET EXAMS MARKS CARD (MAX MARKS – 720)
+                                        </h3>
+                                        <p className="text-[11px] font-black uppercase text-slate-800 tracking-widest decoration-dotted underline underline-offset-2">
+                                            COMPETITIVE TEST RESULTS
+                                        </p>
+                                    </div>
+
+                                    <div className="border border-slate-900 rounded overflow-hidden">
+                                        <table className="w-full text-xs text-left border-collapse font-serif text-slate-900">
+                                            <thead className="bg-slate-100 text-slate-900 font-extrabold uppercase border-b border-slate-900 text-center">
+                                                <tr>
+                                                    <th className="p-1.5 border-r border-slate-900 w-14">SL NO</th>
+                                                    <th className="p-1.5 border-r border-slate-900 w-28">TEST DATE</th>
+                                                    {neetSubjects.map(sub => (
+                                                        <th key={sub.name} className="p-1.5 border-r border-slate-900">
+                                                            {abbreviateSubject(sub.name)}
+                                                        </th>
+                                                    ))}
+                                                    <th className="p-1.5 w-20">TOTAL</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-900 text-center">
+                                                {groupedExams.neetExams.map((exam, index) => {
+                                                    const dates = getExamDates(exam);
+                                                    const total = getRowTotal(exam, neetSubjects);
+
+                                                    return (
+                                                        <tr key={exam.id} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="p-1.5 border-r border-slate-900 font-bold">
+                                                                {String(index + 1).padStart(2, '0')}
+                                                            </td>
+                                                            <td className="p-1.5 border-r border-slate-900">
+                                                                <div className="flex flex-col">
+                                                                    {dates.length > 0 ? dates.map((d, i) => <span key={i}>{d}</span>) : <span>-</span>}
+                                                                </div>
+                                                            </td>
+                                                            {neetSubjects.map(sub => {
+                                                                const subData = getSubjectExamData(exam, sub.name);
+                                                                return (
+                                                                    <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
+                                                                        {subData.marks === 'ABSENT' ? 'AB' : subData.marks}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                            <td className="p-1.5 font-bold">
+                                                                {total}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TABLE 3: KCET / CET EXAMS */}
+                            {groupedExams.kcetExams.length > 0 && (
+                                <div className="mb-6">
+                                    <div className="text-center mb-2">
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">
+                                            KCET / CET EXAMS MARKS CARD (MAX MARKS – 180)
+                                        </h3>
+                                        <p className="text-[11px] font-black uppercase text-slate-800 tracking-widest decoration-dotted underline underline-offset-2">
+                                            COMPETITIVE TEST RESULTS
+                                        </p>
+                                    </div>
+
+                                    <div className="border border-slate-900 rounded overflow-hidden">
+                                        <table className="w-full text-xs text-left border-collapse font-serif text-slate-900">
+                                            <thead className="bg-slate-100 text-slate-900 font-extrabold uppercase border-b border-slate-900 text-center">
+                                                <tr>
+                                                    <th className="p-1.5 border-r border-slate-900 w-14">SL NO</th>
+                                                    <th className="p-1.5 border-r border-slate-900 w-28">TEST DATE</th>
+                                                    {kcetSubjects.map(sub => (
+                                                        <th key={sub.name} className="p-1.5 border-r border-slate-900">
+                                                            {abbreviateSubject(sub.name)}
+                                                        </th>
+                                                    ))}
+                                                    <th className="p-1.5 w-20">TOTAL</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-900 text-center">
+                                                {groupedExams.kcetExams.map((exam, index) => {
+                                                    const dates = getExamDates(exam);
+                                                    const total = getRowTotal(exam, kcetSubjects);
+
+                                                    return (
+                                                        <tr key={exam.id} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="p-1.5 border-r border-slate-900 font-bold">
+                                                                {String(index + 1).padStart(2, '0')}
+                                                            </td>
+                                                            <td className="p-1.5 border-r border-slate-900">
+                                                                <div className="flex flex-col">
+                                                                    {dates.length > 0 ? dates.map((d, i) => <span key={i}>{d}</span>) : <span>-</span>}
+                                                                </div>
+                                                            </td>
+                                                            {kcetSubjects.map(sub => {
+                                                                const subData = getSubjectExamData(exam, sub.name);
+                                                                return (
+                                                                    <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
+                                                                        {subData.marks === 'ABSENT' ? 'AB' : subData.marks}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                            <td className="p-1.5 font-bold">
+                                                                {total}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TABLE 4: THEORY UNIT TEST */}
                             {groupedExams.theoryExams.length > 0 && (
                                 <div className="mb-6">
                                     <div className="text-center mb-2">
@@ -392,26 +543,16 @@ const AllTestsReport = () => {
                                 </div>
                             )}
 
-                            {/* Report Card Footer Signs */}
-                            <div className="grid grid-cols-4 gap-4 pt-16 text-center text-[10px] font-bold text-slate-700 tracking-wide uppercase">
-                                <div>
-                                    <div className="border-t border-dashed border-slate-400 pt-1.5 mx-2">
+                            {/* Report Card Footer Signs: Parent & Principal Only */}
+                            <div className="flex justify-between items-center pt-16 px-6 text-center text-xs font-extrabold text-slate-800 tracking-wider uppercase">
+                                <div className="w-44">
+                                    <div className="border-t-2 border-dashed border-slate-700 pt-2">
                                         Parent Signature
                                     </div>
                                 </div>
-                                <div>
-                                    <div className="border-t border-dashed border-slate-400 pt-1.5 mx-2">
-                                        Class Teacher
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="border-t border-dashed border-slate-400 pt-1.5 mx-2">
-                                        Exam In-charge
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="border-t border-dashed border-slate-400 pt-1.5 mx-2 text-slate-900 font-black">
-                                        Principal
+                                <div className="w-44">
+                                    <div className="border-t-2 border-dashed border-slate-700 pt-2 text-slate-900 font-black">
+                                        Principal Signature
                                     </div>
                                 </div>
                             </div>
