@@ -784,7 +784,7 @@ exports.getStudentAllMarks = async (req, res) => {
             `SELECT st.*, c.name as class_name
              FROM students st
              LEFT JOIN classes c ON st.class_id = c.id
-             WHERE (st.admission_no ILIKE $1 OR st.custom_roll_number ILIKE $1 OR st.roll_number ILIKE $1)
+             WHERE (st.admission_no ILIKE $1 OR st.custom_roll_number ILIKE $1 OR st.roll_number::text ILIKE $1)
                AND st.school_id = $2 
                AND (st.status IS NULL OR st.status != 'Deleted')`,
             [admission_no.trim(), school_id]
