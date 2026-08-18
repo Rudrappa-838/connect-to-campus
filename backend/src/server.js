@@ -31,8 +31,16 @@ cron.schedule('0 1 * * *', () => {
 });
 
 const PORT = process.env.PORT || 5000;
+let isListening = false;
 
 const startServer = async () => {
+    if (!isListening) {
+        httpServer.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Server running on port ${PORT} with Socket.IO GPS tracking enabled`);
+        });
+        isListening = true;
+    }
+
     try {
         // Test DB connection
         const client = await pool.connect();
@@ -604,10 +612,7 @@ const startServer = async () => {
         }
 
         client.release();
-
-        httpServer.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Server running on port ${PORT} with Socket.IO GPS tracking enabled`);
-        });
+        console.log('✅ Database schema verified.');
     } catch (error) {
         console.error('❌ Database connection failed:', error.message);
         console.log('🔄 Retrying in 5 seconds...');

@@ -15,7 +15,10 @@ export default defineConfig({
   base: '/',
   server: {
     host: true,
-    open: true,
+    open: false,
+    watch: {
+      ignored: ['**/android/**', '**/release/**']
+    }
   },
   build: {
     sourcemap: false,
