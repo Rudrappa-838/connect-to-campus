@@ -58,15 +58,15 @@ const AllTestsReport = () => {
 
     // Helper: get mark and date for a subject in a specific exam
     const getSubjectExamData = (exam, subjectName) => {
-        const defaultData = { marks: 'ABSENT', max: 100, date: null };
+        const defaultData = { marks: 'N/A', max: 100, date: null };
         if (!exam || !exam.subjects) return defaultData;
 
         const subMatch = exam.subjects.find(s => s.subject === subjectName);
         if (subMatch) {
             const obtained = subMatch.marks;
-            const isAbsent = obtained === null || obtained === undefined || obtained === '' || obtained === 'ABSENT';
+            const isAbsent = obtained === null || obtained === undefined || obtained === '' || obtained === 'ABSENT' || obtained === 'AB' || obtained === 'N/A';
             return {
-                marks: isAbsent ? 'ABSENT' : obtained,
+                marks: isAbsent ? 'N/A' : obtained,
                 max: subMatch.max || 100,
                 date: subMatch.exam_date || null
             };
@@ -182,18 +182,18 @@ const AllTestsReport = () => {
     const kcetSubjects = React.useMemo(() => getTableSubjects(groupedExams.kcetExams), [groupedExams.kcetExams]);
     const theorySubjects = React.useMemo(() => getTableSubjects(groupedExams.theoryExams), [groupedExams.theoryExams]);
 
-    // Calculate row total (numeric sum or 'AB' if all are absent)
+    // Calculate row total (numeric sum or 'N/A' if all are absent)
     const getRowTotal = (exam, subjectsList) => {
         let allAbsent = true;
         let sum = 0;
         subjectsList.forEach(subject => {
             const subData = getSubjectExamData(exam, subject.name);
-            if (subData.marks !== 'ABSENT') {
+            if (subData.marks !== 'N/A' && subData.marks !== 'ABSENT') {
                 allAbsent = false;
                 sum += parseFloat(subData.marks) || 0;
             }
         });
-        return allAbsent ? 'AB' : sum;
+        return allAbsent ? 'N/A' : sum;
     };
 
     const handlePrint = () => {
@@ -344,7 +344,7 @@ const AllTestsReport = () => {
                                                                 const subData = getSubjectExamData(exam, sub.name);
                                                                 return (
                                                                     <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
-                                                                        {subData.marks === 'ABSENT' ? 'AB' : subData.marks}
+                                                                        {subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === null || subData.marks === '' ? 'N/A' : subData.marks}
                                                                     </td>
                                                                 );
                                                             })}
@@ -405,7 +405,7 @@ const AllTestsReport = () => {
                                                                 const subData = getSubjectExamData(exam, sub.name);
                                                                 return (
                                                                     <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
-                                                                        {subData.marks === 'ABSENT' ? 'AB' : subData.marks}
+                                                                        {subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === null || subData.marks === '' ? 'N/A' : subData.marks}
                                                                     </td>
                                                                 );
                                                             })}
@@ -466,7 +466,7 @@ const AllTestsReport = () => {
                                                                 const subData = getSubjectExamData(exam, sub.name);
                                                                 return (
                                                                     <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
-                                                                        {subData.marks === 'ABSENT' ? 'AB' : subData.marks}
+                                                                        {subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === null || subData.marks === '' ? 'N/A' : subData.marks}
                                                                     </td>
                                                                 );
                                                             })}
@@ -527,7 +527,7 @@ const AllTestsReport = () => {
                                                                 const subData = getSubjectExamData(exam, sub.name);
                                                                 return (
                                                                     <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
-                                                                        {subData.marks === 'ABSENT' ? 'AB' : subData.marks}
+                                                                        {subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === null || subData.marks === '' ? 'N/A' : subData.marks}
                                                                     </td>
                                                                 );
                                                             })}

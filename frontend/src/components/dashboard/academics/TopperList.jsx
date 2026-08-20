@@ -252,9 +252,10 @@ const TopperList = ({ config }) => {
                         <select
                             value={selectedClassId}
                             onChange={(e) => handleClassChange(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                            className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium"
                         >
                             <option value="">Select Class</option>
+                            <option value="ALL" className="font-bold text-indigo-600">🌟 All Scheduled Classes (Combined Toppers)</option>
                             {classes
                                 .slice()
                                 .sort((a, b) => {
@@ -274,7 +275,7 @@ const TopperList = ({ config }) => {
                     </div>
 
                     {/* Section Selection (if applicable) */}
-                    {selectedClassId && getSectionsForClass().length > 0 && (
+                    {selectedClassId && selectedClassId !== 'ALL' && getSectionsForClass().length > 0 && (
                         <div>
                             <label className="block text-xs font-bold text-slate-600 mb-2 uppercase">Section</label>
                             <select
@@ -343,8 +344,8 @@ const TopperList = ({ config }) => {
                         <div className="text-center border-b-2 border-slate-800 pb-2 mb-4">
                             <h1 className="text-2xl font-black uppercase tracking-wider text-slate-800 mb-2">Topper List Report</h1>
                             <div className="flex flex-wrap justify-center gap-4 text-sm font-bold text-slate-600">
-                                <span>Class: {classes.find(c => c.id == selectedClassId)?.name}</span>
-                                {selectedSection && <span>Section: {getSectionsForClass().find(s => s.id == selectedSection || s.name == selectedSection)?.name || selectedSection}</span>}
+                                <span>Class: {selectedClassId === 'ALL' ? 'All Scheduled Classes (Combined)' : classes.find(c => c.id == selectedClassId)?.name}</span>
+                                {selectedSection && selectedClassId !== 'ALL' && <span>Section: {getSectionsForClass().find(s => s.id == selectedSection || s.name == selectedSection)?.name || selectedSection}</span>}
                                 <span>Exam: {schedules.find(s => s.id == selectedScheduleId)?.exam_type_name || schedules.find(s => s.id == selectedScheduleId)?.exam_type}</span>
                                 <span>Date: {new Date().toLocaleDateString('en-GB')}</span>
                             </div>
@@ -355,8 +356,8 @@ const TopperList = ({ config }) => {
                     <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center print:hidden">
                         <div>
                             <h3 className="text-lg font-bold text-slate-800">
-                                {classes.find(c => c.id == selectedClassId)?.name}
-                                {selectedSection && ` - ${getSectionsForClass().find(s => s.id == selectedSection || s.name == selectedSection)?.name || selectedSection}`}
+                                {selectedClassId === 'ALL' ? 'All Scheduled Classes (Combined Topper List)' : classes.find(c => c.id == selectedClassId)?.name}
+                                {selectedSection && selectedClassId !== 'ALL' && ` - ${getSectionsForClass().find(s => s.id == selectedSection || s.name == selectedSection)?.name || selectedSection}`}
                                 {' | '}
                                 {schedules.find(s => s.id == selectedScheduleId)?.exam_type_name}
                             </h3>
@@ -431,9 +432,9 @@ const TopperList = ({ config }) => {
                                                 <div className="font-bold text-slate-800 truncate leading-tight" title={student.student_name}>
                                                     {formatName(student.student_name, student.father_name)}
                                                 </div>
-                                                {student.section && (
-                                                    <div className="text-[10px] text-slate-500">{student.section}</div>
-                                                )}
+                                                <div className="text-[10px] text-indigo-600 font-bold">
+                                                    {student.class_name ? `${student.class_name}${student.section ? ` (${student.section})` : ''}` : (student.section || '')}
+                                                </div>
                                             </td>
                                             {subjects.map((subject) => (
                                                 <td key={subject} className="px-1 py-1 text-center">

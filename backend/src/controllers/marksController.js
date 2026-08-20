@@ -610,19 +610,21 @@ exports.getAllMarksheets = async (req, res) => {
     }
 };
 
-// Get Toppers List for a Class/Section/Exam
+// Get Toppers List for a Class/Section/Exam (Supports ALL classes combined)
 exports.getToppers = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
         const { class_name, section, exam_type, schedule_id, class_id, section_id, exam_type_id } = req.query;
 
-        if ((!class_name && !class_id) || (!exam_type && !exam_type_id) || !schedule_id) {
-            return res.status(400).json({ message: 'Class, Exam Type, and Schedule ID are required' });
+        if ((!class_name && !class_id) || (!exam_type && !exam_type_id)) {
+            return res.status(400).json({ message: 'Class and Exam Type are required' });
         }
+
+        const isAllClasses = String(class_id || '').toUpperCase() === 'ALL' || String(class_name || '').toUpperCase() === 'ALL CLASSES';
 
         let finalClassId = class_id;
         // Get class_id from class_name if ID not provided
-        if (!finalClassId) {
+        if (!finalClassId && !isAllClasses) {
             const classResult = await pool.query(
                 `SELECT id FROM classes WHERE name = $1 AND school_id = $2`,
                 [class_name, school_id]
@@ -635,15 +637,17 @@ exports.getToppers = async (req, res) => {
 
         // Get section_id
         let finalSectionId = null;
-        if (section_id) {
-            finalSectionId = section_id;
-        } else if (section) {
-            const sectionResult = await pool.query(
-                `SELECT id FROM sections WHERE name = $1 AND class_id = $2 AND school_id = $3`,
-                [section, finalClassId, school_id]
-            );
-            if (sectionResult.rows.length > 0) {
-                finalSectionId = sectionResult.rows[0].id;
+        if (!isAllClasses) {
+            if (section_id) {
+                finalSectionId = section_id;
+            } else if (section) {
+                const sectionResult = await pool.query(
+                    `SELECT id FROM sections WHERE name = $1 AND class_id = $2 AND school_id = $3`,
+                    [section, finalClassId, school_id]
+                );
+                if (sectionResult.rows.length > 0) {
+                    finalSectionId = sectionResult.rows[0].id;
+                }
             }
         }
 
@@ -661,21 +665,33 @@ exports.getToppers = async (req, res) => {
             finalExamTypeId = examTypeResult.rows[0].id;
         }
 
-        // Get all students in the class/section
+        // Get all students for this class or ALL scheduled classes
         let studentsQuery = `
-            SELECT st.id, st.name, st.admission_no, st.roll_number, st.father_name, sec.name as section
+            SELECT st.id, st.name, st.admission_no, st.roll_number, st.custom_roll_number, st.father_name, st.class_id,
+                   c.name as class_name, sec.name as section
             FROM students st
+            JOIN classes c ON st.class_id = c.id
             LEFT JOIN sections sec ON st.section_id = sec.id
-            WHERE st.class_id = $1 AND st.school_id = $2 AND (st.status IS NULL OR st.status != 'Deleted')
+            WHERE st.school_id = $1 AND (st.status IS NULL OR st.status != 'Deleted')
         `;
-        const studentsParams = [finalClassId, school_id];
+        const studentsParams = [school_id];
 
-        if (finalSectionId) {
-            studentsParams.push(finalSectionId);
-            studentsQuery += ` AND st.section_id = $${studentsParams.length}`;
+        if (isAllClasses) {
+            studentsQuery += ` AND (
+                st.class_id IN (SELECT DISTINCT class_id FROM exam_schedules WHERE school_id = $1 AND exam_type_id = $2 AND deleted_at IS NULL)
+                OR st.id IN (SELECT DISTINCT student_id FROM marks WHERE school_id = $1 AND exam_type_id = $2)
+            )`;
+            studentsParams.push(finalExamTypeId);
+        } else {
+            studentsQuery += ` AND st.class_id = $2`;
+            studentsParams.push(finalClassId);
+            if (finalSectionId) {
+                studentsParams.push(finalSectionId);
+                studentsQuery += ` AND st.section_id = $${studentsParams.length}`;
+            }
         }
 
-        studentsQuery += ` ORDER BY st.roll_number`;
+        studentsQuery += ` ORDER BY c.name, sec.name, st.roll_number, st.name`;
 
         const studentsResult = await pool.query(studentsQuery, studentsParams);
 
@@ -683,16 +699,22 @@ exports.getToppers = async (req, res) => {
             return res.json({ toppers: [], subjects: [] });
         }
 
-        // Get all subjects for this class
-        const subjectsResult = await pool.query(
-            `SELECT DISTINCT sub.name 
-             FROM marks m
-             JOIN subjects sub ON m.subject_id = sub.id
-             WHERE m.class_id = $1 AND m.exam_type_id = $2 AND m.school_id = $3
-             ORDER BY sub.name`,
-            [finalClassId, finalExamTypeId, school_id]
-        );
+        // Get all subjects for this class or ALL classes
+        let subjectsQuery = `
+            SELECT DISTINCT sub.name 
+            FROM marks m
+            JOIN subjects sub ON m.subject_id = sub.id
+            WHERE m.exam_type_id = $1 AND m.school_id = $2
+        `;
+        const subjectsParams = [finalExamTypeId, school_id];
 
+        if (!isAllClasses && finalClassId) {
+            subjectsQuery += ` AND m.class_id = $3`;
+            subjectsParams.push(finalClassId);
+        }
+        subjectsQuery += ` ORDER BY sub.name`;
+
+        const subjectsResult = await pool.query(subjectsQuery, subjectsParams);
         const subjects = subjectsResult.rows.map(row => row.name);
 
         // Calculate marks for each student
@@ -708,8 +730,8 @@ exports.getToppers = async (req, res) => {
                  JOIN subjects sub ON m.subject_id = sub.id
                  LEFT JOIN exam_schedules es ON es.subject_id = m.subject_id 
                     AND es.exam_type_id = m.exam_type_id 
-                    AND es.class_id = m.class_id 
                     AND es.school_id = m.school_id
+                    AND (es.class_id = m.class_id OR es.class_id IS NULL)
                     AND (es.section_id = m.section_id OR es.section_id IS NULL)
                  LEFT JOIN exam_types et ON et.id = m.exam_type_id
                  WHERE m.student_id = $1 AND m.exam_type_id = $2 AND m.school_id = $3
@@ -718,7 +740,7 @@ exports.getToppers = async (req, res) => {
             );
 
             if (marksResult.rows.length === 0) {
-                continue; // Skip students with no marks
+                continue; // Skip students with no marks entered
             }
 
             // Create marks object with subject-wise marks
@@ -727,10 +749,17 @@ exports.getToppers = async (req, res) => {
             let totalMaxMarks = 0;
 
             marksResult.rows.forEach(mark => {
-                marks[mark.subject_name] = parseFloat(mark.marks_obtained || 0);
-                totalMarks += parseFloat(mark.marks_obtained || 0);
-                totalMaxMarks += parseFloat(mark.max_marks || 100); // Use actual max_marks from schedule
+                const obt = mark.marks_obtained === null || mark.marks_obtained === undefined ? null : parseFloat(mark.marks_obtained);
+                if (obt !== null) {
+                    marks[mark.subject_name] = obt;
+                    totalMarks += obt;
+                    totalMaxMarks += parseFloat(mark.max_marks || 100);
+                }
             });
+
+            if (Object.keys(marks).length === 0) {
+                continue; // Skip if no valid numeric marks exist
+            }
 
             const percentage = totalMaxMarks > 0 ? (totalMarks / totalMaxMarks) * 100 : 0;
 
@@ -740,7 +769,10 @@ exports.getToppers = async (req, res) => {
                 father_name: student.father_name,
                 admission_number: student.admission_no,
                 roll_number: student.roll_number,
-                section: student.section,
+                custom_roll_number: student.custom_roll_number,
+                class_id: student.class_id,
+                class_name: student.class_name,
+                section: student.section || '',
                 marks: marks,
                 total_marks: totalMarks,
                 total_max_marks: totalMaxMarks,
@@ -748,8 +780,8 @@ exports.getToppers = async (req, res) => {
             });
         }
 
-        // Sort by percentage (descending)
-        studentsWithMarks.sort((a, b) => b.percentage - a.percentage);
+        // Sort by percentage (descending) then total_marks (descending)
+        studentsWithMarks.sort((a, b) => b.percentage - a.percentage || b.total_marks - a.total_marks);
 
         // Assign ranks
         studentsWithMarks.forEach((student, index) => {

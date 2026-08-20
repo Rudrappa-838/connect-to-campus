@@ -73,13 +73,22 @@ exports.getExamCombos = async (req, res) => {
 
         const comboList = Object.values(combos);
         if (comboList.length > 1) {
+            const allSubjectsMap = new Map();
+            comboList.forEach(c => {
+                c.subjects.forEach(sub => {
+                    if (!allSubjectsMap.has(sub.subject_id)) {
+                        allSubjectsMap.set(sub.subject_id, sub);
+                    }
+                });
+            });
+
             comboList.unshift({
                 class_id: 'ALL',
                 class_name: 'All Scheduled Classes',
                 section_id: null,
                 section_name: 'Combined Sheet',
                 exam_type_name: comboList[0]?.exam_type_name || '',
-                subjects: []
+                subjects: Array.from(allSubjectsMap.values())
             });
         }
 
@@ -225,7 +234,7 @@ exports.downloadTemplate = async (req, res) => {
         headerRow.alignment = { horizontal: 'center', wrapText: true };
         headerRow.height = 40;
 
-        // Student rows
+        // Student rows (Only pre-fill for Normal Student ID mode. For Custom ID mode, leave rows blank so users enter custom IDs themselves)
         if (matchBy !== 'custom_roll') {
             for (const stu of students) {
                 const rowData = {
@@ -242,7 +251,7 @@ exports.downloadTemplate = async (req, res) => {
                 // Lock student info columns (light blue)
                 const lockCount = includeSats ? 5 : 4;
                 const nameColIndex = 4;
-                
+
                 for (let i = 1; i <= lockCount; i++) {
                     const cell = dataRow.getCell(i);
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
@@ -254,8 +263,8 @@ exports.downloadTemplate = async (req, res) => {
             }
         }
 
-        const lockCount = matchBy === 'custom_roll' ? 1 : (includeSats ? 5 : 4);
-        sheet.views = [{ state: 'frozen', xSplit: lockCount, ySplit: 1 }]; // freeze name columns + header
+        const freezeCount = matchBy === 'custom_roll' ? 1 : (includeSats ? 5 : 4);
+        sheet.views = [{ state: 'frozen', xSplit: freezeCount, ySplit: 1 }]; // freeze name columns + header
 
         // ── Metadata in a hidden sheet (avoids row shifting issues)
         const metaSheet = workbook.addWorksheet('__meta__');
@@ -375,13 +384,19 @@ exports.uploadMarks = async (req, res) => {
         const studentMapById = new Map();
         const studentMapByCustomRoll = new Map();
         const studentMapByAdmissionNo = new Map();
+        const studentMapByRollNo = new Map();
         studentRes.rows.forEach(s => {
-            studentMapById.set(String(s.id), s);
+            const sidStr = String(s.id).trim();
+            studentMapById.set(sidStr, s);
+
             if (s.custom_roll_number) {
                 studentMapByCustomRoll.set(String(s.custom_roll_number).trim().toLowerCase(), s);
             }
             if (s.admission_no) {
                 studentMapByAdmissionNo.set(String(s.admission_no).trim().toLowerCase(), s);
+            }
+            if (s.roll_number !== null && s.roll_number !== undefined) {
+                studentMapByRollNo.set(String(s.roll_number).trim().toLowerCase(), s);
             }
         });
 
@@ -400,9 +415,16 @@ exports.uploadMarks = async (req, res) => {
         }
         const scheduleRes = await pool.query(scheduleQuery, schedParams);
 
-        // Build subject map by header
+        // Deduplicate subjects by subject_id to build exact headers matching downloadTemplate
+        const subjectsMap = new Map();
+        scheduleRes.rows.forEach(r => {
+            if (!subjectsMap.has(r.subject_id)) {
+                subjectsMap.set(r.subject_id, r);
+            }
+        });
+
         const subjectByHeader = {};
-        for (const sub of scheduleRes.rows) {
+        for (const sub of subjectsMap.values()) {
             const comps = Array.isArray(sub.components) ? sub.components : (sub.components ? JSON.parse(sub.components || '[]') : []);
             if (comps && comps.length > 0) {
                 for (const comp of comps) {
@@ -415,11 +437,24 @@ exports.uploadMarks = async (req, res) => {
             }
         }
 
+        // Helper to extract raw primitive cell string/number safely
+        const getRawCellValue = (cell) => {
+            if (!cell || cell.value === null || cell.value === undefined) return '';
+            let val = cell.value;
+            if (typeof val === 'object') {
+                if (val.result !== undefined && val.result !== null) val = val.result;
+                else if (val.text !== undefined && val.text !== null) val = val.text;
+                else if (Array.isArray(val.richText)) val = val.richText.map(t => t.text).join('');
+                else val = String(val);
+            }
+            return String(val).trim();
+        };
+
         // 4. Read header row (now row 1 of data sheet)
         const headerRow = sheet.getRow(1);
         const headers = [];
         headerRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
-            headers[colNum] = cell.value ? String(cell.value).trim() : '';
+            headers[colNum] = getRawCellValue(cell);
         });
 
         // Find header columns dynamically
@@ -446,28 +481,36 @@ exports.uploadMarks = async (req, res) => {
         sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
             if (rowNum <= 1) return; // skip header only
 
-            const studentIdRaw = String(row.getCell(1).value || '').trim();
+            const studentIdRaw = getRawCellValue(row.getCell(1));
             if (!studentIdRaw) return;
-            const studentName = nameColNum !== -1 ? String(row.getCell(nameColNum).value || '').trim() : '';
+            const studentName = nameColNum !== -1 ? getRawCellValue(row.getCell(nameColNum)) : '';
             
             let satsNumber = '';
             if (hasSatsColumn) {
-                satsNumber = String(row.getCell(satsColNum).value || '').trim();
+                satsNumber = getRawCellValue(row.getCell(satsColNum));
             }
 
             let matchedStudent = null;
+            const rawKey = studentIdRaw.toLowerCase();
             if (matchBy === 'custom_roll') {
-                const customRollVal = studentIdRaw.toLowerCase();
-                if (customRollVal && studentMapByCustomRoll.has(customRollVal)) {
-                    matchedStudent = studentMapByCustomRoll.get(customRollVal);
-                } else if (customRollVal && studentMapByAdmissionNo.has(customRollVal)) {
-                    matchedStudent = studentMapByAdmissionNo.get(customRollVal);
+                if (studentMapByCustomRoll.has(rawKey)) {
+                    matchedStudent = studentMapByCustomRoll.get(rawKey);
+                } else if (studentMapByAdmissionNo.has(rawKey)) {
+                    matchedStudent = studentMapByAdmissionNo.get(rawKey);
+                } else if (studentMapByRollNo.has(rawKey)) {
+                    matchedStudent = studentMapByRollNo.get(rawKey);
+                } else if (studentMapById.has(studentIdRaw)) {
+                    matchedStudent = studentMapById.get(studentIdRaw);
                 }
             } else {
-                if (studentIdRaw && studentMapById.has(studentIdRaw)) {
+                if (studentMapById.has(studentIdRaw)) {
                     matchedStudent = studentMapById.get(studentIdRaw);
-                } else if (studentIdRaw && studentMapByAdmissionNo.has(studentIdRaw.toLowerCase())) {
-                    matchedStudent = studentMapByAdmissionNo.get(studentIdRaw.toLowerCase());
+                } else if (studentMapByAdmissionNo.has(rawKey)) {
+                    matchedStudent = studentMapByAdmissionNo.get(rawKey);
+                } else if (studentMapByCustomRoll.has(rawKey)) {
+                    matchedStudent = studentMapByCustomRoll.get(rawKey);
+                } else if (studentMapByRollNo.has(rawKey)) {
+                    matchedStudent = studentMapByRollNo.get(rawKey);
                 }
             }
 
@@ -491,25 +534,27 @@ exports.uploadMarks = async (req, res) => {
                 const header = headers[colNum];
                 if (!header || !subjectByHeader[header]) continue;
 
-                const cellVal = row.getCell(colNum).value;
-                // If cell is blank, treat as 0 as per user request
-                let marks = 0;
-                if (cellVal !== null && cellVal !== undefined && cellVal !== '') {
-                    marks = parseFloat(cellVal);
+                const rawVal = getRawCellValue(row.getCell(colNum));
+
+                // CRITICAL FIX: If cell is blank/empty, SKIP IT! Do NOT convert blank cell to 0 marks.
+                if (rawVal === '' || rawVal === null || rawVal === undefined) {
+                    continue;
                 }
 
+                const marks = parseFloat(rawVal);
                 if (isNaN(marks)) {
-                    errors.push({ row: rowNum, student: studentName || `Custom ID: ${studentIdRaw}`, col: header, error: 'Invalid marks value' });
+                    errors.push({ row: rowNum, student: studentName || `Custom ID: ${studentIdRaw}`, col: header, error: `Invalid marks value "${rawVal}"` });
                     continue;
                 }
 
                 const subInfo = subjectByHeader[header];
-                if (marks > subInfo.comp_max || marks > subInfo.max_marks) {
-                    errors.push({ row: rowNum, student: studentName || `Custom ID: ${studentIdRaw}`, col: header, error: `Marks ${marks} exceed maximum allowed` });
+                const maxAllowed = subInfo.comp_max || subInfo.max_marks;
+                if (marks > maxAllowed) {
+                    errors.push({ row: rowNum, student: studentName || `Custom ID: ${studentIdRaw}`, col: header, error: `Marks ${marks} exceed maximum allowed (${maxAllowed})` });
                     continue;
                 }
 
-                // We'll accumulate for saving after all rows are read
+                // Accumulate for saving
                 row._marksToSave = row._marksToSave || [];
                 row._marksToSave.push({
                     student_id: studentId,
