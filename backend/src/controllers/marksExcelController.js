@@ -76,8 +76,9 @@ exports.getExamCombos = async (req, res) => {
             const allSubjectsMap = new Map();
             comboList.forEach(c => {
                 c.subjects.forEach(sub => {
-                    if (!allSubjectsMap.has(sub.subject_id)) {
-                        allSubjectsMap.set(sub.subject_id, sub);
+                    const key = (sub.subject_name || '').trim().toLowerCase();
+                    if (!allSubjectsMap.has(key)) {
+                        allSubjectsMap.set(key, sub);
                     }
                 });
             });
@@ -136,11 +137,12 @@ exports.downloadTemplate = async (req, res) => {
             return res.status(404).json({ message: 'No exam schedule found for this class/section' });
         }
 
-        // Deduplicate subjects by subject_id
+        // Deduplicate subjects by subject_name to prevent repeating subject columns
         const subjectsMap = new Map();
         scheduleResult.rows.forEach(r => {
-            if (!subjectsMap.has(r.subject_id)) {
-                subjectsMap.set(r.subject_id, r);
+            const key = (r.subject_name || '').trim().toLowerCase();
+            if (!subjectsMap.has(key)) {
+                subjectsMap.set(key, r);
             }
         });
         const subjects = Array.from(subjectsMap.values());
@@ -400,42 +402,47 @@ exports.uploadMarks = async (req, res) => {
             }
         });
 
-        // 3. Get subjects for this exam+class+section (or ALL classes) and build header-to-subject map
-        let scheduleQuery = `
-            SELECT es.subject_id, es.max_marks, es.components, sub.name as subject_name
+        // 3. Get all exam schedules for this school & exam_type to map (student_class_id + subject_name) -> exact subject_id
+        const allSchedulesRes = await pool.query(`
+            SELECT es.subject_id, es.max_marks, es.components, es.class_id, sub.name as subject_name
             FROM exam_schedules es
             JOIN subjects sub ON es.subject_id = sub.id
             WHERE es.school_id = $1 AND es.exam_type_id = $2 AND es.deleted_at IS NULL
-        `;
-        const schedParams = [school_id, exam_type_id];
+        `, [school_id, exam_type_id]);
 
-        if (!isAllClasses) {
-            scheduleQuery += ` AND es.class_id = $3 AND (es.section_id = $4 OR es.section_id IS NULL)`;
-            schedParams.push(class_id, section_id || null);
-        }
-        const scheduleRes = await pool.query(scheduleQuery, schedParams);
+        const classSubjectMap = new Map();  // key: `${class_id}_${subject_name.toLowerCase()}`
+        const globalSubjectMap = new Map(); // key: `${subject_name.toLowerCase()}`
 
-        // Deduplicate subjects by subject_id to build exact headers matching downloadTemplate
-        const subjectsMap = new Map();
-        scheduleRes.rows.forEach(r => {
-            if (!subjectsMap.has(r.subject_id)) {
-                subjectsMap.set(r.subject_id, r);
+        allSchedulesRes.rows.forEach(r => {
+            const sNameKey = (r.subject_name || '').trim().toLowerCase();
+            const classKey = `${r.class_id}_${sNameKey}`;
+            if (!classSubjectMap.has(classKey)) {
+                classSubjectMap.set(classKey, r);
+            }
+            if (!globalSubjectMap.has(sNameKey)) {
+                globalSubjectMap.set(sNameKey, r);
             }
         });
 
         const subjectByHeader = {};
-        for (const sub of subjectsMap.values()) {
+        allSchedulesRes.rows.forEach(sub => {
             const comps = Array.isArray(sub.components) ? sub.components : (sub.components ? JSON.parse(sub.components || '[]') : []);
+            const sNameKey = (sub.subject_name || '').trim().toLowerCase();
             if (comps && comps.length > 0) {
                 for (const comp of comps) {
-                    const h = `${sub.subject_name} - ${comp.name || comp.component_name} (Max: ${comp.max_marks})`;
-                    subjectByHeader[h] = { subject_id: sub.subject_id, max_marks: sub.max_marks, comp_name: comp.name || comp.component_name, comp_max: comp.max_marks };
+                    const cName = comp.name || comp.component_name;
+                    const h = `${sub.subject_name} - ${cName} (Max: ${comp.max_marks})`;
+                    if (!subjectByHeader[h]) {
+                        subjectByHeader[h] = { subject_name_key: sNameKey, comp_name: cName, comp_max: comp.max_marks, default_max: comp.max_marks };
+                    }
                 }
             } else {
                 const h = `${sub.subject_name} (Max: ${sub.max_marks})`;
-                subjectByHeader[h] = { subject_id: sub.subject_id, max_marks: sub.max_marks };
+                if (!subjectByHeader[h]) {
+                    subjectByHeader[h] = { subject_name_key: sNameKey, default_max: sub.max_marks };
+                }
             }
-        }
+        });
 
         // Helper to extract raw primitive cell string/number safely
         const getRawCellValue = (cell) => {
@@ -548,9 +555,18 @@ exports.uploadMarks = async (req, res) => {
                 }
 
                 const subInfo = subjectByHeader[header];
-                const maxAllowed = subInfo.comp_max || subInfo.max_marks;
+                const maxAllowed = subInfo.comp_max || subInfo.default_max;
                 if (marks > maxAllowed) {
                     errors.push({ row: rowNum, student: studentName || `Custom ID: ${studentIdRaw}`, col: header, error: `Marks ${marks} exceed maximum allowed (${maxAllowed})` });
+                    continue;
+                }
+
+                // Resolve student class-specific subject_id
+                const classSubKey = `${matchedStudent.class_id}_${subInfo.subject_name_key}`;
+                const resolvedSched = classSubjectMap.get(classSubKey) || globalSubjectMap.get(subInfo.subject_name_key);
+
+                if (!resolvedSched) {
+                    errors.push({ row: rowNum, student: studentName || `Custom ID: ${studentIdRaw}`, col: header, error: `Subject schedule not found for subject` });
                     continue;
                 }
 
@@ -560,7 +576,7 @@ exports.uploadMarks = async (req, res) => {
                     student_id: studentId,
                     class_id: matchedStudent.class_id,
                     section_id: matchedStudent.section_id || null,
-                    subject_id: subInfo.subject_id,
+                    subject_id: resolvedSched.subject_id,
                     exam_type_id,
                     marks_obtained: marks,
                     year,
