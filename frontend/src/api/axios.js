@@ -6,11 +6,13 @@ import { Capacitor } from '@capacitor/core';
 // Production API URL (HTTPS via domain - fixes Mixed Content block)
 const PROD_URL = "https://connect2campus.co.in/api";
 
-// Dynamic URL for local development (Laptop)
+// Dynamic URL for local development (Laptop / Local Network IP)
 const DEV_URL = `http://${window.location.hostname}:5000/api`;
 
-// Use VITE_API_URL if defined, BUT if it points to Firebase, ignore it and use AWS PROD_URL
-let baseURL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'development' ? DEV_URL : PROD_URL);
+// Use dynamic DEV_URL in development mode, or fallback to VITE_API_URL / PROD_URL
+let baseURL = import.meta.env.MODE === 'development' 
+    ? DEV_URL 
+    : (import.meta.env.VITE_API_URL || PROD_URL);
 
 if (baseURL && baseURL.includes('cloudfunctions.net')) {
     console.warn('⚠️ Legacy Firebase URL detected, switching to AWS Prod URL');

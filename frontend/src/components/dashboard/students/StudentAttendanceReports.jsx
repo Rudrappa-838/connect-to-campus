@@ -15,10 +15,12 @@ const StudentAttendanceReports = ({ config }) => {
 
     // Sort classes numerically
     const sortedClasses = React.useMemo(() => {
-        return [...(config.classes || [])].sort((a, b) => {
-            const numA = parseInt(a.class_name.replace(/\D/g, '') || '0', 10);
-            const numB = parseInt(b.class_name.replace(/\D/g, '') || '0', 10);
-            return numA === numB ? a.class_name.localeCompare(b.class_name) : numA - numB;
+        return [...(config?.classes || [])].sort((a, b) => {
+            const nameA = (a.class_name || a.name || '').toString();
+            const nameB = (b.class_name || b.name || '').toString();
+            const numA = parseInt(nameA.replace(/\D/g, '') || '0', 10);
+            const numB = parseInt(nameB.replace(/\D/g, '') || '0', 10);
+            return numA === numB ? nameA.localeCompare(nameB) : numA - numB;
         });
     }, [config.classes]);
 

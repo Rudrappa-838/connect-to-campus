@@ -248,12 +248,14 @@ const TimetableManagement = ({ config }) => {
                             {config?.classes
                                 ?.slice()
                                 .sort((a, b) => {
-                                    const numA = parseInt(a.class_name.replace(/\D/g, '') || '0', 10);
-                                    const numB = parseInt(b.class_name.replace(/\D/g, '') || '0', 10);
-                                    return numA === numB ? a.class_name.localeCompare(b.class_name) : numA - numB;
+                                    const nameA = (a.class_name || a.name || '').toString();
+                                    const nameB = (b.class_name || b.name || '').toString();
+                                    const numA = parseInt(nameA.replace(/\D/g, '') || '0', 10);
+                                    const numB = parseInt(nameB.replace(/\D/g, '') || '0', 10);
+                                    return numA === numB ? nameA.localeCompare(nameB) : numA - numB;
                                 })
                                 .map(c => (
-                                    <option key={c.class_id} value={c.class_id}>{c.class_name}</option>
+                                    <option key={c.class_id || c.id} value={c.class_id || c.id}>{c.class_name || c.name}</option>
                                 ))}
                         </select>
                     </div>

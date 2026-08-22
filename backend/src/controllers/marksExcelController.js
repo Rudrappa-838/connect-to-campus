@@ -3,6 +3,7 @@ const ExcelJS = require('exceljs');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { isTeacherAuthorizedForClass } = require('../utils/teacherAccess');
 
 // ─── Multer Setup (in-memory upload) ────────────────────────────────────────
 const storage = multer.memoryStorage();
@@ -71,8 +72,15 @@ exports.getExamCombos = async (req, res) => {
             });
         }
 
-        const comboList = Object.values(combos);
-        if (comboList.length > 1) {
+        let comboList = Object.values(combos);
+        if (req.user.role === 'TEACHER') {
+            const filteredCombos = [];
+            for (const c of comboList) {
+                const ok = await isTeacherAuthorizedForClass(req.user, c.class_id, c.section_id);
+                if (ok) filteredCombos.push(c);
+            }
+            comboList = filteredCombos;
+        } else if (comboList.length > 1) {
             const allSubjectsMap = new Map();
             comboList.forEach(c => {
                 c.subjects.forEach(sub => {
@@ -357,6 +365,13 @@ exports.uploadMarks = async (req, res) => {
 
         if (String(templateSchoolId) !== String(school_id)) {
             return res.status(403).json({ message: 'This template belongs to a different school.' });
+        }
+
+        if (req.user.role === 'TEACHER') {
+            const ok = await isTeacherAuthorizedForClass(req.user, class_id, section_id);
+            if (!ok) {
+                return res.status(403).json({ message: 'Access denied: You can only upload marks for your assigned class.' });
+            }
         }
 
         // Data is in the first non-meta worksheet

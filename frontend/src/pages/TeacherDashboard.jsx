@@ -30,6 +30,8 @@ import QuestionPaperGenerator from '../components/dashboard/academics/question-p
 import DedicatedQuestionBank from '../components/dashboard/academics/question-paper/DedicatedQuestionBank';
 import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
 import FaceAttendanceScanner from '../components/dashboard/biometric/FaceAttendanceScanner';
+import MarksManagement from '../components/dashboard/academics/MarksManagement';
+import ExamSchedule from '../components/dashboard/academics/ExamSchedule';
 import { MobileHeader, MobileFooter } from '../components/layout/MobileAppFiles';
 import { Capacitor } from '@capacitor/core';
 import OutPassManager from '../components/dashboard/common/OutPassManager';
@@ -238,6 +240,8 @@ const TeacherDashboard = () => {
                             <NavButton active={activeTab === 'attendance'} onClick={() => handleTabChange('attendance')} icon={CheckSquare} label="Mark Attendance" />
                             <NavButton active={activeTab === 'daily-status'} onClick={() => handleTabChange('daily-status')} icon={LayoutDashboard} label="Daily Status" />
                             <NavButton active={activeTab === 'attendance-reports'} onClick={() => handleTabChange('attendance-reports')} icon={ClipboardList} label="Attendance Reports" />
+                            <NavButton active={activeTab === 'marks-management'} onClick={() => handleTabChange('marks-management')} icon={ClipboardList} label="Marks Management" />
+                            <NavButton active={activeTab === 'exam-schedule'} onClick={() => handleTabChange('exam-schedule')} icon={Calendar} label="Schedule Exams" />
                         </>
                     )}
                     
@@ -360,6 +364,8 @@ const TeacherDashboard = () => {
                                 {activeTab === 'attendance' && hasAttendanceAccess && <StudentAttendanceMarking config={attendanceConfig} />}
                                 {activeTab === 'daily-status' && hasAttendanceAccess && <DailyAttendanceStatus config={attendanceConfig} />}
                                 {activeTab === 'attendance-reports' && hasAttendanceAccess && <StudentAttendanceReports config={attendanceConfig} />}
+                                {activeTab === 'marks-management' && hasAttendanceAccess && <MarksManagement config={attendanceConfig} />}
+                                {activeTab === 'exam-schedule' && hasAttendanceAccess && <ExamSchedule config={attendanceConfig} />}
 
                                 {activeTab === 'my-attendance' && <TeacherMyAttendance />}
                                 {activeTab === 'salary' && <TeacherMySalary />}
@@ -545,6 +551,8 @@ const getTabTitle = (tab) => {
         case 'attendance': return 'Mark Student Attendance';
         case 'daily-status': return 'Daily Attendance Status';
         case 'attendance-reports': return 'Student Attendance Reports';
+        case 'marks-management': return 'Marks Management';
+        case 'exam-schedule': return 'Schedule Exams';
         case 'my-attendance': return 'My Daily Attendance';
         case 'salary': return 'My Details & Salary Info';
         case 'timetable': return 'Class Timetable';

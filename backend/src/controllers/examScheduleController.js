@@ -1,4 +1,5 @@
 const { pool } = require('../config/db');
+const { isTeacherAuthorizedForClass } = require('../utils/teacherAccess');
 
 // Get Exam Schedule
 exports.getExamSchedule = async (req, res) => {
@@ -63,6 +64,15 @@ exports.saveExamSchedule = async (req, res) => {
 
         if (!schedules || !Array.isArray(schedules) || schedules.length === 0) {
             return res.status(400).json({ message: 'No schedules provided' });
+        }
+
+        if (req.user.role === 'TEACHER') {
+            for (const s of schedules) {
+                const ok = await isTeacherAuthorizedForClass(req.user, s.class_id, s.section_id);
+                if (!ok) {
+                    return res.status(403).json({ message: 'Access denied: You can only schedule exams for your assigned class.' });
+                }
+            }
         }
 
         await client.query('BEGIN');

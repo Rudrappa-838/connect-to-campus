@@ -261,6 +261,15 @@ const ExamSchedule = ({ config }) => {
     };
 
     const fetchClasses = async () => {
+        if (config?.classes && config.classes.length > 0) {
+            const normalized = config.classes.map(c => ({
+                ...c,
+                id: c.id || c.class_id,
+                name: c.name || c.class_name || ''
+            }));
+            setClasses(normalized);
+            return;
+        }
         try {
             const res = await api.get('/classes');
             setClasses(res.data);
@@ -270,6 +279,13 @@ const ExamSchedule = ({ config }) => {
     };
 
     const fetchSections = async (classId) => {
+        if (config?.classes && config.classes.length > 0) {
+            const cls = config.classes.find(c => (c.class_id || c.id) === parseInt(classId));
+            if (cls && cls.sections) {
+                setSections(cls.sections);
+                return;
+            }
+        }
         try {
             const res = await api.get(`/classes/${classId}/sections`);
             setSections(res.data);
@@ -2034,11 +2050,13 @@ const ExamSchedule = ({ config }) => {
                                     {classes
                                         .slice()
                                         .sort((a, b) => {
-                                            const numA = parseInt(a.name.replace(/\D/g, '') || '0', 10);
-                                            const numB = parseInt(b.name.replace(/\D/g, '') || '0', 10);
-                                            return numA === numB ? a.name.localeCompare(b.name) : numA - numB;
+                                            const strA = (a.name || a.class_name || '').toString();
+                                            const strB = (b.name || b.class_name || '').toString();
+                                            const numA = parseInt(strA.replace(/\D/g, '') || '0', 10);
+                                            const numB = parseInt(strB.replace(/\D/g, '') || '0', 10);
+                                            return numA === numB ? strA.localeCompare(strB) : numA - numB;
                                         })
-                                        .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        .map(c => <option key={c.id || c.class_id} value={c.id || c.class_id}>{c.name || c.class_name}</option>)}
                                 </select>
                             </div>
                             {newClassSections.length > 0 && (
@@ -2403,11 +2421,13 @@ const ClassMultiSelector = ({ classes, onAdd, onRemove, selected }) => {
                     {classes
                         .slice()
                         .sort((a, b) => {
-                            const numA = parseInt(a.name.replace(/\D/g, '') || '0', 10);
-                            const numB = parseInt(b.name.replace(/\D/g, '') || '0', 10);
-                            return numA === numB ? a.name.localeCompare(b.name) : numA - numB;
+                            const strA = (a.name || a.class_name || '').toString();
+                            const strB = (b.name || b.class_name || '').toString();
+                            const numA = parseInt(strA.replace(/\D/g, '') || '0', 10);
+                            const numB = parseInt(strB.replace(/\D/g, '') || '0', 10);
+                            return numA === numB ? strA.localeCompare(strB) : numA - numB;
                         })
-                        .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        .map(c => <option key={c.id || c.class_id} value={c.id || c.class_id}>{c.name || c.class_name}</option>)}
                 </select>
                 <select
                     value={selSection}

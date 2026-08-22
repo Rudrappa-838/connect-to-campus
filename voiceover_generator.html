@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>School App – Voice-Over Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0b0f1a; --surface: #131928; --card: #1a2236; --border: #243050;
+      --accent: #4f8ef7; --green: #22c55e; --red: #ef4444; --text: #e2e8f0; --muted: #64748b;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem 4rem; }
+    .header { text-align: center; margin-bottom: 2.5rem; }
+    .header .badge { display: inline-flex; align-items: center; gap: .5rem; background: rgba(79,142,247,.12); border: 1px solid rgba(79,142,247,.3); border-radius: 999px; padding: .35rem 1rem; font-size: .75rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 1rem; }
+    .header h1 { font-size: 2.2rem; font-weight: 800; background: linear-gradient(135deg,#e2e8f0,var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.15; }
+    .header p { color: var(--muted); margin-top: .6rem; font-size: .95rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 2rem; width: 100%; max-width: 860px; box-shadow: 0 0 60px rgba(0,0,0,.5); }
+    .controls-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .ctrl-group { flex: 1; min-width: 150px; }
+    .ctrl-group label { display: block; font-size: .78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .4rem; }
+    .ctrl-group select, .ctrl-group input[type=range] { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: .55rem .8rem; font-size: .88rem; outline: none; cursor: pointer; transition: border-color .2s; }
+    .ctrl-group select:hover { border-color: var(--accent); }
+    .ctrl-group input[type=range] { padding: 0; accent-color: var(--accent); height: 38px; }
+    .range-val { font-size: .8rem; color: var(--accent); font-weight: 600; text-align: right; margin-top: .2rem; }
+    .script-label { font-size: .78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .5rem; }
+    textarea#script { width: 100%; height: 220px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; color: var(--text); font-family: 'Inter',sans-serif; font-size: .9rem; line-height: 1.7; padding: 1rem; outline: none; resize: vertical; transition: border-color .2s; }
+    textarea#script:focus { border-color: var(--accent); }
+    .actions { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.2rem; }
+    .btn { display: inline-flex; align-items: center; gap: .5rem; padding: .7rem 1.4rem; border-radius: 12px; font-size: .9rem; font-weight: 600; border: none; cursor: pointer; transition: all .2s; }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: linear-gradient(135deg,var(--accent),#6366f1); color: #fff; box-shadow: 0 4px 20px rgba(79,142,247,.35); }
+    .btn-primary:hover { box-shadow: 0 6px 28px rgba(79,142,247,.5); }
+    .btn-danger { background: linear-gradient(135deg,var(--red),#b91c1c); color: #fff; }
+    .btn-success { background: linear-gradient(135deg,var(--green),#15803d); color: #fff; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+    .progress-wrap { margin-top: 1.4rem; display: none; }
+    .progress-wrap.show { display: block; }
+    .progress-track { width: 100%; height: 6px; background: var(--surface); border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg,var(--accent),#6366f1); border-radius: 99px; transition: width .3s; }
+    .progress-text { font-size: .8rem; color: var(--muted); margin-top: .5rem; display: flex; justify-content: space-between; }
+    .status-box { margin-top: 1.2rem; padding: .8rem 1rem; border-radius: 12px; font-size: .88rem; font-weight: 500; display: none; align-items: center; gap: .5rem; }
+    .status-box.show { display: flex; }
+    .status-box.info { background: rgba(79,142,247,.1); border: 1px solid rgba(79,142,247,.25); color: var(--accent); }
+    .status-box.success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.25); color: var(--green); }
+    .status-box.error { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25); color: var(--red); }
+    .status-box.recording { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); color: var(--red); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+    .download-section { margin-top: 1.5rem; padding: 1.2rem; background: rgba(34,197,94,.06); border: 1px solid rgba(34,197,94,.2); border-radius: 14px; display: none; }
+    .download-section.show { display: block; }
+    .download-section h3 { font-size: .95rem; font-weight: 700; color: var(--green); margin-bottom: .8rem; }
+    .download-section audio { width: 100%; border-radius: 8px; margin-bottom: .8rem; }
+    .download-section .dl-btn { display: inline-flex; align-items: center; gap: .5rem; background: linear-gradient(135deg,var(--green),#15803d); color: #fff; padding: .65rem 1.2rem; border-radius: 10px; font-size: .9rem; font-weight: 600; text-decoration: none; transition: box-shadow .2s; }
+    .download-section .dl-btn:hover { box-shadow: 0 4px 18px rgba(34,197,94,.35); }
+    .steps-toggle { margin-top: 1.8rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
+    .steps-toggle summary { cursor: pointer; font-size: .88rem; font-weight: 600; color: var(--muted); user-select: none; outline: none; }
+    .steps-toggle summary:hover { color: var(--accent); }
+    .steps-list { display: flex; flex-direction: column; gap: .5rem; margin-top: 1rem; }
+    .step-item { display: flex; align-items: flex-start; gap: .75rem; padding: .7rem 1rem; background: var(--surface); border-radius: 10px; border-left: 3px solid var(--border); font-size: .85rem; line-height: 1.5; transition: border-color .2s,background .2s; }
+    .step-item.active { border-left-color: var(--accent); background: rgba(79,142,247,.07); }
+    .step-item.done { border-left-color: var(--green); }
+    .step-num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; }
+    .step-item.active .step-num { background: var(--accent); color: #fff; }
+    .step-item.done .step-num { background: var(--green); color: #fff; }
+    .tips { max-width: 860px; width: 100%; margin-top: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: .8rem; }
+    .tip { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1rem; font-size: .82rem; line-height: 1.5; }
+    .tip .tip-icon { font-size: 1.2rem; margin-bottom: .4rem; }
+    .tip .tip-title { font-weight: 700; font-size: .85rem; margin-bottom: .3rem; }
+    .tip p { color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">🎙 Voice-Over Studio</div>
+  <h1>School App Demo<br/>Voice Generator</h1>
+  <p>Convert your 14-step script to a professional voice-over and download it</p>
+</div>
+
+<div class="card">
+  <div class="controls-row">
+    <div class="ctrl-group">
+      <label>🗣 Voice</label>
+      <select id="voiceSelect"><option>Loading voices…</option></select>
+    </div>
+    <div class="ctrl-group">
+      <label>⚡ Speed</label>
+      <input type="range" id="rateRange" min="0.6" max="1.4" step="0.05" value="0.88"/>
+      <div class="range-val" id="rateVal">0.88×</div>
+    </div>
+    <div class="ctrl-group">
+      <label>🎵 Pitch</label>
+      <input type="range" id="pitchRange" min="0.5" max="1.5" step="0.05" value="1.0"/>
+      <div class="range-val" id="pitchVal">1.0</div>
+    </div>
+    <div class="ctrl-group">
+      <label>🔊 Volume</label>
+      <input type="range" id="volRange" min="0.1" max="1" step="0.05" value="1.0"/>
+      <div class="range-val" id="volVal">100%</div>
+    </div>
+  </div>
+
+  <div class="script-label">📝 Script (editable)</div>
+  <textarea id="script">Welcome to the School App. In this video, we will see how a student can log in and access the campus dashboard.
+
+First, select the Student role. Enter the student ID provided by your institution, and then enter your password.
+
+Now tap Access Portal to continue.
+
+If this is your first login, the application may ask you to update your security details. Please enter the required information carefully.
+
+After completing the security update, continue to the student dashboard.
+
+This is the main student dashboard. Here you can quickly view your profile, attendance, library status, fees, hostel information, and other important details.
+
+Tap the Menu icon to open the complete list of services available in the application.
+
+From here you can access the dashboard, academics and examinations, ask doubts, attendance, library books, hostel rooms, and the live fleet map.
+
+The Live Fleet Map can be used to track the campus transport service. When location access is requested, allow access to use the live tracking feature.
+
+You can also view your certificates and other personal services from the menu.
+
+The Reviews and Feedback section allows you to share your feedback with the institution.
+
+To return to the dashboard, select Dashboard from the menu.
+
+The home screen gives you a quick overview of your student information and important campus updates.
+
+That completes the student login demonstration. Thank you for using the School App.</textarea>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="previewBtn" onclick="previewSpeech()">▶ Preview Voice</button>
+    <button class="btn btn-danger" id="stopBtn" onclick="stopSpeech()" disabled>⏹ Stop</button>
+    <button class="btn btn-success" id="recordBtn" onclick="startRecording()">⏺ Record &amp; Download</button>
+    <button class="btn btn-outline" onclick="resetScript()">↺ Reset Script</button>
+  </div>
+
+  <div class="status-box info show" id="statusBox">
+    <span id="statusIcon">ℹ️</span>
+    <span id="statusText">Select a voice, adjust settings, then click Preview or Record.</span>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-text">
+      <span id="progressLabel">Recording…</span>
+      <span id="progressTime">0s</span>
+    </div>
+  </div>
+
+  <div class="download-section" id="downloadSection">
+    <h3>✅ Recording Complete – Download Your Audio</h3>
+    <audio id="audioPlayer" controls></audio><br/>
+    <a href="#" id="downloadLink" class="dl-btn" download="school_app_voiceover.webm">⬇ Download Audio File</a>
+  </div>
+
+  <details class="steps-toggle" id="stepsDetails">
+    <summary>📋 Show / Hide Script Steps (14 steps)</summary>
+    <div class="steps-list" id="stepsList"></div>
+  </details>
+</div>
+
+<div class="tips">
+  <div class="tip"><div class="tip-icon">🎙️</div><div class="tip-title">Best Voice</div><p>Pick a voice with "Google" or "Microsoft" in the name for the most natural sound.</p></div>
+  <div class="tip"><div class="tip-icon">🐢</div><div class="tip-title">Ideal Speed</div><p>0.85× – 0.90× gives a clear, professional narration pace.</p></div>
+  <div class="tip"><div class="tip-icon">🎬</div><div class="tip-title">Use With Video</div><p>Import the downloaded audio into DaVinci Resolve, Premiere, or CapCut to sync with your screen recording.</p></div>
+  <div class="tip"><div class="tip-icon">🖥️</div><div class="tip-title">Best Results</div><p>Use Chrome or Edge for the best voice quality. Allow microphone access when prompted.</p></div>
+</div>
+
+<script>
+  const steps = [
+    { title:"Step 1: Open the Application", text:"Welcome to the School App. In this video, we will see how a student can log in and access the campus dashboard." },
+    { title:"Step 2: Enter Login Details", text:"First, select the Student role. Enter the student ID provided by your institution, and then enter your password." },
+    { title:"Step 3: Access the Portal", text:"Now tap Access Portal to continue." },
+    { title:"Step 4: Update Security Details", text:"If this is your first login, the application may ask you to update your security details. Please enter the required information carefully." },
+    { title:"Step 5: Open the Student Dashboard", text:"After completing the security update, continue to the student dashboard." },
+    { title:"Step 6: View the Dashboard", text:"This is the main student dashboard. Here you can quickly view your profile, attendance, library status, fees, hostel information, and other important details." },
+    { title:"Step 7: Open the Menu", text:"Tap the Menu icon to open the complete list of services available in the application." },
+    { title:"Step 8: Access Student Services", text:"From here you can access the dashboard, academics and examinations, ask doubts, attendance, library books, hostel rooms, and the live fleet map." },
+    { title:"Step 9: Track Campus Transport", text:"The Live Fleet Map can be used to track the campus transport service. When location access is requested, allow access to use the live tracking feature." },
+    { title:"Step 10: Certificates and Personal Services", text:"You can also view your certificates and other personal services from the menu." },
+    { title:"Step 11: Reviews and Feedback", text:"The Reviews and Feedback section allows you to share your feedback with the institution." },
+    { title:"Step 12: Return to the Dashboard", text:"To return to the dashboard, select Dashboard from the menu." },
+    { title:"Step 13: View the Home Screen", text:"The home screen gives you a quick overview of your student information and important campus updates." },
+    { title:"Step 14: Complete", text:"That completes the student login demonstration. Thank you for using the School App." },
+  ];
+
+  // Build step list
+  const stepsList = document.getElementById('stepsList');
+  steps.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'step-item'; el.id = 'step-' + i;
+    el.innerHTML = `<div class="step-num">${i+1}</div><div><strong>${s.title}</strong><br/>${s.text}</div>`;
+    stepsList.appendChild(el);
+  });
+
+  // Voices
+  const synth = window.speechSynthesis;
+  let voices = [];
+  let isSpeaking = false;
+
+  function loadVoices() {
+    voices = synth.getVoices();
+    const sel = document.getElementById('voiceSelect');
+    sel.innerHTML = '';
+    const eng = voices.filter(v => v.lang.startsWith('en'));
+    const pool = eng.length ? eng : voices;
+    pool.forEach((v, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${v.name} (${v.lang})`;
+      if (v.name.match(/google|microsoft/i)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    if (!sel.value && sel.options.length) sel.selectedIndex = 0;
+  }
+  synth.onvoiceschanged = loadVoices;
+  setTimeout(loadVoices, 200);
+
+  // Range displays
+  document.getElementById('rateRange').oninput = e => document.getElementById('rateVal').textContent = parseFloat(e.target.value).toFixed(2) + '×';
+  document.getElementById('pitchRange').oninput = e => document.getElementById('pitchVal').textContent = parseFloat(e.target.value).toFixed(2);
+  document.getElementById('volRange').oninput = e => document.getElementById('volVal').textContent = Math.round(e.target.value * 100) + '%';
+
+  function setStatus(text, type) {
+    const box = document.getElementById('statusBox');
+    const icons = { info:'ℹ️', success:'✅', error:'❌', recording:'🔴' };
+    box.className = 'status-box show ' + type;
+    document.getElementById('statusIcon').textContent = icons[type] || 'ℹ️';
+    document.getElementById('statusText').textContent = text;
+  }
+
+  function getVoice() {
+    const sel = document.getElementById('voiceSelect');
+    const eng = voices.filter(v => v.lang.startsWith('en'));
+    const pool = eng.length ? eng : voices;
+    return pool[parseInt(sel.value)] || voices[0];
+  }
+
+  function buildUtt(text) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice  = getVoice();
+    u.rate   = parseFloat(document.getElementById('rateRange').value);
+    u.pitch  = parseFloat(document.getElementById('pitchRange').value);
+    u.volume = parseFloat(document.getElementById('volRange').value);
+    return u;
+  }
+
+  function stopSpeech() {
+    synth.cancel(); isSpeaking = false;
+    document.getElementById('previewBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+    document.querySelectorAll('.step-item').forEach(el => el.classList.remove('active','done'));
+    setStatus('Stopped.', 'info');
+  }
+
+  function resetScript() {
+    stopSpeech();
+    document.getElementById('script').value = steps.map(s => s.text).join('\n\n');
+    setStatus('Script reset to default.', 'info');
+  }
+
+  function previewSpeech() {
+    stopSpeech();
+    document.getElementById('stepsDetails').open = true;
+    document.getElementById('previewBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    isSpeaking = true;
+    let idx = 0;
+    function next() {
+      if (idx >= steps.length || !isSpeaking) {
+        document.getElementById('previewBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        isSpeaking = false;
+        setStatus('Preview complete!', 'success');
+        return;
+      }
+      document.querySelectorAll('.step-item').forEach((el, i) => {
+        el.classList.toggle('active', i === idx);
+        el.classList.toggle('done', i < idx);
+      });
+      document.getElementById('step-' + idx).scrollIntoView({ behavior:'smooth', block:'nearest' });
+      setStatus('Speaking: ' + steps[idx].title, 'info');
+      const u = buildUtt(steps[idx].text);
+      u.onend = u.onerror = () => { idx++; next(); };
+      synth.speak(u);
+    }
+    next();
+  }
+
+  // Record
+  let mediaRecorder = null, recordedChunks = [], timerInterval = null, elapsed = 0;
+
+  async function startRecording() {
+    stopSpeech();
+    document.getElementById('downloadSection').classList.remove('show');
+    document.getElementById('recordBtn').disabled = true;
+    recordedChunks = [];
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      });
+    } catch(e) {
+      setStatus('Microphone access denied. Please allow microphone access and try again.', 'error');
+      document.getElementById('recordBtn').disabled = false;
+      return;
+    }
+
+    const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(timerInterval);
+      document.getElementById('progressWrap').classList.remove('show');
+      const blob = new Blob(recordedChunks, { type: mimeType || 'audio/webm' });
+      const url = URL.createObjectURL(blob);
+      document.getElementById('audioPlayer').src = url;
+      const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+      const link = document.getElementById('downloadLink');
+      link.href = url; link.download = 'school_app_voiceover.' + ext;
+      document.getElementById('downloadSection').classList.add('show');
+      setStatus('Recording complete! Play it back above or download.', 'success');
+      document.getElementById('recordBtn').disabled = false;
+    };
+
+    mediaRecorder.start(100);
+    elapsed = 0;
+    document.getElementById('progressWrap').classList.add('show');
+    document.getElementById('progressFill').style.width = '0%';
+    timerInterval = setInterval(() => {
+      elapsed++;
+      document.getElementById('progressTime').textContent = elapsed + 's';
+    }, 1000);
+    setStatus('🔴 Recording started — speak your voice-over now or let TTS play through speakers…', 'recording');
+
+    // Speak TTS through speakers (mic will pick it up if close)
+    let idx = 0;
+    function next() {
+      if (idx >= steps.length) {
+        setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+        }, 1000);
+        return;
+      }
+      const pct = Math.round((idx / steps.length) * 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressLabel').textContent = `Step ${idx+1}/${steps.length}: ${steps[idx].title}`;
+      const u = buildUtt(steps[idx].text);
+      u.onend = u.onerror = () => { idx++; next(); };
+      synth.speak(u);
+    }
+    next();
+  }
+</script>
+</body>
+</html>

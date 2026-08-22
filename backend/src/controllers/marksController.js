@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const PizZip = require('pizzip');
 const Docxtemplater = require('docxtemplater');
+const { isTeacherAuthorizedForClass } = require('../utils/teacherAccess');
 
 // Startup Migration: Ensure SATS column exists to prevent 500 errors
 let columnChecked = false;
@@ -326,6 +327,26 @@ exports.saveMarks = async (req, res) => {
 
         if (!marks || !Array.isArray(marks) || marks.length === 0) {
             return res.status(400).json({ message: 'Marks data is required' });
+        }
+
+        if (req.user.role === 'TEACHER') {
+            const classIds = [...new Set(marks.map(m => m.class_id).filter(Boolean))];
+            for (const cid of classIds) {
+                const secIds = [...new Set(marks.filter(m => m.class_id === cid).map(m => m.section_id).filter(Boolean))];
+                if (secIds.length === 0) {
+                    const isAuth = await isTeacherAuthorizedForClass(req.user, cid, null);
+                    if (!isAuth) {
+                        return res.status(403).json({ message: 'Access denied: You can only save marks for your assigned class.' });
+                    }
+                } else {
+                    for (const sid of secIds) {
+                        const isAuth = await isTeacherAuthorizedForClass(req.user, cid, sid);
+                        if (!isAuth) {
+                            return res.status(403).json({ message: 'Access denied: You can only save marks for your assigned class.' });
+                        }
+                    }
+                }
+            }
         }
 
         console.log(`[Marks Save] Received ${marks.length} marks to save for school ${school_id}`);
