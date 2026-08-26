@@ -836,96 +836,61 @@ const formatExamDate = (d) => {
 // Get All Marks for a Student (Overall History)
 exports.getStudentAllMarks = async (req, res) => {
     try {
-        const school_id = req.user?.schoolId || req.user?.school_id;
         const { admission_no } = req.query;
+        const school_id = req.user?.schoolId || req.user?.school_id;
 
-        console.log('[Get Student All Marks] Searching for:', admission_no);
+        console.log('[Get Student All Marks] Searching for:', admission_no, 'school_id:', school_id);
 
-        if (!school_id) {
-            return res.status(400).json({ message: 'School ID is required' });
-        }
-
-        if (!admission_no) {
+        if (!admission_no || !admission_no.trim()) {
             return res.status(400).json({ message: 'Admission Number is required' });
         }
 
-        // First, try to find active student (by admission_no, custom_roll_number, or roll_number)
+        const trimmedAdmission = admission_no.trim();
+
+        // 1. First, try to find active student (by admission_no, custom_roll_number, or roll_number)
         let studentRes;
         try {
-            studentRes = await pool.query(
-                `SELECT st.*, c.name as class_name
-                 FROM students st
-                 LEFT JOIN classes c ON st.class_id = c.id
-                 WHERE (st.admission_no ILIKE $1 OR st.custom_roll_number ILIKE $1 OR st.roll_number::text ILIKE $1)
-                   AND st.school_id = $2 
-                   AND (st.status IS NULL OR st.status != 'Deleted')`,
-                [admission_no.trim(), school_id]
-            );
-        } catch (err) {
-            // Fallback if custom_roll_number column does not exist on DB
+            const studentParams = school_id ? [trimmedAdmission, school_id] : [trimmedAdmission];
+            const schoolFilter = school_id ? 'AND st.school_id = $2' : '';
+
             studentRes = await pool.query(
                 `SELECT st.*, c.name as class_name
                  FROM students st
                  LEFT JOIN classes c ON st.class_id = c.id
                  WHERE (st.admission_no ILIKE $1 OR st.roll_number::text ILIKE $1)
-                   AND st.school_id = $2 
+                   ${schoolFilter}
                    AND (st.status IS NULL OR st.status != 'Deleted')`,
-                [admission_no.trim(), school_id]
+                studentParams
             );
+        } catch (err) {
+            console.error('[Get Student All Marks] Student lookup error:', err.message);
+            studentRes = { rows: [] };
         }
 
-        if (studentRes.rows.length > 0) {
-            // Active student found - fetch their marks
+        if (studentRes.rows && studentRes.rows.length > 0) {
             const student = studentRes.rows[0];
-
-            // Fetch ALL Marks with actual max_marks from latest active exam_schedules
-            const marksQuery = `
-                 SELECT DISTINCT ON (m.id) 
-                        m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
-                        m.exam_type_id, 
-                        COALESCE(es.exam_date::text, m.created_at::date::text) as exam_date,
-                        COALESCE(es.max_marks, et.max_marks, 100) as max_marks
-                 FROM marks m
-                 JOIN subjects sub ON m.subject_id = sub.id
-                 JOIN exam_types et ON m.exam_type_id = et.id
-                 LEFT JOIN LATERAL (
-                    SELECT exam_date::text as exam_date, max_marks
-                    FROM exam_schedules
-                    WHERE subject_id = m.subject_id 
-                      AND exam_type_id = m.exam_type_id 
-                      AND school_id = m.school_id
-                      AND (class_id = m.class_id OR class_id IS NULL)
-                      AND (section_id = m.section_id OR section_id IS NULL)
-                    ORDER BY id DESC
-                    LIMIT 1
-                 ) es ON TRUE
-                 WHERE m.student_id = $1 AND m.school_id = $2
-                 ORDER BY m.id, et.id, sub.name
-            `;
 
             let marksRes;
             try {
-                marksRes = await pool.query(marksQuery, [student.id, school_id]);
-            } catch (marksErr) {
-                console.error('[Get Student All Marks] LATERAL query failed, trying simple query:', marksErr.message);
-                const simpleMarksQuery = `
-                    SELECT m.id, m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
-                           m.exam_type_id, m.created_at::date::text as exam_date,
-                           COALESCE(et.max_marks, 100) as max_marks
-                    FROM marks m
-                    JOIN subjects sub ON m.subject_id = sub.id
-                    JOIN exam_types et ON m.exam_type_id = et.id
-                    WHERE m.student_id = $1 AND m.school_id = $2
-                    ORDER BY m.id, et.id, sub.name
-                `;
-                marksRes = await pool.query(simpleMarksQuery, [student.id, school_id]);
+                marksRes = await pool.query(
+                    `SELECT m.id, m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
+                            m.exam_type_id, m.created_at::date::text as exam_date,
+                            COALESCE(et.max_marks, 100) as max_marks
+                     FROM marks m
+                     JOIN subjects sub ON m.subject_id = sub.id
+                     JOIN exam_types et ON m.exam_type_id = et.id
+                     WHERE m.student_id = $1
+                     ORDER BY m.id, et.id, sub.name`,
+                    [student.id]
+                );
+            } catch (mErr) {
+                console.error('[Get Student All Marks] Marks query error:', mErr.message);
+                marksRes = { rows: [] };
             }
 
-            // Group by Exam
             const examsMap = {};
-
-            marksRes.rows.forEach(mark => {
-                const examName = mark.exam_name;
+            (marksRes.rows || []).forEach(mark => {
+                const examName = mark.exam_name || 'Exam';
                 if (!examsMap[examName]) {
                     examsMap[examName] = {
                         id: mark.exam_type_id,
@@ -941,103 +906,80 @@ exports.getStudentAllMarks = async (req, res) => {
 
                 examsMap[examName].subjects.push({
                     subject: mark.subject_name,
-                    subject_code: mark.subject_code || null,
                     marks: obtained,
                     max: max,
                     exam_date: formatExamDate(mark.exam_date)
                 });
 
-                if (obtained !== null) {
+                if (obtained !== null && !isNaN(obtained)) {
                     examsMap[examName].total_obtained += obtained;
                 }
-                examsMap[examName].total_max += max;
+                if (!isNaN(max)) {
+                    examsMap[examName].total_max += max;
+                }
             });
 
-            // Calculate Percentages
             const exams = Object.values(examsMap).map(exam => ({
                 ...exam,
-                percentage: exam.total_max > 0 ? ((exam.total_obtained / exam.total_max) * 100).toFixed(2) : 0
+                percentage: exam.total_max > 0 ? ((exam.total_obtained / exam.total_max) * 100).toFixed(2) : '0.00'
             }));
 
             return res.json({
                 student: {
                     id: student.id,
-                    name: student.name,
-                    admission_no: student.admission_no,
-                    roll_number: student.roll_number,
-                    custom_roll_number: student.custom_roll_number,
-                    class_name: student.class_name,
-                    class_id: student.class_id,
-                    father_name: student.father_name,
-                    mother_name: student.mother_name,
-                    sats_number: student.sats_number,
+                    name: student.name || 'Student',
+                    admission_no: student.admission_no || trimmedAdmission,
+                    roll_number: student.roll_number || null,
+                    custom_roll_number: student.custom_roll_number || null,
+                    class_name: student.class_name || null,
+                    class_id: student.class_id || null,
+                    father_name: student.father_name || null,
+                    mother_name: student.mother_name || null,
+                    sats_number: student.sats_number || null,
                     status: 'Active'
                 },
                 exams: exams
             });
         }
 
-        // Active student not found - search in deleted students' marks
+        // 2. Active student not found - search in deleted students' marks
         console.log('[Get Student All Marks] Active student not found, searching deleted records...');
-
-        const deletedMarksQuery = `
-            SELECT DISTINCT ON (m.id)
-                   m.marks_obtained, 
-                   sub.name as subject_name, 
-                   et.name as exam_name,
-                   m.exam_type_id, 
-                   COALESCE(es.exam_date::text, m.created_at::date::text) as exam_date,
-                   COALESCE(es.max_marks, et.max_marks, 100) as max_marks,
-                   m.deleted_student_name,
-                   m.deleted_student_admission_no
-            FROM marks m
-            JOIN subjects sub ON m.subject_id = sub.id
-            JOIN exam_types et ON m.exam_type_id = et.id
-            LEFT JOIN LATERAL (
-                SELECT exam_date::text as exam_date, max_marks
-                FROM exam_schedules
-                WHERE subject_id = m.subject_id 
-                  AND exam_type_id = m.exam_type_id 
-                  AND school_id = m.school_id
-                ORDER BY id DESC
-                LIMIT 1
-            ) es ON TRUE
-            WHERE m.school_id = $1 
-              AND m.student_id IS NULL 
-              AND m.deleted_student_admission_no ILIKE $2
-            ORDER BY m.id, et.id, sub.name
-        `;
 
         let deletedMarksRes;
         try {
-            deletedMarksRes = await pool.query(deletedMarksQuery, [school_id, admission_no.trim()]);
+            deletedMarksRes = await pool.query(
+                `SELECT m.id, m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
+                        m.exam_type_id, m.created_at::date::text as exam_date,
+                        COALESCE(et.max_marks, 100) as max_marks,
+                        m.deleted_student_name, m.deleted_student_admission_no
+                 FROM marks m
+                 JOIN subjects sub ON m.subject_id = sub.id
+                 JOIN exam_types et ON m.exam_type_id = et.id
+                 WHERE m.student_id IS NULL AND m.deleted_student_admission_no ILIKE $1
+                 ORDER BY m.id, et.id, sub.name`,
+                [trimmedAdmission]
+            );
         } catch (delErr) {
-            console.error('Error fetching deleted marks query:', delErr.message);
-            return res.status(404).json({
-                message: `No records found for admission number: ${admission_no}`,
-                note: 'Student may not exist or may have been deleted without any marks recorded'
-            });
+            console.error('[Get Student All Marks] Deleted marks query error:', delErr.message);
+            deletedMarksRes = { rows: [] };
         }
 
         if (!deletedMarksRes.rows || deletedMarksRes.rows.length === 0) {
             return res.status(404).json({
-                message: `No records found for admission number: ${admission_no}`,
+                message: `No records found for admission number: ${trimmedAdmission}`,
                 note: 'Student may not exist or may have been deleted without any marks recorded'
             });
         }
 
-        // Deleted student marks found
         const deletedStudentInfo = {
-            name: deletedMarksRes.rows[0].deleted_student_name,
-            admission_no: deletedMarksRes.rows[0].deleted_student_admission_no,
+            name: deletedMarksRes.rows[0].deleted_student_name || 'Deleted Student',
+            admission_no: deletedMarksRes.rows[0].deleted_student_admission_no || trimmedAdmission,
             status: 'Deleted'
         };
 
-        // Group by Exam
         const examsMap = {};
-
         deletedMarksRes.rows.forEach(mark => {
-            const examName = mark.exam_name;
+            const examName = mark.exam_name || 'Exam';
             if (!examsMap[examName]) {
                 examsMap[examName] = {
                     id: mark.exam_type_id,
@@ -1058,19 +1000,20 @@ exports.getStudentAllMarks = async (req, res) => {
                 exam_date: formatExamDate(mark.exam_date)
             });
 
-            if (obtained !== null) {
+            if (obtained !== null && !isNaN(obtained)) {
                 examsMap[examName].total_obtained += obtained;
             }
-            examsMap[examName].total_max += max;
+            if (!isNaN(max)) {
+                examsMap[examName].total_max += max;
+            }
         });
 
-        // Calculate Percentages
         const exams = Object.values(examsMap).map(exam => ({
             ...exam,
-            percentage: exam.total_max > 0 ? ((exam.total_obtained / exam.total_max) * 100).toFixed(2) : 0
+            percentage: exam.total_max > 0 ? ((exam.total_obtained / exam.total_max) * 100).toFixed(2) : '0.00'
         }));
 
-        res.json({
+        return res.json({
             student: deletedStudentInfo,
             exams: exams,
             note: 'This student has been permanently deleted. Showing preserved academic records.'
@@ -1078,7 +1021,7 @@ exports.getStudentAllMarks = async (req, res) => {
 
     } catch (error) {
         console.error('Error fetching student all marks:', error);
-        res.status(500).json({ message: 'Server error fetching result', error: error.message });
+        return res.status(500).json({ message: 'Server error fetching result', error: error.message });
     }
 };
 
