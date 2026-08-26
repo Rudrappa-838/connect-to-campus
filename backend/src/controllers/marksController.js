@@ -876,6 +876,7 @@ exports.getStudentAllMarks = async (req, res) => {
             const studentId = parseInt(student.id);
 
             let marksRes;
+            const studentAdmission = student.admission_no || '';
             try {
                 marksRes = await pool.query(
                     `SELECT DISTINCT ON (m.id)
@@ -894,9 +895,13 @@ exports.getStudentAllMarks = async (req, res) => {
                         ORDER BY id DESC
                         LIMIT 1
                      ) es ON TRUE
-                     WHERE m.student_id = $1 OR m.student_id::text = $2 OR m.deleted_student_admission_no ILIKE $2
+                     WHERE m.student_id = $1 
+                        OR m.student_id::text = $2 
+                        OR m.student_id::text = $3
+                        OR m.deleted_student_admission_no ILIKE $2 
+                        OR m.deleted_student_admission_no ILIKE $3
                      ORDER BY m.id, et.id, sub.name`,
-                    [studentId, trimmedAdmission]
+                    [studentId, trimmedAdmission, studentAdmission]
                 );
             } catch (mErr) {
                 console.error('[Get Student All Marks] LATERAL query failed, trying simple query:', mErr.message);
@@ -908,9 +913,13 @@ exports.getStudentAllMarks = async (req, res) => {
                          FROM marks m
                          JOIN subjects sub ON m.subject_id = sub.id
                          JOIN exam_types et ON m.exam_type_id = et.id
-                         WHERE m.student_id = $1 OR m.student_id::text = $2 OR m.deleted_student_admission_no ILIKE $2
+                         WHERE m.student_id = $1 
+                            OR m.student_id::text = $2 
+                            OR m.student_id::text = $3
+                            OR m.deleted_student_admission_no ILIKE $2 
+                            OR m.deleted_student_admission_no ILIKE $3
                          ORDER BY m.id, et.id, sub.name`,
-                        [studentId, trimmedAdmission]
+                        [studentId, trimmedAdmission, studentAdmission]
                     );
                 } catch (sErr) {
                     console.error('[Get Student All Marks] Simple query failed:', sErr.message);
