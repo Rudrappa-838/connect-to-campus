@@ -889,7 +889,7 @@ exports.getStudentAllMarks = async (req, res) => {
                         ORDER BY id DESC
                         LIMIT 1
                      ) es ON TRUE
-                     WHERE m.student_id = $1 OR m.deleted_student_admission_no ILIKE $2
+                     WHERE m.student_id = $1 OR m.student_id::text = $2 OR m.deleted_student_admission_no ILIKE $2
                      ORDER BY m.id, et.id, sub.name`,
                     [student.id, trimmedAdmission]
                 );
@@ -902,7 +902,7 @@ exports.getStudentAllMarks = async (req, res) => {
                      FROM marks m
                      JOIN subjects sub ON m.subject_id = sub.id
                      JOIN exam_types et ON m.exam_type_id = et.id
-                     WHERE m.student_id = $1 OR m.deleted_student_admission_no ILIKE $2
+                     WHERE m.student_id = $1 OR m.student_id::text = $2 OR m.deleted_student_admission_no ILIKE $2
                      ORDER BY m.id, et.id, sub.name`,
                     [student.id, trimmedAdmission]
                 );

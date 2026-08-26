@@ -342,6 +342,16 @@ const AllTestsReport = () => {
                                 </div>
                             </div>
 
+                            {/* Fallback if no marks exist for student */}
+                            {groupedExams.jeeExams.length === 0 && 
+                             groupedExams.neetExams.length === 0 && 
+                             groupedExams.kcetExams.length === 0 && 
+                             groupedExams.theoryExams.length === 0 && (
+                                <div className="py-12 text-center text-slate-600 font-extrabold text-sm uppercase tracking-wider my-4 border border-dashed border-slate-400 rounded-xl" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                    NO EXAM MARKS RECORDED YET FOR THIS STUDENT
+                                </div>
+                            )}
+
                             {/* TABLE 1: JEE EXAMS */}
                             {groupedExams.jeeExams.length > 0 && (
                                 <div className="mb-6">
