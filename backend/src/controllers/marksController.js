@@ -865,13 +865,13 @@ exports.getStudentAllMarks = async (req, res) => {
                  SELECT DISTINCT ON (m.id) 
                         m.marks_obtained, sub.name as subject_name, sub.code as subject_code, et.name as exam_name, 
                         m.exam_type_id, 
-                        COALESCE(es.exam_date, m.updated_at::date, m.created_at::date) as exam_date,
+                        COALESCE(es.exam_date::text, m.updated_at::date::text, m.created_at::date::text) as exam_date,
                         COALESCE(es.max_marks, et.max_marks, 100) as max_marks
                  FROM marks m
                  JOIN subjects sub ON m.subject_id = sub.id
                  JOIN exam_types et ON m.exam_type_id = et.id
                  LEFT JOIN LATERAL (
-                    SELECT exam_date, max_marks
+                    SELECT exam_date::text as exam_date, max_marks
                     FROM exam_schedules
                     WHERE subject_id = m.subject_id 
                       AND exam_type_id = m.exam_type_id 
@@ -953,7 +953,7 @@ exports.getStudentAllMarks = async (req, res) => {
                    sub.code as subject_code,
                    et.name as exam_name,
                    m.exam_type_id, 
-                   COALESCE(es.exam_date, m.updated_at::date, m.created_at::date) as exam_date,
+                   COALESCE(es.exam_date::text, m.updated_at::date::text, m.created_at::date::text) as exam_date,
                    COALESCE(es.max_marks, et.max_marks, 100) as max_marks,
                    m.deleted_student_name,
                    m.deleted_student_admission_no
@@ -961,7 +961,7 @@ exports.getStudentAllMarks = async (req, res) => {
             JOIN subjects sub ON m.subject_id = sub.id
             JOIN exam_types et ON m.exam_type_id = et.id
             LEFT JOIN LATERAL (
-                SELECT exam_date, max_marks
+                SELECT exam_date::text as exam_date, max_marks
                 FROM exam_schedules
                 WHERE subject_id = m.subject_id 
                   AND exam_type_id = m.exam_type_id 
@@ -1355,9 +1355,9 @@ exports.getAllTestsReport = async (req, res) => {
 
         // 4. Get exam schedules (for dates, max/min marks)
         let schedulesQuery = `
-            SELECT DISTINCT ON (exam_type_id, subject_id) exam_type_id, subject_id, exam_date, max_marks, min_marks
+            SELECT DISTINCT ON (exam_type_id, subject_id) exam_type_id, subject_id, exam_date::text as exam_date, max_marks, min_marks
             FROM exam_schedules
-            WHERE class_id = $1 AND school_id = $2 AND deleted_at IS NULL
+            WHERE class_id = $1 AND school_id = $2
         `;
         const scheduleParams = [parseInt(class_id), school_id];
         if (section_id) {
@@ -1368,7 +1368,7 @@ exports.getAllTestsReport = async (req, res) => {
         const schedulesRes = await pool.query(schedulesQuery, scheduleParams);
         const schedules = schedulesRes.rows.map(item => ({
             ...item,
-            exam_date: item.exam_date ? item.exam_date.toISOString().split('T')[0] : null
+            exam_date: item.exam_date ? String(item.exam_date).split('T')[0] : null
         }));
 
         // 5. Get all marks for these students

@@ -13,7 +13,7 @@ exports.getExamSchedule = async (req, res) => {
         } */
 
         let query = `
-            SELECT es.*, sub.name as subject_name, c.name as class_name, s.name as section_name, et.name as exam_type_name
+            SELECT es.*, es.exam_date::text as exam_date, sub.name as subject_name, c.name as class_name, s.name as section_name, et.name as exam_type_name
             FROM exam_schedules es
             JOIN subjects sub ON es.subject_id = sub.id
             JOIN classes c ON es.class_id = c.id
@@ -293,18 +293,18 @@ exports.updateExamScheduleItem = async (req, res) => {
             // Bulk update for grouped items
             result = await pool.query(
                 `UPDATE exam_schedules 
-                 SET exam_date = $1, start_time = $2, end_time = $3, components = $4, max_marks = $5, min_marks = $6
+                 SET exam_date = $1, start_time = $2, end_time = $3, components = $4, max_marks = $5, min_marks = $6, updated_at = NOW()
                  WHERE id = ANY($7) AND school_id = $8
-                 RETURNING *`,
+                 RETURNING *, exam_date::text as exam_date`,
                 [exam_date, start_time, end_time, JSON.stringify(components || []), max_marks || 100, min_marks || 35, ids, school_id]
             );
         } else {
             // Single update
             result = await pool.query(
                 `UPDATE exam_schedules 
-                 SET exam_date = $1, start_time = $2, end_time = $3, components = $4, max_marks = $5, min_marks = $6
+                 SET exam_date = $1, start_time = $2, end_time = $3, components = $4, max_marks = $5, min_marks = $6, updated_at = NOW()
                  WHERE id = $7 AND school_id = $8
-                 RETURNING *`,
+                 RETURNING *, exam_date::text as exam_date`,
                 [exam_date, start_time, end_time, JSON.stringify(components || []), max_marks || 100, min_marks || 35, id, school_id]
             );
         }
