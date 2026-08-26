@@ -78,7 +78,7 @@ const AllTestsReport = () => {
     const formatDate = (dateStr) => {
         if (!dateStr) return '';
         try {
-            const str = String(dateStr).split('T')[0];
+            const str = String(dateStr).split('T')[0].trim();
             const parts = str.split('-');
             if (parts.length === 3) {
                 const [y, m, d] = parts;
@@ -90,14 +90,19 @@ const AllTestsReport = () => {
         }
     };
 
-    // Collect unique dates for an exam across all subjects
+    // Collect unique dates for an exam across all subjects (show only once if same date, stack if different)
     const getExamDates = (exam) => {
         if (!exam || !exam.subjects) return [];
-        const dates = exam.subjects
-            .map(s => s.exam_date)
-            .filter(d => d)
-            .map(d => formatDate(d));
-        return [...new Set(dates)];
+        const dateSet = new Set();
+        exam.subjects.forEach(s => {
+            if (s.exam_date) {
+                const formatted = formatDate(s.exam_date).trim();
+                if (formatted) {
+                    dateSet.add(formatted);
+                }
+            }
+        });
+        return Array.from(dateSet);
     };
 
     // Subject abbreviation helper
