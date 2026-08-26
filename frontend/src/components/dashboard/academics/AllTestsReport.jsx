@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
 import { 
-    Printer, FileText, Search, Sparkles, RefreshCw, AlertCircle, User
+    Printer, FileText, Search, Sparkles, RefreshCw, AlertCircle, User, GraduationCap
 } from 'lucide-react';
 
 const AllTestsReport = () => {
@@ -58,15 +58,15 @@ const AllTestsReport = () => {
 
     // Helper: get mark and date for a subject in a specific exam
     const getSubjectExamData = (exam, subjectName) => {
-        const defaultData = { marks: 'N/A', max: 100, date: null };
+        const defaultData = { marks: 'NA', max: 100, date: null };
         if (!exam || !exam.subjects) return defaultData;
 
         const subMatch = exam.subjects.find(s => s.subject === subjectName);
         if (subMatch) {
             const obtained = subMatch.marks;
-            const isAbsent = obtained === null || obtained === undefined || obtained === '' || obtained === 'ABSENT' || obtained === 'AB' || obtained === 'N/A';
+            const isAbsent = obtained === null || obtained === undefined || obtained === '' || obtained === 'ABSENT' || obtained === 'AB' || obtained === 'N/A' || obtained === 'NA';
             return {
-                marks: isAbsent ? 'N/A' : obtained,
+                marks: isAbsent ? 'NA' : obtained,
                 max: subMatch.max || 100,
                 date: subMatch.exam_date || null
             };
@@ -182,18 +182,18 @@ const AllTestsReport = () => {
     const kcetSubjects = React.useMemo(() => getTableSubjects(groupedExams.kcetExams), [groupedExams.kcetExams]);
     const theorySubjects = React.useMemo(() => getTableSubjects(groupedExams.theoryExams), [groupedExams.theoryExams]);
 
-    // Calculate row total (numeric sum or 'N/A' if all are absent)
+    // Calculate row total (numeric sum or 'NA' if all are absent)
     const getRowTotal = (exam, subjectsList) => {
         let allAbsent = true;
         let sum = 0;
         subjectsList.forEach(subject => {
             const subData = getSubjectExamData(exam, subject.name);
-            if (subData.marks !== 'N/A' && subData.marks !== 'ABSENT') {
+            if (subData.marks !== 'NA' && subData.marks !== 'N/A' && subData.marks !== 'ABSENT') {
                 allAbsent = false;
                 sum += parseFloat(subData.marks) || 0;
             }
         });
-        return allAbsent ? 'N/A' : sum;
+        return allAbsent ? 'NA' : sum;
     };
 
     const handlePrint = () => {
@@ -272,30 +272,67 @@ const AllTestsReport = () => {
                 {!loading && result && (
                     <div className="flex-1 overflow-auto p-4 md:p-6 print:p-0">
                         <div 
-                            className="bg-white border-2 border-slate-800 rounded-2xl p-6 md:p-8 max-w-2xl mx-auto shadow-md print:shadow-none print:border-2 print:border-black print:my-0 print:p-4 print:page-break font-serif text-slate-900"
-                            style={{ pageBreakAfter: 'always', pageBreakInside: 'avoid' }}
+                            className="bg-white border-2 border-slate-800 rounded-2xl p-6 md:p-8 max-w-2xl mx-auto shadow-md print:shadow-none print:border-2 print:border-black print:my-0 print:p-4 print:page-break text-slate-900"
+                            style={{ 
+                                fontFamily: '"Times New Roman", Times, serif', 
+                                pageBreakAfter: 'always', 
+                                pageBreakInside: 'avoid' 
+                            }}
                         >
-                            {/* Institution Title Header */}
-                            <div className="text-center mb-6">
-                                <h1 className="text-2xl font-black uppercase tracking-wide font-serif text-slate-900 leading-tight">
-                                    {schoolName}
-                                </h1>
-                                <h2 className="text-md font-bold uppercase tracking-wide text-slate-700 mt-0.5">
-                                    {schoolLocation}
-                                </h2>
-                                
-                                {/* Student Profile Info */}
-                                <div className="border-t-2 border-b-2 border-slate-900 py-3 mt-4 grid grid-cols-3 gap-2 text-left text-xs uppercase font-extrabold tracking-wide">
-                                    <div>
-                                        CLASS : <span className="text-slate-700 font-bold">{result.student.class_name || 'II PUC'}</span>
+                            {/* Institution Title Header with Left Corner College Logo */}
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-slate-900 gap-3">
+                                {/* Left Corner College Logo */}
+                                <div className="w-20 h-20 flex-shrink-0 flex items-center justify-center">
+                                    {school?.logo || school?.logo_url ? (
+                                        <img 
+                                            src={school.logo || school.logo_url} 
+                                            alt="College Logo" 
+                                            className="max-h-20 max-w-20 object-contain"
+                                            onError={(e) => { 
+                                                e.target.style.display = 'none'; 
+                                                if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; 
+                                            }}
+                                        />
+                                    ) : null}
+                                    <div 
+                                        className="w-16 h-16 rounded-full border-2 border-slate-900 flex flex-col items-center justify-center bg-slate-50 text-center p-1"
+                                        style={{ display: (school?.logo || school?.logo_url) ? 'none' : 'flex' }}
+                                    >
+                                        <GraduationCap size={20} className="text-slate-900" />
+                                        <span className="text-[7.5px] font-extrabold text-slate-900 uppercase leading-tight mt-0.5" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                            COLLEGE<br/>LOGO
+                                        </span>
                                     </div>
-                                    <div></div>
-                                    <div className="text-right">
-                                        ROLL NO / ID : <span className="text-slate-700 font-bold">{result.student.custom_roll_number || result.student.roll_number || result.student.admission_no || '-'}</span>
-                                    </div>
-                                    <div className="col-span-3 mt-1">
-                                        STUDENT NAME : <span className="text-slate-700 font-bold">{result.student.name}</span>
-                                    </div>
+                                </div>
+
+                                {/* Center College Title Header */}
+                                <div className="text-center flex-1">
+                                    <h1 className="text-2xl font-black uppercase tracking-wide text-slate-900 leading-tight" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                        {schoolName}
+                                    </h1>
+                                    <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800 mt-1" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                        {schoolLocation}
+                                    </h2>
+                                </div>
+
+                                {/* Right Spacer for Symmetry */}
+                                <div className="w-20 flex-shrink-0"></div>
+                            </div>
+
+                            {/* Student Profile Info */}
+                            <div 
+                                className="border-b-2 border-slate-900 pb-3 mb-6 grid grid-cols-3 gap-2 text-left text-xs uppercase font-extrabold tracking-wide"
+                                style={{ fontFamily: '"Times New Roman", Times, serif' }}
+                            >
+                                <div>
+                                    CLASS : <span className="text-slate-900 font-bold">{result.student.class_name || 'II PUC'}</span>
+                                </div>
+                                <div></div>
+                                <div className="text-right">
+                                    ROLL NO : <span className="text-slate-900 font-bold">{result.student.custom_roll_number || result.student.roll_number || result.student.admission_no || '-'}</span>
+                                </div>
+                                <div className="col-span-3 mt-1">
+                                    STUDENT NAME : <span className="text-slate-900 font-bold">{result.student.name}</span>
                                 </div>
                             </div>
 
@@ -303,16 +340,16 @@ const AllTestsReport = () => {
                             {groupedExams.jeeExams.length > 0 && (
                                 <div className="mb-6">
                                     <div className="text-center mb-2">
-                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             JEE EXAMS MARKS CARD (MAX MARKS – 300)
                                         </h3>
-                                        <p className="text-[11px] font-black uppercase text-slate-800 tracking-widest decoration-dotted underline underline-offset-2">
+                                        <p className="text-[11px] font-black uppercase text-slate-800 tracking-widest decoration-dotted underline underline-offset-2" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             COMPETITIVE TEST RESULTS
                                         </p>
                                     </div>
 
                                     <div className="border border-slate-900 rounded overflow-hidden">
-                                        <table className="w-full text-xs text-left border-collapse font-serif text-slate-900">
+                                        <table className="w-full text-xs text-left border-collapse text-slate-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             <thead className="bg-slate-100 text-slate-900 font-extrabold uppercase border-b border-slate-900 text-center">
                                                 <tr>
                                                     <th className="p-1.5 border-r border-slate-900 w-14">SL NO</th>
@@ -342,9 +379,10 @@ const AllTestsReport = () => {
                                                             </td>
                                                             {jeeSubjects.map(sub => {
                                                                 const subData = getSubjectExamData(exam, sub.name);
+                                                                const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'NA' : subData.marks;
                                                                 return (
                                                                     <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
-                                                                        {subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === null || subData.marks === '' ? 'N/A' : subData.marks}
+                                                                        {displayVal}
                                                                     </td>
                                                                 );
                                                             })}
@@ -364,16 +402,16 @@ const AllTestsReport = () => {
                             {groupedExams.neetExams.length > 0 && (
                                 <div className="mb-6">
                                     <div className="text-center mb-2">
-                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             NEET EXAMS MARKS CARD (MAX MARKS – 720)
                                         </h3>
-                                        <p className="text-[11px] font-black uppercase text-slate-800 tracking-widest decoration-dotted underline underline-offset-2">
+                                        <p className="text-[11px] font-black uppercase text-slate-800 tracking-widest decoration-dotted underline underline-offset-2" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             COMPETITIVE TEST RESULTS
                                         </p>
                                     </div>
 
                                     <div className="border border-slate-900 rounded overflow-hidden">
-                                        <table className="w-full text-xs text-left border-collapse font-serif text-slate-900">
+                                        <table className="w-full text-xs text-left border-collapse text-slate-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             <thead className="bg-slate-100 text-slate-900 font-extrabold uppercase border-b border-slate-900 text-center">
                                                 <tr>
                                                     <th className="p-1.5 border-r border-slate-900 w-14">SL NO</th>
@@ -403,9 +441,10 @@ const AllTestsReport = () => {
                                                             </td>
                                                             {neetSubjects.map(sub => {
                                                                 const subData = getSubjectExamData(exam, sub.name);
+                                                                const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'NA' : subData.marks;
                                                                 return (
                                                                     <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
-                                                                        {subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === null || subData.marks === '' ? 'N/A' : subData.marks}
+                                                                        {displayVal}
                                                                     </td>
                                                                 );
                                                             })}
@@ -425,16 +464,16 @@ const AllTestsReport = () => {
                             {groupedExams.kcetExams.length > 0 && (
                                 <div className="mb-6">
                                     <div className="text-center mb-2">
-                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             KCET / CET EXAMS MARKS CARD (MAX MARKS – 180)
                                         </h3>
-                                        <p className="text-[11px] font-black uppercase text-slate-800 tracking-widest decoration-dotted underline underline-offset-2">
+                                        <p className="text-[11px] font-black uppercase text-slate-800 tracking-widest decoration-dotted underline underline-offset-2" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             COMPETITIVE TEST RESULTS
                                         </p>
                                     </div>
 
                                     <div className="border border-slate-900 rounded overflow-hidden">
-                                        <table className="w-full text-xs text-left border-collapse font-serif text-slate-900">
+                                        <table className="w-full text-xs text-left border-collapse text-slate-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             <thead className="bg-slate-100 text-slate-900 font-extrabold uppercase border-b border-slate-900 text-center">
                                                 <tr>
                                                     <th className="p-1.5 border-r border-slate-900 w-14">SL NO</th>
@@ -464,9 +503,10 @@ const AllTestsReport = () => {
                                                             </td>
                                                             {kcetSubjects.map(sub => {
                                                                 const subData = getSubjectExamData(exam, sub.name);
+                                                                const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'NA' : subData.marks;
                                                                 return (
                                                                     <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
-                                                                        {subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === null || subData.marks === '' ? 'N/A' : subData.marks}
+                                                                        {displayVal}
                                                                     </td>
                                                                 );
                                                             })}
@@ -486,16 +526,16 @@ const AllTestsReport = () => {
                             {groupedExams.theoryExams.length > 0 && (
                                 <div className="mb-6">
                                     <div className="text-center mb-2">
-                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             THEORY UNIT TEST MARKS LIST
                                         </h3>
-                                        <p className="text-[10px] font-bold text-slate-700">
+                                        <p className="text-[10px] font-bold text-slate-700" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             (MAX MARKS – 25)
                                         </p>
                                     </div>
 
                                     <div className="border border-slate-900 rounded overflow-hidden">
-                                        <table className="w-full text-xs text-left border-collapse font-serif text-slate-900">
+                                        <table className="w-full text-xs text-left border-collapse text-slate-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                             <thead className="bg-slate-100 text-slate-900 font-extrabold uppercase border-b border-slate-900 text-center">
                                                 <tr>
                                                     <th className="p-1.5 border-r border-slate-900 w-14">SL NO</th>
@@ -525,9 +565,10 @@ const AllTestsReport = () => {
                                                             </td>
                                                             {theorySubjects.map(sub => {
                                                                 const subData = getSubjectExamData(exam, sub.name);
+                                                                const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'NA' : subData.marks;
                                                                 return (
                                                                     <td key={sub.name} className="p-1.5 border-r border-slate-900 font-bold">
-                                                                        {subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === null || subData.marks === '' ? 'N/A' : subData.marks}
+                                                                        {displayVal}
                                                                     </td>
                                                                 );
                                                             })}
@@ -544,7 +585,10 @@ const AllTestsReport = () => {
                             )}
 
                             {/* Report Card Footer Signs: Parent & Principal Only */}
-                            <div className="flex justify-between items-center pt-16 px-6 text-center text-xs font-extrabold text-slate-800 tracking-wider uppercase">
+                            <div 
+                                className="flex justify-between items-center pt-16 px-6 text-center text-xs font-extrabold text-slate-800 tracking-wider uppercase"
+                                style={{ fontFamily: '"Times New Roman", Times, serif' }}
+                            >
                                 <div className="w-44">
                                     <div className="border-t-2 border-dashed border-slate-700 pt-2">
                                         Parent Signature
@@ -567,6 +611,7 @@ const AllTestsReport = () => {
                     body {
                         background: white !important;
                         color: black !important;
+                        font-family: 'Times New Roman', Times, serif !important;
                     }
                     /* Hide sidebar, dashboard header, toolbar, everything except main print content */
                     header, aside, .print\\:hidden, button, select, input, nav, footer, .no-print {
@@ -609,3 +654,4 @@ const AllTestsReport = () => {
 };
 
 export default AllTestsReport;
+
