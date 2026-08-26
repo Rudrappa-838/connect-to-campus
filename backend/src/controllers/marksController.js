@@ -820,6 +820,19 @@ exports.getToppers = async (req, res) => {
     }
 };
 
+// Helper to format Date objects locally without timezone shift
+const formatExamDate = (d) => {
+    if (!d) return null;
+    if (typeof d === 'string') return d.split('T')[0];
+    if (d instanceof Date) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    return String(d).split('T')[0];
+};
+
 // Get All Marks for a Student (Overall History)
 exports.getStudentAllMarks = async (req, res) => {
     try {
@@ -897,7 +910,7 @@ exports.getStudentAllMarks = async (req, res) => {
                     subject_code: mark.subject_code || null,
                     marks: obtained,
                     max: max,
-                    exam_date: mark.exam_date ? (mark.exam_date instanceof Date ? mark.exam_date.toISOString().split('T')[0] : mark.exam_date) : null
+                    exam_date: formatExamDate(mark.exam_date)
                 });
 
                 if (obtained !== null) {
@@ -1000,7 +1013,7 @@ exports.getStudentAllMarks = async (req, res) => {
                 subject: mark.subject_name,
                 marks: obtained,
                 max: max,
-                exam_date: mark.exam_date ? (mark.exam_date instanceof Date ? mark.exam_date.toISOString().split('T')[0] : mark.exam_date) : null
+                exam_date: formatExamDate(mark.exam_date)
             });
 
             if (obtained !== null) {

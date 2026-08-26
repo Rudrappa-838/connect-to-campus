@@ -147,11 +147,18 @@ const ExamSchedule = ({ config }) => {
                            !preserved.some(p => p.subject_name.toLowerCase().trim() === nameKey);
                 });
 
+                const formatLocalDate = (d) => {
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${day}`;
+                };
+
                 const newMapped = originalUniqueSubjectsInTarget.map(orig => {
                     const origDate = new Date(orig.exam_date + 'T00:00:00');
                     const shifted = new Date(origDate);
                     shifted.setDate(shifted.getDate() + (parseInt(copyDateShift) || 0));
-                    const newDateStr = shifted.toISOString().split('T')[0];
+                    const newDateStr = formatLocalDate(shifted);
 
                     return {
                         subject_id: orig.subject_id,
@@ -187,9 +194,12 @@ const ExamSchedule = ({ config }) => {
                 const origDate = new Date(item.original_date + 'T00:00:00');
                 const shifted = new Date(origDate);
                 shifted.setDate(shifted.getDate() + shift);
+                const year = shifted.getFullYear();
+                const month = String(shifted.getMonth() + 1).padStart(2, '0');
+                const day = String(shifted.getDate()).padStart(2, '0');
                 return {
                     ...item,
-                    exam_date: shifted.toISOString().split('T')[0]
+                    exam_date: `${year}-${month}-${day}`
                 };
             }
             return item;

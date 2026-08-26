@@ -74,15 +74,17 @@ const AllTestsReport = () => {
         return defaultData;
     };
 
-    // Helper: format Date to DD-MM-YYYY
+    // Helper: format Date to DD-MM-YYYY (pure string parsing to prevent timezone offset bugs)
     const formatDate = (dateStr) => {
         if (!dateStr) return '';
         try {
-            const date = new Date(dateStr);
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const year = date.getFullYear();
-            return `${day}-${month}-${year}`;
+            const str = String(dateStr).split('T')[0];
+            const parts = str.split('-');
+            if (parts.length === 3) {
+                const [y, m, d] = parts;
+                return `${d.padStart(2, '0')}-${m.padStart(2, '0')}-${y}`;
+            }
+            return dateStr;
         } catch {
             return dateStr;
         }
