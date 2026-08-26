@@ -918,57 +918,8 @@ exports.getStudentAllMarks = async (req, res) => {
                 }
             }
 
-            // Also fetch all exam schedules for this student's class so even if marks are not yet entered, scheduled exams render!
-            let classSchedulesRes = { rows: [] };
-            if (student.class_id) {
-                try {
-                    classSchedulesRes = await pool.query(
-                        `SELECT es.id, sub.name as subject_name, et.name as exam_name,
-                                es.exam_type_id, es.exam_date::text as exam_date,
-                                COALESCE(es.max_marks, et.max_marks, 100) as max_marks
-                         FROM exam_schedules es
-                         JOIN subjects sub ON es.subject_id = sub.id
-                         JOIN exam_types et ON es.exam_type_id = et.id
-                         WHERE es.class_id = $1
-                         ORDER BY es.exam_date, et.name, sub.name`,
-                        [student.class_id]
-                    );
-                } catch (sErr) {
-                    console.error('[Get Student All Marks] Class schedule fetch error:', sErr.message);
-                }
-            }
-
             const examsMap = {};
 
-            // 1. Populate with class exam schedules (default marks = null / 'NA')
-            (classSchedulesRes.rows || []).forEach(sched => {
-                const examName = sched.exam_name || 'Exam';
-                if (!examsMap[examName]) {
-                    examsMap[examName] = {
-                        id: sched.exam_type_id,
-                        exam_name: examName,
-                        total_obtained: 0,
-                        total_max: 0,
-                        subjects: []
-                    };
-                }
-
-                const exists = examsMap[examName].subjects.some(s => s.subject === sched.subject_name);
-                if (!exists) {
-                    const max = parseFloat(sched.max_marks || 100);
-                    examsMap[examName].subjects.push({
-                        subject: sched.subject_name,
-                        marks: null,
-                        max: max,
-                        exam_date: formatExamDate(sched.exam_date)
-                    });
-                    if (!isNaN(max)) {
-                        examsMap[examName].total_max += max;
-                    }
-                }
-            });
-
-            // 2. Populate/Override with actual student marks
             (marksRes.rows || []).forEach(mark => {
                 const examName = mark.exam_name || 'Exam';
                 if (!examsMap[examName]) {
@@ -984,24 +935,18 @@ exports.getStudentAllMarks = async (req, res) => {
                 const obtained = mark.marks_obtained === null || mark.marks_obtained === undefined ? null : parseFloat(mark.marks_obtained);
                 const max = parseFloat(mark.max_marks || 100);
 
-                const existingSub = examsMap[examName].subjects.find(s => s.subject === mark.subject_name);
-                if (existingSub) {
-                    existingSub.marks = obtained;
-                    if (mark.exam_date) existingSub.exam_date = formatExamDate(mark.exam_date);
-                } else {
-                    examsMap[examName].subjects.push({
-                        subject: mark.subject_name,
-                        marks: obtained,
-                        max: max,
-                        exam_date: formatExamDate(mark.exam_date)
-                    });
-                    if (!isNaN(max)) {
-                        examsMap[examName].total_max += max;
-                    }
-                }
+                examsMap[examName].subjects.push({
+                    subject: mark.subject_name,
+                    marks: obtained,
+                    max: max,
+                    exam_date: formatExamDate(mark.exam_date)
+                });
 
                 if (obtained !== null && !isNaN(obtained)) {
                     examsMap[examName].total_obtained += obtained;
+                }
+                if (!isNaN(max)) {
+                    examsMap[examName].total_max += max;
                 }
             });
 
