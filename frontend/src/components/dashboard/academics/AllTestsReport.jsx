@@ -331,7 +331,7 @@ const AllTestsReport = () => {
                                 style={{ fontFamily: '"Times New Roman", Times, serif' }}
                             >
                                 <div>
-                                    CLASS : <span className="text-slate-900 font-bold">{formatClassName(result.student.class_name)}</span>
+                                    CLASS : <span className="text-slate-900 font-bold">{result.student.class_name || '-'}</span>
                                 </div>
                                 <div></div>
                                 <div className="text-right">

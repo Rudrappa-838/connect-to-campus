@@ -851,20 +851,16 @@ exports.getStudentAllMarks = async (req, res) => {
 
         const trimmedAdmission = String(admission_no).trim();
 
-        // 1. First, try to find active student (by admission_no, custom_roll_number, or roll_number)
+        // 1. First, try to find active student (by admission_no, custom_roll_number, roll_number, or name)
         let studentRes;
         try {
-            const studentParams = school_id && !isNaN(school_id) ? [trimmedAdmission, school_id] : [trimmedAdmission];
-            const schoolFilter = school_id && !isNaN(school_id) ? 'AND st.school_id = $2' : '';
-
             studentRes = await pool.query(
                 `SELECT st.*, c.name as class_name
                  FROM students st
                  LEFT JOIN classes c ON st.class_id = c.id
-                 WHERE (st.admission_no ILIKE $1 OR st.roll_number::text ILIKE $1)
-                   ${schoolFilter}
+                 WHERE (st.admission_no ILIKE $1 OR st.roll_number::text ILIKE $1 OR st.custom_roll_number ILIKE $1 OR st.name ILIKE $1)
                    AND (st.status IS NULL OR st.status != 'Deleted')`,
-                studentParams
+                [trimmedAdmission]
             );
         } catch (err) {
             console.error('[Get Student All Marks] Student lookup error:', err.message);
@@ -877,6 +873,9 @@ exports.getStudentAllMarks = async (req, res) => {
 
             let marksRes;
             const studentAdmission = student.admission_no || '';
+            const studentRoll = student.roll_number ? String(student.roll_number) : '';
+            const studentCustomRoll = student.custom_roll_number || '';
+
             try {
                 marksRes = await pool.query(
                     `SELECT DISTINCT ON (m.id)
@@ -896,12 +895,13 @@ exports.getStudentAllMarks = async (req, res) => {
                         LIMIT 1
                      ) es ON TRUE
                      WHERE m.student_id = $1 
-                        OR m.student_id::text = $2 
-                        OR m.student_id::text = $3
+                        OR m.student_id::text IN ($2, $3, $4, $5)
                         OR m.deleted_student_admission_no ILIKE $2 
                         OR m.deleted_student_admission_no ILIKE $3
+                        OR m.deleted_student_admission_no ILIKE $4
+                        OR m.deleted_student_admission_no ILIKE $5
                      ORDER BY m.id, et.id, sub.name`,
-                    [studentId, trimmedAdmission, studentAdmission]
+                    [studentId, trimmedAdmission, studentAdmission, studentRoll, studentCustomRoll]
                 );
             } catch (mErr) {
                 console.error('[Get Student All Marks] LATERAL query failed, trying simple query:', mErr.message);
@@ -914,12 +914,13 @@ exports.getStudentAllMarks = async (req, res) => {
                          JOIN subjects sub ON m.subject_id = sub.id
                          JOIN exam_types et ON m.exam_type_id = et.id
                          WHERE m.student_id = $1 
-                            OR m.student_id::text = $2 
-                            OR m.student_id::text = $3
+                            OR m.student_id::text IN ($2, $3, $4, $5)
                             OR m.deleted_student_admission_no ILIKE $2 
                             OR m.deleted_student_admission_no ILIKE $3
+                            OR m.deleted_student_admission_no ILIKE $4
+                            OR m.deleted_student_admission_no ILIKE $5
                          ORDER BY m.id, et.id, sub.name`,
-                        [studentId, trimmedAdmission, studentAdmission]
+                        [studentId, trimmedAdmission, studentAdmission, studentRoll, studentCustomRoll]
                     );
                 } catch (sErr) {
                     console.error('[Get Student All Marks] Simple query failed:', sErr.message);
