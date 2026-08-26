@@ -287,7 +287,8 @@ const AllTestsReport = () => {
                                         <img 
                                             src={school.logo || school.logo_url} 
                                             alt="College Logo" 
-                                            className="max-h-20 max-w-20 object-contain"
+                                            className="college-logo-img max-h-20 max-w-20 object-contain"
+                                            style={{ width: '70px', height: '70px', maxWidth: '70px', maxHeight: '70px', objectFit: 'contain' }}
                                             onError={(e) => { 
                                                 e.target.style.display = 'none'; 
                                                 if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; 
@@ -296,7 +297,7 @@ const AllTestsReport = () => {
                                     ) : null}
                                     <div 
                                         className="w-16 h-16 rounded-full border-2 border-slate-900 flex flex-col items-center justify-center bg-slate-50 text-center p-1"
-                                        style={{ display: (school?.logo || school?.logo_url) ? 'none' : 'flex' }}
+                                        style={{ display: (school?.logo || school?.logo_url) ? 'none' : 'flex', width: '64px', height: '64px' }}
                                     >
                                         <GraduationCap size={20} className="text-slate-900" />
                                         <span className="text-[7.5px] font-extrabold text-slate-900 uppercase leading-tight mt-0.5" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
@@ -612,7 +613,7 @@ const AllTestsReport = () => {
                         size: A4 portrait;
                         margin: 8mm;
                     }
-                    html, body, #root, #root > div, main, div {
+                    html, body, #root, #root > div, main {
                         background: white !important;
                         color: black !important;
                         font-family: 'Times New Roman', Times, serif !important;
@@ -642,6 +643,14 @@ const AllTestsReport = () => {
                         box-shadow: none !important;
                         page-break-inside: avoid !important;
                         break-inside: avoid !important;
+                    }
+                    .college-logo-img {
+                        width: 70px !important;
+                        height: 70px !important;
+                        max-width: 70px !important;
+                        max-height: 70px !important;
+                        object-fit: contain !important;
+                        display: block !important;
                     }
                 }
             `}} />
