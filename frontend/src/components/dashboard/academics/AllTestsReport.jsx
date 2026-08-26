@@ -206,7 +206,7 @@ const AllTestsReport = () => {
     return (
         <div className="space-y-6 h-full flex flex-col font-sans">
             {/* Header section - hidden on print */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden no-print-area">
                 <div>
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                         <Sparkles className="text-violet-600 w-5 h-5" /> Consolidated Exams Sheet
@@ -242,7 +242,7 @@ const AllTestsReport = () => {
 
             {/* Print toolbar - hidden on print */}
             {result && (
-                <div className="flex justify-end bg-white p-4 rounded-xl border border-slate-100 shadow-sm print:hidden">
+                <div className="flex justify-end bg-white p-4 rounded-xl border border-slate-100 shadow-sm print:hidden no-print-area">
                     <button
                         onClick={handlePrint}
                         className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-slate-900/10"
@@ -253,7 +253,7 @@ const AllTestsReport = () => {
             )}
 
             {/* Main Area */}
-            <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col min-h-[300px] print:border-none print:shadow-none">
+            <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col min-h-[300px] print:border-none print:shadow-none print:overflow-visible">
                 {loading && (
                     <div className="flex-1 flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
                         <RefreshCw className="animate-spin text-violet-600 w-8 h-8" />
@@ -262,7 +262,7 @@ const AllTestsReport = () => {
                 )}
 
                 {!loading && !result && (
-                    <div className="flex-1 flex flex-col items-center justify-center py-20 text-slate-400 gap-2 print:hidden">
+                    <div className="flex-1 flex flex-col items-center justify-center py-20 text-slate-400 gap-2 print:hidden no-print-area">
                         <FileText size={48} className="text-slate-300 stroke-[1.5]" />
                         <p className="text-sm font-medium">Enter student admission number above to fetch results</p>
                     </div>
@@ -270,13 +270,13 @@ const AllTestsReport = () => {
 
                 {/* Display Student Marksheet */}
                 {!loading && result && (
-                    <div className="flex-1 overflow-auto p-4 md:p-6 print:p-0">
+                    <div className="flex-1 overflow-auto p-4 md:p-6 print:p-0 print:overflow-visible">
                         <div 
-                            className="bg-white border-2 border-slate-800 rounded-2xl p-6 md:p-8 max-w-2xl mx-auto shadow-md print:shadow-none print:border-2 print:border-black print:my-0 print:p-4 print:page-break text-slate-900"
+                            className="all-tests-printable-marksheet bg-white border-2 border-slate-800 rounded-2xl p-6 md:p-8 max-w-2xl mx-auto shadow-md print:shadow-none print:border-2 print:border-black print:my-0 print:p-4 text-slate-900"
                             style={{ 
                                 fontFamily: '"Times New Roman", Times, serif', 
-                                pageBreakAfter: 'always', 
-                                pageBreakInside: 'avoid' 
+                                pageBreakInside: 'avoid',
+                                breakInside: 'avoid'
                             }}
                         >
                             {/* Institution Title Header with Left Corner College Logo */}
@@ -605,47 +605,43 @@ const AllTestsReport = () => {
                 )}
             </div>
             
-            {/* Embed print styles */}
+            {/* Embed print styles - overrides outer overflow-hidden wrappers on print */}
             <style dangerouslySetInnerHTML={{__html: `
                 @media print {
-                    body {
+                    @page {
+                        size: A4 portrait;
+                        margin: 8mm;
+                    }
+                    html, body, #root, #root > div, main, div {
                         background: white !important;
                         color: black !important;
                         font-family: 'Times New Roman', Times, serif !important;
-                    }
-                    /* Hide sidebar, dashboard header, toolbar, everything except main print content */
-                    header, aside, .print\\:hidden, button, select, input, nav, footer, .no-print {
-                        display: none !important;
-                    }
-                    main {
-                        padding: 0 !important;
-                        margin: 0 !important;
-                        overflow: visible !important;
                         height: auto !important;
-                    }
-                    .print\\:border-none {
-                        border: none !important;
-                    }
-                    .print\\:shadow-none {
+                        min-height: 0 !important;
+                        max-height: none !important;
+                        overflow: visible !important;
+                        overflow-y: visible !important;
+                        overflow-x: visible !important;
+                        position: static !important;
+                        float: none !important;
+                        flex: none !important;
                         box-shadow: none !important;
                     }
-                    .print\\:my-0 {
-                        margin-top: 0 !important;
-                        margin-bottom: 0 !important;
+                    header, aside, nav, footer, button, select, input, form, .no-print-area, .no-print {
+                        display: none !important;
                     }
-                    .print\\:p-4 {
-                        padding: 16px !important;
-                    }
-                    .print\\:border-2 {
-                        border-width: 2px !important;
-                    }
-                    .print\\:border-black {
-                        border-color: black !important;
-                    }
-                    .print\\:page-break {
-                        page-break-after: always !important;
+                    .all-tests-printable-marksheet {
+                        display: block !important;
+                        visibility: visible !important;
+                        position: relative !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        margin: 0 auto !important;
+                        padding: 12px !important;
+                        border: 2px solid black !important;
+                        box-shadow: none !important;
                         page-break-inside: avoid !important;
-                        margin-bottom: 0 !important;
+                        break-inside: avoid !important;
                     }
                 }
             `}} />
