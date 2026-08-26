@@ -847,20 +847,28 @@ exports.getStudentAllMarks = async (req, res) => {
             // Active student found - fetch their marks
             const student = studentRes.rows[0];
 
-            // Fetch ALL Marks with actual max_marks from exam_schedules
+            // Fetch ALL Marks with actual max_marks from latest active exam_schedules
             const marksQuery = `
                  SELECT DISTINCT ON (m.id) 
-                        m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
-                        m.exam_type_id, es.exam_date,
+                        m.marks_obtained, sub.name as subject_name, sub.subject_code, et.name as exam_name, 
+                        m.exam_type_id, 
+                        COALESCE(es.exam_date, m.updated_at::date, m.created_at::date) as exam_date,
                         COALESCE(es.max_marks, et.max_marks, 100) as max_marks
                  FROM marks m
                  JOIN subjects sub ON m.subject_id = sub.id
                  JOIN exam_types et ON m.exam_type_id = et.id
-                 LEFT JOIN exam_schedules es ON es.subject_id = m.subject_id 
-                    AND es.exam_type_id = m.exam_type_id 
-                    AND es.school_id = m.school_id
-                    AND (es.class_id = m.class_id OR es.class_id IS NULL)
-                    AND (es.section_id = m.section_id OR es.section_id IS NULL)
+                 LEFT JOIN LATERAL (
+                    SELECT exam_date, max_marks
+                    FROM exam_schedules
+                    WHERE subject_id = m.subject_id 
+                      AND exam_type_id = m.exam_type_id 
+                      AND school_id = m.school_id
+                      AND (class_id = m.class_id OR class_id IS NULL)
+                      AND (section_id = m.section_id OR section_id IS NULL)
+                      AND deleted_at IS NULL
+                    ORDER BY updated_at DESC, id DESC
+                    LIMIT 1
+                 ) es ON TRUE
                  WHERE m.student_id = $1 AND m.school_id = $2
                  ORDER BY m.id, et.id, sub.name
             `;
@@ -930,17 +938,26 @@ exports.getStudentAllMarks = async (req, res) => {
             SELECT DISTINCT ON (m.id)
                    m.marks_obtained, 
                    sub.name as subject_name, 
+                   sub.subject_code,
                    et.name as exam_name,
-                   m.exam_type_id, es.exam_date,
+                   m.exam_type_id, 
+                   COALESCE(es.exam_date, m.updated_at::date, m.created_at::date) as exam_date,
                    COALESCE(es.max_marks, et.max_marks, 100) as max_marks,
                    m.deleted_student_name,
                    m.deleted_student_admission_no
             FROM marks m
             JOIN subjects sub ON m.subject_id = sub.id
             JOIN exam_types et ON m.exam_type_id = et.id
-            LEFT JOIN exam_schedules es ON es.subject_id = m.subject_id 
-               AND es.exam_type_id = m.exam_type_id 
-               AND es.school_id = m.school_id
+            LEFT JOIN LATERAL (
+                SELECT exam_date, max_marks
+                FROM exam_schedules
+                WHERE subject_id = m.subject_id 
+                  AND exam_type_id = m.exam_type_id 
+                  AND school_id = m.school_id
+                  AND deleted_at IS NULL
+                ORDER BY updated_at DESC, id DESC
+                LIMIT 1
+            ) es ON TRUE
             WHERE m.school_id = $1 
               AND m.student_id IS NULL 
               AND m.deleted_student_admission_no ILIKE $2
@@ -1327,15 +1344,16 @@ exports.getAllTestsReport = async (req, res) => {
 
         // 4. Get exam schedules (for dates, max/min marks)
         let schedulesQuery = `
-            SELECT exam_type_id, subject_id, exam_date, max_marks, min_marks
+            SELECT DISTINCT ON (exam_type_id, subject_id) exam_type_id, subject_id, exam_date, max_marks, min_marks
             FROM exam_schedules
-            WHERE class_id = $1 AND school_id = $2
+            WHERE class_id = $1 AND school_id = $2 AND deleted_at IS NULL
         `;
         const scheduleParams = [parseInt(class_id), school_id];
         if (section_id) {
             scheduleParams.push(parseInt(section_id));
             schedulesQuery += ` AND (section_id = $3 OR section_id IS NULL)`;
         }
+        schedulesQuery += ` ORDER BY exam_type_id, subject_id, updated_at DESC, id DESC`;
         const schedulesRes = await pool.query(schedulesQuery, scheduleParams);
         const schedules = schedulesRes.rows.map(item => ({
             ...item,
