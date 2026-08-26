@@ -161,16 +161,14 @@ const AllTestsReport = () => {
         return { jeeExams, neetExams, kcetExams, theoryExams };
     }, [result]);
 
-    // Find unique subjects for a subset of exams (dynamically excludes subjects with no marks/entries, e.g. Biology for CS students)
+    // Find unique subjects for a subset of exams (includes all subjects present in the exams)
     const getTableSubjects = (examsList) => {
         const subjectsMap = {};
         examsList.forEach(exam => {
-            if (exam.subjects) {
+            if (exam.subjects && Array.isArray(exam.subjects)) {
                 exam.subjects.forEach(sub => {
-                    const name = sub.subject;
-                    const marksVal = sub.marks;
-                    // Only include subject if student has valid marks entry or recorded subject in this exam
-                    if (marksVal !== null && marksVal !== undefined && marksVal !== '' && marksVal !== 'ABSENT') {
+                    if (sub && sub.subject) {
+                        const name = sub.subject;
                         if (!subjectsMap[name]) {
                             subjectsMap[name] = {
                                 name: name,
@@ -181,23 +179,6 @@ const AllTestsReport = () => {
                 });
             }
         });
-
-        // Fallback: If all exam marks were ABSENT/empty, include all subjects present in the exams
-        if (Object.keys(subjectsMap).length === 0) {
-            examsList.forEach(exam => {
-                if (exam.subjects) {
-                    exam.subjects.forEach(sub => {
-                        const name = sub.subject;
-                        if (!subjectsMap[name]) {
-                            subjectsMap[name] = {
-                                name: name,
-                                code: sub.subject_code || ''
-                            };
-                        }
-                    });
-                }
-            });
-        }
         return Object.values(subjectsMap).sort((a, b) => a.name.localeCompare(b.name));
     };
 

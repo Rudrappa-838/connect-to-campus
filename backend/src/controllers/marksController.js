@@ -873,19 +873,39 @@ exports.getStudentAllMarks = async (req, res) => {
             let marksRes;
             try {
                 marksRes = await pool.query(
+                    `SELECT DISTINCT ON (m.id)
+                            m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
+                            m.exam_type_id, 
+                            COALESCE(es.exam_date::text, m.created_at::date::text) as exam_date,
+                            COALESCE(es.max_marks, et.max_marks, 100) as max_marks
+                     FROM marks m
+                     JOIN subjects sub ON m.subject_id = sub.id
+                     JOIN exam_types et ON m.exam_type_id = et.id
+                     LEFT JOIN LATERAL (
+                        SELECT exam_date::text as exam_date, max_marks
+                        FROM exam_schedules
+                        WHERE subject_id = m.subject_id 
+                          AND exam_type_id = m.exam_type_id
+                        ORDER BY id DESC
+                        LIMIT 1
+                     ) es ON TRUE
+                     WHERE m.student_id = $1 OR m.deleted_student_admission_no ILIKE $2
+                     ORDER BY m.id, et.id, sub.name`,
+                    [student.id, trimmedAdmission]
+                );
+            } catch (mErr) {
+                console.error('[Get Student All Marks] LATERAL query failed, trying simple query:', mErr.message);
+                marksRes = await pool.query(
                     `SELECT m.id, m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
                             m.exam_type_id, m.created_at::date::text as exam_date,
                             COALESCE(et.max_marks, 100) as max_marks
                      FROM marks m
                      JOIN subjects sub ON m.subject_id = sub.id
                      JOIN exam_types et ON m.exam_type_id = et.id
-                     WHERE m.student_id = $1
+                     WHERE m.student_id = $1 OR m.deleted_student_admission_no ILIKE $2
                      ORDER BY m.id, et.id, sub.name`,
-                    [student.id]
+                    [student.id, trimmedAdmission]
                 );
-            } catch (mErr) {
-                console.error('[Get Student All Marks] Marks query error:', mErr.message);
-                marksRes = { rows: [] };
             }
 
             const examsMap = {};
