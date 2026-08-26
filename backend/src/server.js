@@ -145,6 +145,14 @@ const startServer = async () => {
                     END IF;
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'exam_schedules') THEN
                         ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+                        ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS components TEXT DEFAULT '[]';
+                        ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS max_marks NUMERIC(5,2) DEFAULT 100;
+                        ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS min_marks NUMERIC(5,2) DEFAULT 35;
+                        ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS target_batch VARCHAR(100);
+                        ALTER TABLE exam_schedules ALTER COLUMN section_id DROP NOT NULL;
+                        ALTER TABLE exam_schedules ALTER COLUMN exam_date DROP NOT NULL;
+                        ALTER TABLE exam_schedules ALTER COLUMN start_time DROP NOT NULL;
+                        ALTER TABLE exam_schedules ALTER COLUMN end_time DROP NOT NULL;
                     END IF;
 
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'student_certificates') THEN
