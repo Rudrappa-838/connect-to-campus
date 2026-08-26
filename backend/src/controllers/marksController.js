@@ -846,15 +846,29 @@ exports.getStudentAllMarks = async (req, res) => {
         }
 
         // First, try to find active student (by admission_no, custom_roll_number, or roll_number)
-        const studentRes = await pool.query(
-            `SELECT st.*, c.name as class_name
-             FROM students st
-             LEFT JOIN classes c ON st.class_id = c.id
-             WHERE (st.admission_no ILIKE $1 OR st.custom_roll_number ILIKE $1 OR st.roll_number::text ILIKE $1)
-               AND st.school_id = $2 
-               AND (st.status IS NULL OR st.status != 'Deleted')`,
-            [admission_no.trim(), school_id]
-        );
+        let studentRes;
+        try {
+            studentRes = await pool.query(
+                `SELECT st.*, c.name as class_name
+                 FROM students st
+                 LEFT JOIN classes c ON st.class_id = c.id
+                 WHERE (st.admission_no ILIKE $1 OR st.custom_roll_number ILIKE $1 OR st.roll_number::text ILIKE $1)
+                   AND st.school_id = $2 
+                   AND (st.status IS NULL OR st.status != 'Deleted')`,
+                [admission_no.trim(), school_id]
+            );
+        } catch (err) {
+            // Fallback if custom_roll_number column does not exist on DB
+            studentRes = await pool.query(
+                `SELECT st.*, c.name as class_name
+                 FROM students st
+                 LEFT JOIN classes c ON st.class_id = c.id
+                 WHERE (st.admission_no ILIKE $1 OR st.roll_number::text ILIKE $1)
+                   AND st.school_id = $2 
+                   AND (st.status IS NULL OR st.status != 'Deleted')`,
+                [admission_no.trim(), school_id]
+            );
+        }
 
         if (studentRes.rows.length > 0) {
             // Active student found - fetch their marks
@@ -863,7 +877,7 @@ exports.getStudentAllMarks = async (req, res) => {
             // Fetch ALL Marks with actual max_marks from latest active exam_schedules
             const marksQuery = `
                  SELECT DISTINCT ON (m.id) 
-                        m.marks_obtained, sub.name as subject_name, sub.code as subject_code, et.name as exam_name, 
+                        m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
                         m.exam_type_id, 
                         COALESCE(es.exam_date::text, m.updated_at::date::text, m.created_at::date::text) as exam_date,
                         COALESCE(es.max_marks, et.max_marks, 100) as max_marks
@@ -950,7 +964,6 @@ exports.getStudentAllMarks = async (req, res) => {
             SELECT DISTINCT ON (m.id)
                    m.marks_obtained, 
                    sub.name as subject_name, 
-                   sub.code as subject_code,
                    et.name as exam_name,
                    m.exam_type_id, 
                    COALESCE(es.exam_date::text, m.updated_at::date::text, m.created_at::date::text) as exam_date,
