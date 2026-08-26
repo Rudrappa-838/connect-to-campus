@@ -836,10 +836,14 @@ const formatExamDate = (d) => {
 // Get All Marks for a Student (Overall History)
 exports.getStudentAllMarks = async (req, res) => {
     try {
-        const school_id = req.user.schoolId;
+        const school_id = req.user?.schoolId || req.user?.school_id;
         const { admission_no } = req.query;
 
         console.log('[Get Student All Marks] Searching for:', admission_no);
+
+        if (!school_id) {
+            return res.status(400).json({ message: 'School ID is required' });
+        }
 
         if (!admission_no) {
             return res.status(400).json({ message: 'Admission Number is required' });
@@ -988,9 +992,18 @@ exports.getStudentAllMarks = async (req, res) => {
             ORDER BY m.id, et.id, sub.name
         `;
 
-        const deletedMarksRes = await pool.query(deletedMarksQuery, [school_id, admission_no.trim()]);
+        let deletedMarksRes;
+        try {
+            deletedMarksRes = await pool.query(deletedMarksQuery, [school_id, admission_no.trim()]);
+        } catch (delErr) {
+            console.error('Error fetching deleted marks query:', delErr.message);
+            return res.status(404).json({
+                message: `No records found for admission number: ${admission_no}`,
+                note: 'Student may not exist or may have been deleted without any marks recorded'
+            });
+        }
 
-        if (deletedMarksRes.rows.length === 0) {
+        if (!deletedMarksRes.rows || deletedMarksRes.rows.length === 0) {
             return res.status(404).json({
                 message: `No records found for admission number: ${admission_no}`,
                 note: 'Student may not exist or may have been deleted without any marks recorded'
