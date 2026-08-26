@@ -850,7 +850,7 @@ exports.getStudentAllMarks = async (req, res) => {
             // Fetch ALL Marks with actual max_marks from latest active exam_schedules
             const marksQuery = `
                  SELECT DISTINCT ON (m.id) 
-                        m.marks_obtained, sub.name as subject_name, sub.subject_code, et.name as exam_name, 
+                        m.marks_obtained, sub.name as subject_name, sub.code as subject_code, et.name as exam_name, 
                         m.exam_type_id, 
                         COALESCE(es.exam_date, m.updated_at::date, m.created_at::date) as exam_date,
                         COALESCE(es.max_marks, et.max_marks, 100) as max_marks
@@ -937,7 +937,7 @@ exports.getStudentAllMarks = async (req, res) => {
             SELECT DISTINCT ON (m.id)
                    m.marks_obtained, 
                    sub.name as subject_name, 
-                   sub.subject_code,
+                   sub.code as subject_code,
                    et.name as exam_name,
                    m.exam_type_id, 
                    COALESCE(es.exam_date, m.updated_at::date, m.created_at::date) as exam_date,
