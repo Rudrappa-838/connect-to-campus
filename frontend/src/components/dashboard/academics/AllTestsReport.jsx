@@ -5,6 +5,23 @@ import {
     Printer, FileText, Search, Sparkles, RefreshCw, AlertCircle, User, GraduationCap
 } from 'lucide-react';
 
+// Clean Roman PUC Class Name Formatter (e.g. "NEET 1 PUC", "1 PUC 1", "NEET 12" -> "I PUC" / "II PUC")
+const formatClassName = (className) => {
+    if (!className) return 'I PUC';
+    const str = String(className).toUpperCase().trim();
+
+    // Check for 2nd PUC / 12th / 2 PUC / 2 PUCT / NEET 2 / 2nd
+    if (str.includes('2 PUC') || str.includes('2PUC') || str.includes('2ND') || str.includes('12') || str.includes('II PUC')) {
+        return 'II PUC';
+    }
+    // Check for 1st PUC / 11th / 1 PUC / 1 PUCT / NEET 1 / 1st
+    if (str.includes('1 PUC') || str.includes('1PUC') || str.includes('1ST') || str.includes('11') || str.includes('I PUC')) {
+        return 'I PUC';
+    }
+
+    return str.includes('PUC') ? str : `${str} PUC`;
+};
+
 const AllTestsReport = () => {
     const [admissionNo, setAdmissionNo] = useState('');
     const [loading, setLoading] = useState(false);
@@ -333,7 +350,7 @@ const AllTestsReport = () => {
                                 style={{ fontFamily: '"Times New Roman", Times, serif' }}
                             >
                                 <div>
-                                    CLASS : <span className="text-slate-900 font-bold">{result.student.class_name || 'II PUC'}</span>
+                                    CLASS : <span className="text-slate-900 font-bold">{formatClassName(result.student.class_name)}</span>
                                 </div>
                                 <div></div>
                                 <div className="text-right">
