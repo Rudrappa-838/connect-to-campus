@@ -228,6 +228,7 @@ exports.updateExamScheduleItem = async (req, res) => {
         const school_id = req.user.schoolId;
         let { exam_date, start_time, end_time, components, max_marks, min_marks, ids } = req.body;
 
+        const itemId = parseInt(id);
         exam_date = exam_date || null;
         start_time = start_time || null;
         end_time = end_time || null;
@@ -235,24 +236,45 @@ exports.updateExamScheduleItem = async (req, res) => {
         let result;
 
         if (ids && Array.isArray(ids) && ids.length > 0) {
+            const parsedIds = ids.map(i => parseInt(i)).filter(i => !isNaN(i));
             result = await pool.query(
                 `UPDATE exam_schedules 
-                 SET exam_date = $1, start_time = $2, end_time = $3, components = $4, max_marks = $5, min_marks = $6, updated_at = NOW()
-                 WHERE id = ANY($7) AND school_id = $8
+                 SET exam_date = $1, start_time = $2, end_time = $3, 
+                     components = $4, max_marks = $5, min_marks = $6, updated_at = NOW()
+                 WHERE id = ANY($7::int[]) AND school_id = $8
                  RETURNING *`,
-                [exam_date, start_time, end_time, JSON.stringify(components || []), max_marks || 100, min_marks || 35, ids, school_id]
+                [
+                    exam_date, 
+                    start_time, 
+                    end_time, 
+                    typeof components === 'string' ? components : JSON.stringify(components || []), 
+                    parseFloat(max_marks) || 100, 
+                    parseFloat(min_marks) || 35, 
+                    parsedIds, 
+                    school_id
+                ]
             );
         } else {
             result = await pool.query(
                 `UPDATE exam_schedules 
-                 SET exam_date = $1, start_time = $2, end_time = $3, components = $4, max_marks = $5, min_marks = $6, updated_at = NOW()
+                 SET exam_date = $1, start_time = $2, end_time = $3, 
+                     components = $4, max_marks = $5, min_marks = $6, updated_at = NOW()
                  WHERE id = $7 AND school_id = $8
                  RETURNING *`,
-                [exam_date, start_time, end_time, JSON.stringify(components || []), max_marks || 100, min_marks || 35, id, school_id]
+                [
+                    exam_date, 
+                    start_time, 
+                    end_time, 
+                    typeof components === 'string' ? components : JSON.stringify(components || []), 
+                    parseFloat(max_marks) || 100, 
+                    parseFloat(min_marks) || 35, 
+                    itemId, 
+                    school_id
+                ]
             );
         }
 
-        if (result.rows.length === 0) {
+        if (!result.rows || result.rows.length === 0) {
             return res.status(404).json({ message: 'Schedule item not found' });
         }
 
