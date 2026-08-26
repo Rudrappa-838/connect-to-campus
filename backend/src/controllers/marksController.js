@@ -865,7 +865,6 @@ exports.getStudentAllMarks = async (req, res) => {
                       AND school_id = m.school_id
                       AND (class_id = m.class_id OR class_id IS NULL)
                       AND (section_id = m.section_id OR section_id IS NULL)
-                      AND deleted_at IS NULL
                     ORDER BY updated_at DESC, id DESC
                     LIMIT 1
                  ) es ON TRUE
@@ -954,7 +953,6 @@ exports.getStudentAllMarks = async (req, res) => {
                 WHERE subject_id = m.subject_id 
                   AND exam_type_id = m.exam_type_id 
                   AND school_id = m.school_id
-                  AND deleted_at IS NULL
                 ORDER BY updated_at DESC, id DESC
                 LIMIT 1
             ) es ON TRUE

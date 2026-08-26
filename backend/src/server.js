@@ -143,6 +143,10 @@ const startServer = async () => {
                         ALTER TABLE marks ADD COLUMN IF NOT EXISTS deleted_student_name VARCHAR(255);
                         ALTER TABLE marks ADD COLUMN IF NOT EXISTS deleted_student_admission_no VARCHAR(50);
                     END IF;
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'exam_schedules') THEN
+                        ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+                    END IF;
+
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'student_certificates') THEN
                         ALTER TABLE student_certificates ALTER COLUMN student_id DROP NOT NULL;
                         ALTER TABLE student_certificates ADD COLUMN IF NOT EXISTS deleted_student_name VARCHAR(255);
