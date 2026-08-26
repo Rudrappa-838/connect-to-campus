@@ -881,7 +881,7 @@ exports.getStudentAllMarks = async (req, res) => {
                     `SELECT DISTINCT ON (m.id)
                             m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
                             m.exam_type_id, 
-                            COALESCE(es.exam_date::text, m.created_at::date::text) as exam_date,
+                            es.exam_date::text as exam_date,
                             COALESCE(es.max_marks, et.max_marks, 100) as max_marks
                      FROM marks m
                      JOIN subjects sub ON m.subject_id = sub.id
@@ -908,7 +908,7 @@ exports.getStudentAllMarks = async (req, res) => {
                 try {
                     marksRes = await pool.query(
                         `SELECT m.id, m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
-                                m.exam_type_id, m.created_at::date::text as exam_date,
+                                m.exam_type_id, NULL::text as exam_date,
                                 COALESCE(et.max_marks, 100) as max_marks
                          FROM marks m
                          JOIN subjects sub ON m.subject_id = sub.id
