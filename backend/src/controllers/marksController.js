@@ -837,21 +837,25 @@ const formatExamDate = (d) => {
 exports.getStudentAllMarks = async (req, res) => {
     try {
         const { admission_no } = req.query;
-        const school_id = req.user?.schoolId || req.user?.school_id;
+        let rawSchoolId = req.user?.schoolId || req.user?.school_id;
+        if (typeof rawSchoolId === 'object' && rawSchoolId !== null) {
+            rawSchoolId = rawSchoolId.id || rawSchoolId.school_id || null;
+        }
+        const school_id = rawSchoolId ? parseInt(rawSchoolId) : null;
 
         console.log('[Get Student All Marks] Searching for:', admission_no, 'school_id:', school_id);
 
-        if (!admission_no || !admission_no.trim()) {
+        if (!admission_no || !String(admission_no).trim()) {
             return res.status(400).json({ message: 'Admission Number is required' });
         }
 
-        const trimmedAdmission = admission_no.trim();
+        const trimmedAdmission = String(admission_no).trim();
 
         // 1. First, try to find active student (by admission_no, custom_roll_number, or roll_number)
         let studentRes;
         try {
-            const studentParams = school_id ? [trimmedAdmission, school_id] : [trimmedAdmission];
-            const schoolFilter = school_id ? 'AND st.school_id = $2' : '';
+            const studentParams = school_id && !isNaN(school_id) ? [trimmedAdmission, school_id] : [trimmedAdmission];
+            const schoolFilter = school_id && !isNaN(school_id) ? 'AND st.school_id = $2' : '';
 
             studentRes = await pool.query(
                 `SELECT st.*, c.name as class_name
@@ -869,6 +873,7 @@ exports.getStudentAllMarks = async (req, res) => {
 
         if (studentRes.rows && studentRes.rows.length > 0) {
             const student = studentRes.rows[0];
+            const studentId = parseInt(student.id);
 
             let marksRes;
             try {
@@ -891,21 +896,26 @@ exports.getStudentAllMarks = async (req, res) => {
                      ) es ON TRUE
                      WHERE m.student_id = $1 OR m.student_id::text = $2 OR m.deleted_student_admission_no ILIKE $2
                      ORDER BY m.id, et.id, sub.name`,
-                    [student.id, trimmedAdmission]
+                    [studentId, trimmedAdmission]
                 );
             } catch (mErr) {
                 console.error('[Get Student All Marks] LATERAL query failed, trying simple query:', mErr.message);
-                marksRes = await pool.query(
-                    `SELECT m.id, m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
-                            m.exam_type_id, m.created_at::date::text as exam_date,
-                            COALESCE(et.max_marks, 100) as max_marks
-                     FROM marks m
-                     JOIN subjects sub ON m.subject_id = sub.id
-                     JOIN exam_types et ON m.exam_type_id = et.id
-                     WHERE m.student_id = $1 OR m.student_id::text = $2 OR m.deleted_student_admission_no ILIKE $2
-                     ORDER BY m.id, et.id, sub.name`,
-                    [student.id, trimmedAdmission]
-                );
+                try {
+                    marksRes = await pool.query(
+                        `SELECT m.id, m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
+                                m.exam_type_id, m.created_at::date::text as exam_date,
+                                COALESCE(et.max_marks, 100) as max_marks
+                         FROM marks m
+                         JOIN subjects sub ON m.subject_id = sub.id
+                         JOIN exam_types et ON m.exam_type_id = et.id
+                         WHERE m.student_id = $1 OR m.student_id::text = $2 OR m.deleted_student_admission_no ILIKE $2
+                         ORDER BY m.id, et.id, sub.name`,
+                        [studentId, trimmedAdmission]
+                    );
+                } catch (sErr) {
+                    console.error('[Get Student All Marks] Simple query failed:', sErr.message);
+                    marksRes = { rows: [] };
+                }
             }
 
             const examsMap = {};
