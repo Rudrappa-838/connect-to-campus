@@ -76,6 +76,10 @@ const startServer = async () => {
             `);
 
             await client.query(`
+                ALTER TABLE schools ADD COLUMN IF NOT EXISTS principal_signature TEXT;
+            `);
+
+            await client.query(`
                 DO $$ 
                 BEGIN 
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'notifications') THEN

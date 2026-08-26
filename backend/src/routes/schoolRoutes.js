@@ -3,7 +3,7 @@ const router = express.Router();
 const { 
     createSchool, getSchools, getSchoolDetails, updateSchool, getMySchool, 
     toggleSchoolStatus, deleteSchool, restoreSchool, getDeletedSchools, 
-    permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, 
+    permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, updatePrincipalSignature,
     getDashboardStats, updateMySchoolSettings, uploadWordTemplate, 
     getWordTemplates, setDefaultWordTemplate, deleteWordTemplate, 
     updateWordTemplate 
@@ -37,6 +37,7 @@ router.delete('/my-school/word-templates/:id', authorize('SCHOOL_ADMIN'), delete
 router.get('/my-school', authorize('SCHOOL_ADMIN', 'TEACHER', 'STUDENT', 'STAFF', 'DRIVER', 'TRANSPORT_MANAGER'), getMySchool);
 router.get('/dashboard-stats', authorize('SCHOOL_ADMIN'), getDashboardStats);
 router.put('/my-school/logo', authorize('SCHOOL_ADMIN'), updateSchoolLogo);
+router.put('/my-school/principal-signature', authorize('SCHOOL_ADMIN'), updatePrincipalSignature);
 router.put('/my-school/settings', authorize('SCHOOL_ADMIN'), updateMySchoolSettings);
 
 // Super Admin Routes (Protected)

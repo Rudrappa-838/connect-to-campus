@@ -783,6 +783,23 @@ const updateSchoolLogo = async (req, res) => {
     }
 };
 
+const updatePrincipalSignature = async (req, res) => {
+    const schoolId = req.user.schoolId;
+    if (!schoolId) return res.status(403).json({ message: 'Access denied' });
+
+    const { principal_signature } = req.body;
+    try {
+        await pool.query(
+            'UPDATE schools SET principal_signature = $1 WHERE id = $2',
+            [principal_signature || null, schoolId]
+        );
+        res.json({ message: 'Principal signature updated successfully' });
+    } catch (error) {
+        console.error('[UPDATE SIGNATURE] Error:', error);
+        res.status(500).json({ message: 'Error updating principal signature', error: error.message });
+    }
+};
+
 const getDashboardStats = async (req, res) => {
     const school_id = req.user.schoolId;
     try {
@@ -1023,6 +1040,7 @@ const updateWordTemplate = async (req, res) => {
 module.exports = {
     createSchool, getSchools, getSchoolDetails, updateSchool, getMySchool,
     toggleSchoolStatus, deleteSchool, restoreSchool, getDeletedSchools,
-    permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, getDashboardStats,
-    updateMySchoolSettings, uploadWordTemplate, getWordTemplates, setDefaultWordTemplate, deleteWordTemplate, updateWordTemplate
+    permanentDeleteSchool, updateSchoolFeatures, updateSchoolLogo, updatePrincipalSignature,
+    getDashboardStats, updateMySchoolSettings, uploadWordTemplate, getWordTemplates,
+    setDefaultWordTemplate, deleteWordTemplate, updateWordTemplate
 };

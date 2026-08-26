@@ -122,18 +122,17 @@ const AllTestsReport = () => {
         return Array.from(dateSet);
     };
 
-    // Subject abbreviation helper
-    const abbreviateSubject = (name) => {
+    // Subject ORDER: Physics first, then Chemistry, Maths, Zoology, Botany, Biology, then rest alphabetically
+    const SUBJECT_ORDER = [
+        'PHYSICS', 'CHEMISTRY', 'MATHEMATICS', 'MATH', 'MATHS',
+        'ZOOLOGY', 'BOTANY', 'BIOLOGY',
+        'ENGLISH', 'KANNADA', 'HINDI', 'COMPUTER SCIENCE'
+    ];
+
+    const subjectSortKey = (name) => {
         const upper = name.toUpperCase();
-        if (upper.includes('PHYSICS')) return 'PHY';
-        if (upper.includes('CHEMISTRY')) return 'CHE';
-        if (upper.includes('MATHEMATICS') || upper.includes('MATH')) return 'MATHS';
-        if (upper.includes('COMPUTER SCIENCE')) return 'CS';
-        if (upper.includes('BIOLOGY')) return 'BIO';
-        if (upper.includes('ENGLISH')) return 'ENG';
-        if (upper.includes('KANNADA')) return 'KAN';
-        if (upper.includes('HINDI')) return 'HIN';
-        return name.length > 5 ? name.substring(0, 4).toUpperCase() : name.toUpperCase();
+        const idx = SUBJECT_ORDER.findIndex(s => upper.includes(s));
+        return idx === -1 ? 999 : idx;
     };
 
     // Filter and group exams into separate categories (JEE, NEET, KCET, Theory)
@@ -179,7 +178,12 @@ const AllTestsReport = () => {
                 });
             }
         });
-        return Object.values(subjectsMap).sort((a, b) => a.name.localeCompare(b.name));
+        return Object.values(subjectsMap).sort((a, b) => {
+            const ka = subjectSortKey(a.name);
+            const kb = subjectSortKey(b.name);
+            if (ka !== kb) return ka - kb;
+            return a.name.localeCompare(b.name);
+        });
     };
 
     const jeeSubjects = React.useMemo(() => getTableSubjects(groupedExams.jeeExams), [groupedExams.jeeExams]);
@@ -372,7 +376,7 @@ const AllTestsReport = () => {
                                                     <th className="p-1.5 border-r border-slate-900 w-28">TEST DATE</th>
                                                     {jeeSubjects.map(sub => (
                                                         <th key={sub.name} className="p-1.5 border-r border-slate-900">
-                                                            {abbreviateSubject(sub.name)}
+                                                            {sub.name}
                                                         </th>
                                                     ))}
                                                     <th className="p-1.5 w-20">TOTAL</th>
@@ -434,7 +438,7 @@ const AllTestsReport = () => {
                                                     <th className="p-1.5 border-r border-slate-900 w-28">TEST DATE</th>
                                                     {neetSubjects.map(sub => (
                                                         <th key={sub.name} className="p-1.5 border-r border-slate-900">
-                                                            {abbreviateSubject(sub.name)}
+                                                            {sub.name}
                                                         </th>
                                                     ))}
                                                     <th className="p-1.5 w-20">TOTAL</th>
@@ -496,7 +500,7 @@ const AllTestsReport = () => {
                                                     <th className="p-1.5 border-r border-slate-900 w-28">TEST DATE</th>
                                                     {kcetSubjects.map(sub => (
                                                         <th key={sub.name} className="p-1.5 border-r border-slate-900">
-                                                            {abbreviateSubject(sub.name)}
+                                                            {sub.name}
                                                         </th>
                                                     ))}
                                                     <th className="p-1.5 w-20">TOTAL</th>
@@ -558,7 +562,7 @@ const AllTestsReport = () => {
                                                     <th className="p-1.5 border-r border-slate-900 w-28">U. T. DATE</th>
                                                     {theorySubjects.map(sub => (
                                                         <th key={sub.name} className="p-1.5 border-r border-slate-900">
-                                                            {abbreviateSubject(sub.name)}
+                                                            {sub.name}
                                                         </th>
                                                     ))}
                                                     <th className="p-1.5 w-20">TOTAL</th>
@@ -600,9 +604,9 @@ const AllTestsReport = () => {
                                 </div>
                             )}
 
-                            {/* Report Card Footer Signs: Parent & Principal Only */}
+                            {/* Report Card Footer Signs: Parent & Principal Signature */}
                             <div 
-                                className="flex justify-between items-center pt-16 px-6 text-center text-xs font-extrabold text-slate-800 tracking-wider uppercase"
+                                className="flex justify-between items-end pt-6 px-6 text-center text-xs font-extrabold text-slate-800 tracking-wider uppercase"
                                 style={{ fontFamily: '"Times New Roman", Times, serif' }}
                             >
                                 <div className="w-44">
@@ -610,8 +614,16 @@ const AllTestsReport = () => {
                                         Parent Signature
                                     </div>
                                 </div>
-                                <div className="w-44">
-                                    <div className="border-t-2 border-dashed border-slate-700 pt-2 text-slate-900 font-black">
+                                <div className="w-44 flex flex-col items-center">
+                                    {school?.principal_signature && (
+                                        <img
+                                            src={school.principal_signature}
+                                            alt="Principal Signature"
+                                            className="principal-signature-img h-14 object-contain mb-1"
+                                            style={{ maxHeight: '56px', maxWidth: '160px', objectFit: 'contain' }}
+                                        />
+                                    )}
+                                    <div className="border-t-2 border-dashed border-slate-700 pt-2 text-slate-900 font-black w-full">
                                         Principal Signature
                                     </div>
                                 </div>
@@ -664,6 +676,12 @@ const AllTestsReport = () => {
                         height: 70px !important;
                         max-width: 70px !important;
                         max-height: 70px !important;
+                        object-fit: contain !important;
+                        display: block !important;
+                    }
+                    .principal-signature-img {
+                        max-height: 56px !important;
+                        max-width: 160px !important;
                         object-fit: contain !important;
                         display: block !important;
                     }

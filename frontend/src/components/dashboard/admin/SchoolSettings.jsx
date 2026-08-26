@@ -45,6 +45,9 @@ const SchoolSettings = () => {
     const [activeTab, setActiveTab] = useState('branding'); // 'branding', 'academic-year', 'classes'
     const [logoUrl, setLogoUrl] = useState('');
     const [logoFile, setLogoFile] = useState(null);
+    const [signatureUrl, setSignatureUrl] = useState('');
+    const [signatureFile, setSignatureFile] = useState(null);
+    const [uploadingSignature, setUploadingSignature] = useState(false);
     const [geminiKey, setGeminiKey] = useState('');
     const [smsProvider, setSmsProvider] = useState('');
     const [smsApiKey, setSmsApiKey] = useState('');
@@ -78,6 +81,7 @@ const SchoolSettings = () => {
                 // Assuming response.data contains school info directly or wrapped
                 const school = response.data.data || response.data; // Handle potential wrapping
                 setLogoUrl(school.logo || '');
+                setSignatureUrl(school.principal_signature || '');
                 setGeminiKey(school.gemini_api_key || '');
                 setSmsProvider(school.sms_provider || '');
                 setSmsApiKey(school.sms_api_key || '');
@@ -222,11 +226,13 @@ const SchoolSettings = () => {
             }
 
             // 2. Upload Logo if changed
-            // FIX: Backend expects JSON body with 'logo' key (Base64 string), NOT multipart/form-data
             if (logoUrl && logoUrl.startsWith('data:image')) {
-                // If logoUrl is a data URL (Base64), it means it's a new upload or existing one being re-saved.
-                // We send the Base64 string directly.
                 await api.put('/schools/my-school/logo', { logo: logoUrl });
+            }
+
+            // 3. Upload Principal Signature if changed
+            if (signatureUrl && signatureUrl.startsWith('data:image')) {
+                await api.put('/schools/my-school/principal-signature', { principal_signature: signatureUrl });
             }
 
             toast.success('Settings saved successfully');
@@ -346,6 +352,55 @@ const SchoolSettings = () => {
                             </div>
                             <p className="text-xs text-slate-500 mt-2 text-center">
                                 This logo will appear in the Sidebar and Mobile App Header.
+                            </p>
+                        </div>
+
+                        {/* Principal Signature Upload */}
+                        <div className="pt-6 border-t border-slate-100">
+                            <label className="block text-sm font-bold text-slate-700 mb-3">Principal Signature</label>
+                            <div className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                                {signatureUrl ? (
+                                    <div className="relative group">
+                                        <img
+                                            src={signatureUrl}
+                                            alt="Principal Signature Preview"
+                                            className="h-24 object-contain bg-white rounded border border-slate-200 p-2"
+                                        />
+                                        <button
+                                            onClick={() => { setSignatureUrl(''); setSignatureFile(null); }}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1.5 rounded-full shadow-md hover:bg-red-600 transition-colors"
+                                            title="Remove Signature"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-center">
+                                        <div className="bg-violet-100 p-3 rounded-full inline-block mb-3">
+                                            <Upload className="text-violet-600" size={32} />
+                                        </div>
+                                        <p className="text-sm font-medium text-slate-900">Click to upload Principal Signature</p>
+                                        <p className="text-xs text-slate-500 mt-1">PNG with transparent background recommended, max 5MB</p>
+                                    </div>
+                                )}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            if (file.size > 5 * 1024 * 1024) { toast.error('File size must be less than 5MB'); return; }
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => setSignatureUrl(reader.result);
+                                            reader.readAsDataURL(file);
+                                            setSignatureFile(file);
+                                        }
+                                    }}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                />
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2 text-center">
+                                This signature will appear on all student marks cards / progress reports.
                             </p>
                         </div>
 
