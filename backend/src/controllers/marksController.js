@@ -883,7 +883,7 @@ exports.getStudentAllMarks = async (req, res) => {
                  SELECT DISTINCT ON (m.id) 
                         m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
                         m.exam_type_id, 
-                        COALESCE(es.exam_date::text, m.updated_at::date::text, m.created_at::date::text) as exam_date,
+                        COALESCE(es.exam_date::text, m.created_at::date::text) as exam_date,
                         COALESCE(es.max_marks, et.max_marks, 100) as max_marks
                  FROM marks m
                  JOIN subjects sub ON m.subject_id = sub.id
@@ -896,14 +896,30 @@ exports.getStudentAllMarks = async (req, res) => {
                       AND school_id = m.school_id
                       AND (class_id = m.class_id OR class_id IS NULL)
                       AND (section_id = m.section_id OR section_id IS NULL)
-                    ORDER BY updated_at DESC, id DESC
+                    ORDER BY id DESC
                     LIMIT 1
                  ) es ON TRUE
                  WHERE m.student_id = $1 AND m.school_id = $2
                  ORDER BY m.id, et.id, sub.name
             `;
 
-            const marksRes = await pool.query(marksQuery, [student.id, school_id]);
+            let marksRes;
+            try {
+                marksRes = await pool.query(marksQuery, [student.id, school_id]);
+            } catch (marksErr) {
+                console.error('[Get Student All Marks] LATERAL query failed, trying simple query:', marksErr.message);
+                const simpleMarksQuery = `
+                    SELECT m.id, m.marks_obtained, sub.name as subject_name, et.name as exam_name, 
+                           m.exam_type_id, m.created_at::date::text as exam_date,
+                           COALESCE(et.max_marks, 100) as max_marks
+                    FROM marks m
+                    JOIN subjects sub ON m.subject_id = sub.id
+                    JOIN exam_types et ON m.exam_type_id = et.id
+                    WHERE m.student_id = $1 AND m.school_id = $2
+                    ORDER BY m.id, et.id, sub.name
+                `;
+                marksRes = await pool.query(simpleMarksQuery, [student.id, school_id]);
+            }
 
             // Group by Exam
             const examsMap = {};
@@ -970,7 +986,7 @@ exports.getStudentAllMarks = async (req, res) => {
                    sub.name as subject_name, 
                    et.name as exam_name,
                    m.exam_type_id, 
-                   COALESCE(es.exam_date::text, m.updated_at::date::text, m.created_at::date::text) as exam_date,
+                   COALESCE(es.exam_date::text, m.created_at::date::text) as exam_date,
                    COALESCE(es.max_marks, et.max_marks, 100) as max_marks,
                    m.deleted_student_name,
                    m.deleted_student_admission_no
@@ -983,7 +999,7 @@ exports.getStudentAllMarks = async (req, res) => {
                 WHERE subject_id = m.subject_id 
                   AND exam_type_id = m.exam_type_id 
                   AND school_id = m.school_id
-                ORDER BY updated_at DESC, id DESC
+                ORDER BY id DESC
                 LIMIT 1
             ) es ON TRUE
             WHERE m.school_id = $1 
