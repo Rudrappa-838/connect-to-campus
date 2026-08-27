@@ -30,21 +30,6 @@ const convertToDigitWords = (num) => {
     return str.split('').map(digit => words[parseInt(digit)]).join(' ');
 };
 
-const formatExamDate = (dateStr) => {
-    if (!dateStr) return null;
-    try {
-        const str = String(dateStr).split('T')[0].trim();
-        const parts = str.split('-');
-        if (parts.length === 3) {
-            const [y, m, d] = parts;
-            return `${d.padStart(2, '0')}-${m.padStart(2, '0')}-${y}`;
-        }
-        return dateStr;
-    } catch {
-        return dateStr;
-    }
-};
-
 // Get or Create Exam Types
 exports.getExamTypes = async (req, res) => {
     try {
