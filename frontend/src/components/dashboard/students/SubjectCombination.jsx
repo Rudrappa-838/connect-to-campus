@@ -16,12 +16,12 @@ const SubjectCombination = ({ config }) => {
     const [legacySubjects, setLegacySubjects] = useState([]); // from old subjects table
     const [students, setStudents] = useState([]);
     const [assignments, setAssignments] = useState({}); // { student_id: { group_id, chosen_subjects } }
-    
+
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
     // Mode: 'group' (preconfigured combinations) or 'custom' (build on the fly)
-    const [allocationMode, setAllocationMode] = useState('group'); 
+    const [allocationMode, setAllocationMode] = useState('group');
 
     // Selections
     const [activeGroupId, setActiveGroupId] = useState(null);
@@ -48,7 +48,7 @@ const SubjectCombination = ({ config }) => {
             // Fetch Groups
             const grpRes = await api.get('/subject-groups/groups', { params: { class_id: classId } });
             setGroups(Array.isArray(grpRes.data) ? grpRes.data : []);
-            
+
             // Fetch Legacy Subjects for custom ad-hoc combinations
             const subRes = await api.get(`/classes/${classId}/subjects`);
             setLegacySubjects(Array.isArray(subRes.data) ? subRes.data : []);
@@ -126,63 +126,10 @@ const SubjectCombination = ({ config }) => {
     };
 
     const toggleSubject = (id) => {
-        const subject = legacySubjects.find(s => s.id === id);
-        if (!subject) return;
-        const subName = subject.name.toLowerCase();
-
-        const currentClass = sortedClasses.find(c => c.class_id === parseInt(selectedClass));
-        const className = (currentClass?.class_name || '').toLowerCase().trim();
-        const isPUC = className === 'class 1' || 
-                      className === 'class 2' || 
-                      className.includes('11') || 
-                      className.includes('12') || 
-                      className.includes('puc') || 
-                      className.includes('pu') || 
-                      className === '1' || 
-                      className === '2';
-
         setActiveSubjectIds(prev => {
             const next = new Set(prev);
-            
-            if (next.has(id)) {
-                next.delete(id);
-                return next;
-            }
-
-            // Mutual exclusion for 11/12/PUC
-            if (isPUC) {
-                // Rule 1: Computer vs Biology
-                if (subName.includes('computer')) {
-                    const bio = legacySubjects.find(s => next.has(s.id) && s.name.toLowerCase().includes('biology'));
-                    if (bio) {
-                        next.delete(bio.id);
-                        toast('Biology removed (Cannot take with Computer)', { icon: '⚠️' });
-                    }
-                } else if (subName.includes('biology')) {
-                    const comp = legacySubjects.find(s => next.has(s.id) && s.name.toLowerCase().includes('computer'));
-                    if (comp) {
-                        next.delete(comp.id);
-                        toast('Computer removed (Cannot take with Biology)', { icon: '⚠️' });
-                    }
-                }
-
-                // Rule 2: Hindi vs Kannada
-                if (subName.includes('hindi')) {
-                    const kan = legacySubjects.find(s => next.has(s.id) && s.name.toLowerCase().includes('kannada'));
-                    if (kan) {
-                        next.delete(kan.id);
-                        toast('Kannada removed (Cannot take with Hindi)', { icon: '⚠️' });
-                    }
-                } else if (subName.includes('kannada')) {
-                    const hin = legacySubjects.find(s => next.has(s.id) && s.name.toLowerCase().includes('hindi'));
-                    if (hin) {
-                        next.delete(hin.id);
-                        toast('Hindi removed (Cannot take with Kannada)', { icon: '⚠️' });
-                    }
-                }
-            }
-
-            next.add(id);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
             return next;
         });
     };
@@ -235,15 +182,15 @@ const SubjectCombination = ({ config }) => {
 
     const renderAssignmentBadge = (assignment) => {
         if (!assignment) return <span className="text-xs text-slate-400 italic">Unassigned</span>;
-        
+
         if (assignment.group_id) {
             const g = groups.find(g => g.id === assignment.group_id);
-            if (g) return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-100 text-violet-700 border border-violet-200 rounded-full text-xs font-bold"><Layers size={12}/> {g.name}</span>;
+            if (g) return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-100 text-violet-700 border border-violet-200 rounded-full text-xs font-bold"><Layers size={12} /> {g.name}</span>;
         }
-        
+
         if (assignment.chosen_subjects?.length > 0) {
             const names = assignment.chosen_subjects.map(id => legacySubjects.find(s => s.id === id)?.name || id);
-            return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-100 text-sky-700 border border-sky-200 rounded-full text-[10px] font-bold"><BookOpen size={12}/> {names.join(', ')}</span>;
+            return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-100 text-sky-700 border border-sky-200 rounded-full text-[10px] font-bold"><BookOpen size={12} /> {names.join(', ')}</span>;
         }
 
         return <span className="text-xs text-slate-400 italic">Unassigned</span>;
@@ -308,13 +255,13 @@ const SubjectCombination = ({ config }) => {
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
                     {/* Mode Toggle */}
                     <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl w-fit mb-6">
-                        <button 
+                        <button
                             onClick={() => { setAllocationMode('group'); setActiveSubjectIds(new Set()); }}
                             className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${allocationMode === 'group' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             Pre-configured Groups
                         </button>
-                        <button 
+                        <button
                             onClick={() => { setAllocationMode('custom'); setActiveGroupId(null); }}
                             className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${allocationMode === 'custom' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
@@ -325,7 +272,7 @@ const SubjectCombination = ({ config }) => {
                     {/* Pre-configured Groups */}
                     {allocationMode === 'group' && (
                         <div className="space-y-3">
-                            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Layers size={15} className="text-violet-500"/> Select Group</h3>
+                            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Layers size={15} className="text-violet-500" /> Select Group</h3>
                             {groups.length === 0 ? (
                                 <p className="text-sm text-slate-400 bg-slate-50 p-4 rounded-xl border border-slate-100">No subject groups configured by Admin. Use "Custom Selection" instead.</p>
                             ) : (
@@ -339,7 +286,7 @@ const SubjectCombination = ({ config }) => {
                                                 className={`px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all flex items-center gap-2
                                                     ${isActive ? 'bg-violet-600 text-white border-violet-700 shadow-md scale-105' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-violet-300'}`}
                                             >
-                                                {isActive && <Check size={14}/>} {group.name}
+                                                {isActive && <Check size={14} />} {group.name}
                                             </button>
                                         )
                                     })}
@@ -351,7 +298,7 @@ const SubjectCombination = ({ config }) => {
                     {/* Custom Selection */}
                     {allocationMode === 'custom' && (
                         <div className="space-y-3">
-                            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Tag size={15} className="text-sky-500"/> Build Custom Combination</h3>
+                            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Tag size={15} className="text-sky-500" /> Build Custom Combination</h3>
                             {legacySubjects.length === 0 ? (
                                 <p className="text-sm text-slate-400 bg-slate-50 p-4 rounded-xl border border-slate-100">No subjects found for this class.</p>
                             ) : (
@@ -365,9 +312,9 @@ const SubjectCombination = ({ config }) => {
                                                 className={`px-3 py-2 rounded-lg border-2 font-bold text-xs transition-all flex items-center gap-2
                                                     ${isActive ? 'bg-sky-500 text-white border-sky-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300'}`}
                                             >
-                                                {isActive && <Check size={12}/>} {sub.name}
+                                                {isActive && <Check size={12} />} {sub.name}
                                             </button>
-                                        )
+                                        );
                                     })}
                                 </div>
                             )}
@@ -385,10 +332,10 @@ const SubjectCombination = ({ config }) => {
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-5">
                     <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
                         <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                            <Users size={16}/> Student List 
+                            <Users size={16} /> Student List
                             {selectedStudentIds.size > 0 && <span className="bg-violet-600 text-white px-2 py-0.5 rounded text-[10px] ml-2">{selectedStudentIds.size} selected</span>}
                         </span>
-                        
+
                         <div className="flex gap-2">
                             <div className="relative">
                                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -426,8 +373,8 @@ const SubjectCombination = ({ config }) => {
                             <thead>
                                 <tr className="border-b border-slate-100">
                                     <th className="p-3 pl-5 w-12 text-left">
-                                        <button onClick={() => setSelectedStudentIds(selectedStudentIds.size === filteredStudents.length ? new Set() : new Set(filteredStudents.map(s=>s.id)))}>
-                                            {selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0 ? <CheckSquare size={16} className="text-violet-600"/> : <Square size={16} className="text-slate-400"/>}
+                                        <button onClick={() => setSelectedStudentIds(selectedStudentIds.size === filteredStudents.length ? new Set() : new Set(filteredStudents.map(s => s.id)))}>
+                                            {selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0 ? <CheckSquare size={16} className="text-violet-600" /> : <Square size={16} className="text-slate-400" />}
                                         </button>
                                     </th>
                                     <th className="p-3 text-left text-[11px] font-bold text-slate-500 uppercase">Roll</th>
@@ -442,7 +389,7 @@ const SubjectCombination = ({ config }) => {
                                         <tr key={student.id} onClick={() => toggleStudent(student.id)} className={`border-b border-slate-50 cursor-pointer ${isSelected ? 'bg-violet-50' : 'hover:bg-slate-50'}`}>
                                             <td className="p-3 pl-5">
                                                 <div className={`w-4 h-4 rounded flex items-center justify-center border-2 ${isSelected ? 'bg-violet-600 border-violet-600 text-white' : 'border-slate-300'}`}>
-                                                    {isSelected && <Check size={10}/>}
+                                                    {isSelected && <Check size={10} />}
                                                 </div>
                                             </td>
                                             <td className="p-3 text-xs font-mono font-bold text-slate-500">{student.roll_number || '-'}</td>
