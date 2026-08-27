@@ -30,6 +30,21 @@ const convertToDigitWords = (num) => {
     return str.split('').map(digit => words[parseInt(digit)]).join(' ');
 };
 
+const formatExamDate = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+        const str = String(dateStr).split('T')[0].trim();
+        const parts = str.split('-');
+        if (parts.length === 3) {
+            const [y, m, d] = parts;
+            return `${d.padStart(2, '0')}-${m.padStart(2, '0')}-${y}`;
+        }
+        return dateStr;
+    } catch {
+        return dateStr;
+    }
+};
+
 // Get or Create Exam Types
 exports.getExamTypes = async (req, res) => {
     try {
@@ -1341,7 +1356,12 @@ exports.getAllTestsReport = async (req, res) => {
             return res.status(400).json({ message: 'Class ID is required' });
         }
 
-        // 1. Get all students in this class/section
+        const parsedClassId = parseInt(class_id);
+        if (isNaN(parsedClassId)) {
+            return res.status(400).json({ message: 'Invalid Class ID' });
+        }
+
+        // 1. Get all students in this class (and optional section)
         let studentsQuery = `
             SELECT st.id, st.name, st.admission_no, st.roll_number, st.custom_roll_number,
                    st.father_name, st.mother_name, st.sats_number, st.class_id, st.section_id,
@@ -1351,16 +1371,20 @@ exports.getAllTestsReport = async (req, res) => {
             WHERE st.class_id = $1
               AND (st.status IS NULL OR st.status NOT IN ('Deleted', 'Unassigned'))
         `;
-        const studentParams = [parseInt(class_id)];
+        const studentParams = [parsedClassId];
 
         if (school_id) {
             studentParams.push(school_id);
             studentsQuery += ` AND (st.school_id = $${studentParams.length} OR st.school_id IS NULL)`;
         }
 
-        if (section_id) {
-            studentParams.push(parseInt(section_id));
-            studentsQuery += ` AND st.section_id = $${studentParams.length}`;
+        // Safely check section_id: only apply filter if section_id is a valid non-empty number
+        if (section_id !== undefined && section_id !== null && section_id !== '' && section_id !== 'null' && section_id !== 'undefined' && section_id !== 'All') {
+            const parsedSectionId = parseInt(section_id);
+            if (!isNaN(parsedSectionId) && parsedSectionId > 0) {
+                studentParams.push(parsedSectionId);
+                studentsQuery += ` AND st.section_id = $${studentParams.length}`;
+            }
         }
 
         studentsQuery += ` ORDER BY COALESCE(st.custom_roll_number, st.roll_number::text, st.admission_no, st.name), st.name`;
@@ -1374,7 +1398,7 @@ exports.getAllTestsReport = async (req, res) => {
             return res.json({ studentReports: [], class_name: null });
         }
 
-        const studentIds = students.map(s => s.id);
+        const studentIds = students.map(s => parseInt(s.id)).filter(id => !isNaN(id));
 
         // 2. Get all marks for all students in this class in one bulk query
         let marksRes;
@@ -1393,26 +1417,32 @@ exports.getAllTestsReport = async (req, res) => {
                     FROM exam_schedules
                     WHERE subject_id = m.subject_id 
                       AND exam_type_id = m.exam_type_id
+                      AND (class_id = $2 OR class_id IS NULL)
                     ORDER BY id DESC
                     LIMIT 1
                  ) es ON TRUE
                  WHERE m.student_id = ANY($1::int[])
                  ORDER BY m.id, et.id, sub.name`,
-                [studentIds]
+                [studentIds, parsedClassId]
             );
         } catch (latErr) {
             console.error('[All Tests Report] LATERAL query failed, falling back to simple query:', latErr.message);
-            marksRes = await pool.query(
-                `SELECT m.id, m.student_id, m.marks_obtained, sub.name as subject_name, sub.code as subject_code,
-                        et.name as exam_name, m.exam_type_id, NULL::text as exam_date,
-                        COALESCE(et.max_marks, 100) as max_marks
-                 FROM marks m
-                 JOIN subjects sub ON m.subject_id = sub.id
-                 JOIN exam_types et ON m.exam_type_id = et.id
-                 WHERE m.student_id = ANY($1::int[])
-                 ORDER BY m.id, et.id, sub.name`,
-                [studentIds]
-            );
+            try {
+                marksRes = await pool.query(
+                    `SELECT m.id, m.student_id, m.marks_obtained, sub.name as subject_name, sub.code as subject_code,
+                            et.name as exam_name, m.exam_type_id, NULL::text as exam_date,
+                            COALESCE(et.max_marks, 100) as max_marks
+                     FROM marks m
+                     JOIN subjects sub ON m.subject_id = sub.id
+                     JOIN exam_types et ON m.exam_type_id = et.id
+                     WHERE m.student_id = ANY($1::int[])
+                     ORDER BY m.id, et.id, sub.name`,
+                    [studentIds]
+                );
+            } catch (fallbackErr) {
+                console.error('[All Tests Report] Simple query fallback failed:', fallbackErr.message);
+                marksRes = { rows: [] };
+            }
         }
 
         // Group marks by student_id
@@ -1490,5 +1520,3 @@ exports.getAllTestsReport = async (req, res) => {
         res.status(500).json({ message: 'Server error generating all tests report', error: error.message });
     }
 };
-
-

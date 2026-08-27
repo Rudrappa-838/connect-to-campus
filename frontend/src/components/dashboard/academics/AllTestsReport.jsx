@@ -23,7 +23,7 @@ const formatClassName = (className) => {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const getSubjectExamData = (exam, subjectName) => {
-    const defaultData = { marks: 'Absent', max: 100, date: null };
+    const defaultData = { marks: 'N/A', max: 100, date: null };
     if (!exam || !exam.subjects) return defaultData;
 
     const subMatch = exam.subjects.find(s => s.subject === subjectName);
@@ -31,7 +31,7 @@ const getSubjectExamData = (exam, subjectName) => {
         const obtained = subMatch.marks;
         const isAbsent = obtained === null || obtained === undefined || obtained === '' || obtained === 'ABSENT' || obtained === 'AB' || obtained === 'N/A' || obtained === 'NA';
         return {
-            marks: isAbsent ? 'Absent' : obtained,
+            marks: isAbsent ? 'N/A' : obtained,
             max: subMatch.max || 100,
             date: subMatch.exam_date || null
         };
@@ -173,12 +173,12 @@ const getRowTotal = (exam, subjectsList) => {
     let sum = 0;
     subjectsList.forEach(subject => {
         const subData = getSubjectExamData(exam, subject.name);
-        if (subData.marks !== 'NA' && subData.marks !== 'N/A' && subData.marks !== 'ABSENT' && subData.marks !== 'Absent') {
+        if (subData.marks !== 'NA' && subData.marks !== 'N/A' && subData.marks !== 'ABSENT') {
             allAbsent = false;
             sum += parseFloat(subData.marks) || 0;
         }
     });
-    return allAbsent ? 'Absent' : sum;
+    return allAbsent ? 'N/A' : sum;
 };
 
 // ─── Direct Isolated HTML Generator for 100% Reliable Print Pagination ────────
@@ -221,7 +221,7 @@ const generateSingleMarksheetHTML = (result, school) => {
                     <td>${dates.length > 0 ? dates.join('<br/>') : '-'}</td>
                     ${subjects.map(sub => {
                         const subData = getSubjectExamData(exam, sub.name);
-                        const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === 'Absent' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'Absent' : subData.marks;
+                        const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'N/A' : subData.marks;
                         return `<td class="font-bold">${displayVal}</td>`;
                     }).join('')}
                     <td class="font-bold">${total}</td>
@@ -317,8 +317,8 @@ const printMarksheetsViaIframe = (reports, schoolInfo) => {
 <title>Consolidated Exams Marksheet</title>
 <style>
 @page {
-    size: A4 landscape;
-    margin: 7mm 8mm;
+    size: A4 portrait;
+    margin: 8mm 10mm;
 }
 * {
     box-sizing: border-box;
@@ -635,7 +635,7 @@ const MarksheetCard = ({ result, school }) => {
                                                 <td className="p-1 border-r border-slate-900"><div className="flex flex-col">{dates.length > 0 ? dates.map((d, i) => <span key={i}>{d}</span>) : <span>-</span>}</div></td>
                                                 {jeeSubjects.map(sub => {
                                                     const subData = getSubjectExamData(exam, sub.name);
-                                                    const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'Absent' : subData.marks;
+                                                    const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'N/A' : subData.marks;
                                                     return <td key={sub.name} className="p-1 border-r border-slate-900 font-bold">{displayVal}</td>;
                                                 })}
                                                 <td className="p-1 font-bold">{total}</td>
