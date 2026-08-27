@@ -1328,8 +1328,14 @@ exports.generateWordMarksheet = async (req, res) => {
 
 exports.getAllTestsReport = async (req, res) => {
     try {
-        const school_id = req.user.schoolId;
+        let rawSchoolId = req.user?.schoolId || req.user?.school_id;
+        if (typeof rawSchoolId === 'object' && rawSchoolId !== null) {
+            rawSchoolId = rawSchoolId.id || rawSchoolId.school_id || null;
+        }
+        const school_id = rawSchoolId ? parseInt(rawSchoolId) : null;
         const { class_id, section_id } = req.query;
+
+        console.log(`[All Tests Report] Fetching for class_id: ${class_id}, section_id: ${section_id}, school_id: ${school_id}`);
 
         if (!class_id) {
             return res.status(400).json({ message: 'Class ID is required' });
@@ -1337,81 +1343,146 @@ exports.getAllTestsReport = async (req, res) => {
 
         // 1. Get all students in this class/section
         let studentsQuery = `
-            SELECT id, name, admission_no, roll_number 
-            FROM students 
-            WHERE class_id = $1 AND school_id = $2 AND (status IS NULL OR status != 'Deleted')
+            SELECT st.id, st.name, st.admission_no, st.roll_number, st.custom_roll_number,
+                   st.father_name, st.mother_name, st.sats_number, st.class_id, st.section_id,
+                   c.name as class_name
+            FROM students st
+            LEFT JOIN classes c ON st.class_id = c.id
+            WHERE st.class_id = $1
+              AND (st.status IS NULL OR st.status NOT IN ('Deleted', 'Unassigned'))
         `;
-        const studentParams = [parseInt(class_id), school_id];
+        const studentParams = [parseInt(class_id)];
+
+        if (school_id) {
+            studentParams.push(school_id);
+            studentsQuery += ` AND (st.school_id = $${studentParams.length} OR st.school_id IS NULL)`;
+        }
+
         if (section_id) {
             studentParams.push(parseInt(section_id));
-            studentsQuery += ` AND section_id = $3`;
+            studentsQuery += ` AND st.section_id = $${studentParams.length}`;
         }
-        studentsQuery += ` ORDER BY roll_number, name`;
+
+        studentsQuery += ` ORDER BY COALESCE(st.custom_roll_number, st.roll_number::text, st.admission_no, st.name), st.name`;
+
         const studentsRes = await pool.query(studentsQuery, studentParams);
         const students = studentsRes.rows;
 
+        console.log(`[All Tests Report] Found ${students.length} students in class ${class_id}`);
+
         if (students.length === 0) {
-            return res.json({ students: [], subjects: [], exams: [], schedules: [], marks: [] });
+            return res.json({ studentReports: [], class_name: null });
         }
 
         const studentIds = students.map(s => s.id);
 
-        // 2. Get all subjects for this class
-        const subjectsRes = await pool.query(
-            'SELECT id, name, code FROM subjects WHERE class_id = $1 ORDER BY name',
-            [parseInt(class_id)]
-        );
-        const subjects = subjectsRes.rows;
-
-        // 3. Get all exam types that have schedules for this class
-        let examsQuery = `
-            SELECT DISTINCT et.id, et.name, et.max_marks, et.min_marks
-            FROM exam_types et
-            JOIN exam_schedules es ON es.exam_type_id = et.id
-            WHERE es.class_id = $1 AND es.school_id = $2
-        `;
-        const examParams = [parseInt(class_id), school_id];
-        if (section_id) {
-            examParams.push(parseInt(section_id));
-            examsQuery += ` AND (es.section_id = $3 OR es.section_id IS NULL)`;
+        // 2. Get all marks for all students in this class in one bulk query
+        let marksRes;
+        try {
+            marksRes = await pool.query(
+                `SELECT DISTINCT ON (m.id)
+                        m.student_id, m.marks_obtained, sub.name as subject_name, sub.code as subject_code,
+                        et.name as exam_name, m.exam_type_id,
+                        es.exam_date::text as exam_date,
+                        COALESCE(es.max_marks, et.max_marks, 100) as max_marks
+                 FROM marks m
+                 JOIN subjects sub ON m.subject_id = sub.id
+                 JOIN exam_types et ON m.exam_type_id = et.id
+                 LEFT JOIN LATERAL (
+                    SELECT exam_date::text as exam_date, max_marks
+                    FROM exam_schedules
+                    WHERE subject_id = m.subject_id 
+                      AND exam_type_id = m.exam_type_id
+                    ORDER BY id DESC
+                    LIMIT 1
+                 ) es ON TRUE
+                 WHERE m.student_id = ANY($1::int[])
+                 ORDER BY m.id, et.id, sub.name`,
+                [studentIds]
+            );
+        } catch (latErr) {
+            console.error('[All Tests Report] LATERAL query failed, falling back to simple query:', latErr.message);
+            marksRes = await pool.query(
+                `SELECT m.id, m.student_id, m.marks_obtained, sub.name as subject_name, sub.code as subject_code,
+                        et.name as exam_name, m.exam_type_id, NULL::text as exam_date,
+                        COALESCE(et.max_marks, 100) as max_marks
+                 FROM marks m
+                 JOIN subjects sub ON m.subject_id = sub.id
+                 JOIN exam_types et ON m.exam_type_id = et.id
+                 WHERE m.student_id = ANY($1::int[])
+                 ORDER BY m.id, et.id, sub.name`,
+                [studentIds]
+            );
         }
-        examsQuery += ` ORDER BY et.name`;
-        const examsRes = await pool.query(examsQuery, examParams);
-        const exams = examsRes.rows;
 
-        // 4. Get exam schedules (for dates, max/min marks)
-        let schedulesQuery = `
-            SELECT DISTINCT ON (exam_type_id, subject_id) exam_type_id, subject_id, exam_date::text as exam_date, max_marks, min_marks
-            FROM exam_schedules
-            WHERE class_id = $1 AND school_id = $2
-        `;
-        const scheduleParams = [parseInt(class_id), school_id];
-        if (section_id) {
-            scheduleParams.push(parseInt(section_id));
-            schedulesQuery += ` AND (section_id = $3 OR section_id IS NULL)`;
-        }
-        schedulesQuery += ` ORDER BY exam_type_id, subject_id, updated_at DESC, id DESC`;
-        const schedulesRes = await pool.query(schedulesQuery, scheduleParams);
-        const schedules = schedulesRes.rows.map(item => ({
-            ...item,
-            exam_date: item.exam_date ? String(item.exam_date).split('T')[0] : null
-        }));
+        // Group marks by student_id
+        const marksByStudent = {};
+        (marksRes.rows || []).forEach(mark => {
+            if (!marksByStudent[mark.student_id]) {
+                marksByStudent[mark.student_id] = [];
+            }
+            marksByStudent[mark.student_id].push(mark);
+        });
 
-        // 5. Get all marks for these students
-        const marksRes = await pool.query(
-            `SELECT student_id, exam_type_id, subject_id, marks_obtained
-             FROM marks
-             WHERE school_id = $1 AND student_id = ANY($2::int[])`,
-            [school_id, studentIds]
-        );
-        const marks = marksRes.rows;
+        // 3. Build per-student report
+        const studentReports = students.map(student => {
+            const studentMarks = marksByStudent[student.id] || [];
+            const examsMap = {};
 
-        res.json({
-            students,
-            subjects,
-            exams,
-            schedules,
-            marks
+            studentMarks.forEach(mark => {
+                const examName = mark.exam_name || 'Exam';
+                if (!examsMap[examName]) {
+                    examsMap[examName] = {
+                        id: mark.exam_type_id,
+                        exam_name: examName,
+                        total_obtained: 0,
+                        total_max: 0,
+                        subjects: []
+                    };
+                }
+                const obtained = (mark.marks_obtained === null || mark.marks_obtained === undefined || mark.marks_obtained === '') 
+                    ? null 
+                    : parseFloat(mark.marks_obtained);
+                const max = parseFloat(mark.max_marks || 100);
+
+                examsMap[examName].subjects.push({
+                    subject: mark.subject_name,
+                    subject_code: mark.subject_code || '',
+                    marks: obtained,
+                    max: max,
+                    exam_date: formatExamDate(mark.exam_date)
+                });
+
+                if (obtained !== null && !isNaN(obtained)) examsMap[examName].total_obtained += obtained;
+                if (!isNaN(max)) examsMap[examName].total_max += max;
+            });
+
+            const exams = Object.values(examsMap).map(exam => ({
+                ...exam,
+                percentage: exam.total_max > 0 ? ((exam.total_obtained / exam.total_max) * 100).toFixed(2) : '0.00'
+            }));
+
+            return {
+                student: {
+                    id: student.id,
+                    name: student.name || 'Student',
+                    admission_no: student.admission_no || '',
+                    roll_number: student.roll_number || null,
+                    custom_roll_number: student.custom_roll_number || null,
+                    class_name: student.class_name || null,
+                    class_id: student.class_id,
+                    father_name: student.father_name || null,
+                    mother_name: student.mother_name || null,
+                    sats_number: student.sats_number || null,
+                    status: 'Active'
+                },
+                exams
+            };
+        });
+
+        return res.json({ 
+            studentReports, 
+            class_name: students[0]?.class_name || null 
         });
 
     } catch (error) {
