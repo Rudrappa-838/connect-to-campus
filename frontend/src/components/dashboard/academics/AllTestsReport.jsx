@@ -178,7 +178,7 @@ const getRowTotal = (exam, subjectsList) => {
             sum += parseFloat(subData.marks) || 0;
         }
     });
-    return allAbsent ? 'N/A' : sum;
+    return allAbsent ? 'NA' : sum;
 };
 
 // ─── Direct Isolated HTML Generator for 100% Reliable Print Pagination ────────
@@ -221,7 +221,7 @@ const generateSingleMarksheetHTML = (result, school) => {
                     <td>${dates.length > 0 ? dates.join('<br/>') : '-'}</td>
                     ${subjects.map(sub => {
                         const subData = getSubjectExamData(exam, sub.name);
-                        const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'N/A' : subData.marks;
+                        const displayVal = (subData.marks === 'ABSENT' || subData.marks === 'N/A' || subData.marks === 'NA' || subData.marks === null || subData.marks === undefined || subData.marks === '') ? 'NA' : subData.marks;
                         return `<td class="font-bold">${displayVal}</td>`;
                     }).join('')}
                     <td class="font-bold">${total}</td>
@@ -277,7 +277,7 @@ const generateSingleMarksheetHTML = (result, school) => {
                 ${renderTableHTML(grouped.jeeExams, jeeSubjects, 'JEE EXAMS MARKS CARD (MAX MARKS – 300)', 'COMPETITIVE TEST RESULTS')}
                 ${renderTableHTML(grouped.neetExams, neetSubjects, 'NEET EXAMS MARKS CARD (MAX MARKS – 720)', 'COMPETITIVE TEST RESULTS')}
                 ${renderTableHTML(grouped.kcetExams, kcetSubjects, 'KCET EXAMS MARKS CARD (MAX MARKS – 180)', 'COMPETITIVE TEST RESULTS')}
-                ${renderTableHTML(grouped.theoryExams, theorySubjects, 'THEORY UNIT TEST MARKS LIST', '(MAX MARKS – 25)')}
+                ${renderTableHTML(grouped.theoryExams, theorySubjects, 'THEORY UNIT TEST MARKS LIST', '')}
             `}
 
             <!-- Signatures -->
@@ -733,7 +733,6 @@ const MarksheetCard = ({ result, school }) => {
                     <div className="mb-3">
                         <div className="text-center mb-1">
                             <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">THEORY UNIT TEST MARKS LIST</h3>
-                            <p className="text-[9px] font-bold text-slate-700">(MAX MARKS – 25)</p>
                         </div>
                         <div className="border border-slate-900 rounded overflow-hidden">
                             <table className="w-full text-[11px] text-left border-collapse text-slate-900">
