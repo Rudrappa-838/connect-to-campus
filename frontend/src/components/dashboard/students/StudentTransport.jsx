@@ -100,6 +100,8 @@ const StudentTransport = () => {
     const [mapType, setMapType] = useState('streets'); // 'streets' | 'hybrid' | 'osm'
     const [userLocation, setUserLocation] = useState(null);
     const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
+    const [flyTarget, setFlyTarget] = useState(null);
+    const hasCenteredUser = useRef(false);
     const socketRef = useRef(null);
 
     // Acquire Student / Parent's Exact Current Location
@@ -111,6 +113,10 @@ const StudentTransport = () => {
                         const { latitude, longitude } = pos.coords;
                         setUserLocation([latitude, longitude]);
                         setGpsPermissionDenied(false);
+                        if (!hasCenteredUser.current) {
+                            hasCenteredUser.current = true;
+                            setFlyTarget({ lat: latitude, lng: longitude });
+                        }
                     },
                     (err) => {
                         console.warn("Student GPS prompt / error:", err.message);
@@ -261,9 +267,10 @@ const StudentTransport = () => {
     );
 
     const isLive = busState && busState.status === 'Active';
-    const mapCenter = (busState?.lat && busState?.lng)
-        ? [busState.lat, busState.lng]
-        : userLocation || [20.5937, 78.9629];
+    // Prioritize user's actual current location
+    const mapCenter = userLocation
+        ? userLocation
+        : (busState?.lat && busState?.lng ? [busState.lat, busState.lng] : [20.5937, 78.9629]);
     const speed = busState?.speed || 0;
 
     return (
@@ -348,6 +355,8 @@ const StudentTransport = () => {
                             />
                         )}
 
+                        {flyTarget && <SmoothRecenter lat={flyTarget.lat} lng={flyTarget.lng} />}
+
                         {/* User's Current Location (Your Location) */}
                         {userLocation && (
                             <Marker position={userLocation} icon={createUserLocationIcon()}>
@@ -361,27 +370,39 @@ const StudentTransport = () => {
 
                         {/* Live Moving Bus Marker */}
                         {busState && busState.lat && busState.lng && (
-                            <>
-                                <SmoothRecenter lat={busState.lat} lng={busState.lng} />
-                                <Marker
-                                    position={[busState.lat, busState.lng]}
-                                    icon={createLiveBusIcon(busState)}
-                                />
-                            </>
+                            <Marker
+                                position={[busState.lat, busState.lng]}
+                                icon={createLiveBusIcon(busState)}
+                            />
                         )}
                     </MapContainer>
 
-                    {/* Center on My Location Button */}
-                    {userLocation && (
+                    {/* Center on My Location Button & Focus Bus Button */}
+                    <div className="absolute bottom-4 right-4 z-[400] flex gap-2">
+                        {busState && busState.lat && busState.lng && (
+                            <button
+                                onClick={() => setFlyTarget({ lat: busState.lat, lng: busState.lng })}
+                                className="bg-amber-500 hover:bg-amber-600 text-white p-2.5 rounded-xl shadow-lg text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                                title="Focus Bus"
+                            >
+                                <Bus size={14} />
+                                <span>Focus Bus</span>
+                            </button>
+                        )}
                         <button
-                            onClick={() => acquireUserLocation()}
-                            className="absolute bottom-4 right-4 z-[400] bg-white text-slate-800 hover:bg-slate-50 p-2.5 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+                            onClick={() => {
+                                acquireUserLocation();
+                                if (userLocation) {
+                                    setFlyTarget({ lat: userLocation[0], lng: userLocation[1] });
+                                }
+                            }}
+                            className="bg-white text-slate-800 hover:bg-slate-50 p-2.5 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
                             title="Center on My Location"
                         >
                             <MapPin size={14} className="text-blue-600" />
                             <span>My Location</span>
                         </button>
-                    )}
+                    </div>
                 </div>
 
                 {/* GPS Required Alert if location is off */}

@@ -100,6 +100,7 @@ const AdminLiveMap = () => {
     const [updateLog, setUpdateLog] = useState({});
     const [userLocation, setUserLocation] = useState(null);
     const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
+    const hasCenteredUser = useRef(false);
     const socketRef = useRef(null);
 
     // Acquire User's Exact Live Location
@@ -111,6 +112,10 @@ const AdminLiveMap = () => {
                         const { latitude, longitude } = pos.coords;
                         setUserLocation([latitude, longitude]);
                         setGpsPermissionDenied(false);
+                        if (!hasCenteredUser.current) {
+                            hasCenteredUser.current = true;
+                            setFlyTarget({ lat: latitude, lng: longitude });
+                        }
                     },
                     (err) => {
                         console.warn("User GPS prompt / error:", err.message);
@@ -217,10 +222,10 @@ const AdminLiveMap = () => {
         return sec < 60 ? `${sec}s ago` : `${Math.round(sec / 60)}m ago`;
     };
 
-    // Center map on live bus first, or user's current GPS location, or fallback to first available
-    const mapCenter = liveVehicles.length > 0
-        ? [liveVehicles[0].current_lat, liveVehicles[0].current_lng]
-        : userLocation || [20.5937, 78.9629]; // Default India center if GPS pending, instead of hardcoded Bangalore
+    // Prioritize user's actual current location as initial center
+    const mapCenter = userLocation
+        ? userLocation
+        : (liveVehicles.length > 0 ? [liveVehicles[0].current_lat, liveVehicles[0].current_lng] : [20.5937, 78.9629]);
 
     const [mapType, setMapType] = useState('streets'); // 'streets' | 'hybrid' | 'osm'
 

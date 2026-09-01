@@ -96,6 +96,8 @@ const LiveMap = ({ vehicles = [] }) => {
     const [connected, setConnected] = useState(false);
     const [userLocation, setUserLocation] = useState(null);
     const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
+    const [flyTarget, setFlyTarget] = useState(null);
+    const hasCenteredUser = React.useRef(false);
 
     // Acquire User Live Location
     const acquireUserLocation = async () => {
@@ -106,6 +108,10 @@ const LiveMap = ({ vehicles = [] }) => {
                         const { latitude, longitude } = pos.coords;
                         setUserLocation([latitude, longitude]);
                         setGpsPermissionDenied(false);
+                        if (!hasCenteredUser.current) {
+                            hasCenteredUser.current = true;
+                            setFlyTarget({ lat: latitude, lng: longitude });
+                        }
                     },
                     (err) => {
                         console.warn("GPS error:", err.message);
@@ -191,9 +197,10 @@ const LiveMap = ({ vehicles = [] }) => {
         return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
     });
 
-    const mapCenter = activeVehicles.length > 0
-        ? [parseFloat(activeVehicles[0].current_lat), parseFloat(activeVehicles[0].current_lng)]
-        : userLocation || [20.5937, 78.9629];
+    // Prioritize user's actual current location as initial center
+    const mapCenter = userLocation
+        ? userLocation
+        : (activeVehicles.length > 0 ? [parseFloat(activeVehicles[0].current_lat), parseFloat(activeVehicles[0].current_lng)] : [20.5937, 78.9629]);
 
     const [mapType, setMapType] = useState('streets'); // 'streets' | 'hybrid' | 'osm'
 
@@ -256,6 +263,14 @@ const LiveMap = ({ vehicles = [] }) => {
                     />
                 )}
 
+                {/* Smooth recenter on flyTarget (e.g. user GPS or clicked bus) */}
+                {flyTarget && (
+                    <SmoothRecenter
+                        lat={flyTarget.lat}
+                        lng={flyTarget.lng}
+                    />
+                )}
+
                 {/* User's Exact Current Location Marker */}
                 {userLocation && (
                     <Marker position={userLocation} icon={createUserLocationIcon()}>
@@ -275,26 +290,22 @@ const LiveMap = ({ vehicles = [] }) => {
                         icon={createLiveBusIcon(vehicle)}
                     />
                 ))}
-
-                {activeVehicles.length > 0 && (
-                    <SmoothRecenter
-                        lat={parseFloat(activeVehicles[0].current_lat)}
-                        lng={parseFloat(activeVehicles[0].current_lng)}
-                    />
-                )}
             </MapContainer>
 
             {/* My Location Floating Action Button */}
-            {userLocation && (
-                <button
-                    onClick={() => acquireUserLocation()}
-                    className="absolute bottom-6 right-4 z-[400] bg-white text-slate-800 hover:bg-slate-50 p-2.5 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
-                    title="Center on My Location"
-                >
-                    <MapPin size={14} className="text-blue-600" />
-                    <span>My Location</span>
-                </button>
-            )}
+            <button
+                onClick={() => {
+                    acquireUserLocation();
+                    if (userLocation) {
+                        setFlyTarget({ lat: userLocation[0], lng: userLocation[1] });
+                    }
+                }}
+                className="absolute bottom-6 right-4 z-[400] bg-white text-slate-800 hover:bg-slate-50 p-2.5 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                title="Center on My Location"
+            >
+                <MapPin size={14} className="text-blue-600" />
+                <span>My Location</span>
+            </button>
 
             {/* Live Indicator Overlay */}
             <div className="absolute top-4 left-4 z-[400] flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl text-white text-xs shadow-lg border border-slate-700/60">

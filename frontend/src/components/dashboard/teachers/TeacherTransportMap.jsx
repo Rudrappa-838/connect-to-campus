@@ -85,26 +85,39 @@ const RecenterMap = ({ lat, lng }) => {
 
 const TeacherTransportMap = ({ vehicle }) => {
     const [userLocation, setUserLocation] = useState(null);
+    const [flyTarget, setFlyTarget] = useState(null);
+    const hasCenteredUser = React.useRef(false);
 
-    useEffect(() => {
+    const acquireUserLocation = () => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
-                    setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    setUserLocation([lat, lng]);
+                    if (!hasCenteredUser.current) {
+                        hasCenteredUser.current = true;
+                        setFlyTarget({ lat, lng });
+                    }
                 },
                 (err) => console.warn("Teacher GPS error:", err.message),
                 { enableHighAccuracy: true, timeout: 8000 }
             );
         }
+    };
+
+    useEffect(() => {
+        acquireUserLocation();
     }, []);
 
     const hasBusCoords = vehicle?.current_lat && vehicle?.current_lng && parseFloat(vehicle.current_lat) !== 0;
     const busLat = parseFloat(vehicle?.current_lat);
     const busLng = parseFloat(vehicle?.current_lng);
 
-    const center = hasBusCoords
-        ? [busLat, busLng]
-        : userLocation || [20.5937, 78.9629];
+    // Prioritize user's actual current location
+    const center = userLocation
+        ? userLocation
+        : (hasBusCoords ? [busLat, busLng] : [20.5937, 78.9629]);
 
     return (
         <div className="h-80 w-full rounded-2xl overflow-hidden border border-slate-200 shadow-inner relative z-0">
@@ -123,6 +136,8 @@ const TeacherTransportMap = ({ vehicle }) => {
                     maxZoom={20}
                 />
 
+                {flyTarget && <RecenterMap lat={flyTarget.lat} lng={flyTarget.lng} />}
+
                 {/* Teacher Location Marker */}
                 {userLocation && (
                     <Marker position={userLocation} icon={createUserLocationIcon()}>
@@ -135,12 +150,23 @@ const TeacherTransportMap = ({ vehicle }) => {
                 )}
 
                 {hasBusCoords && (
-                    <>
-                        <Marker position={[busLat, busLng]} icon={createLiveBusIcon(vehicle)} />
-                        <RecenterMap lat={busLat} lng={busLng} />
-                    </>
+                    <Marker position={[busLat, busLng]} icon={createLiveBusIcon(vehicle)} />
                 )}
             </MapContainer>
+
+            {/* My Location Button */}
+            <button
+                onClick={() => {
+                    acquireUserLocation();
+                    if (userLocation) {
+                        setFlyTarget({ lat: userLocation[0], lng: userLocation[1] });
+                    }
+                }}
+                className="absolute bottom-3 right-3 z-[400] bg-white text-slate-800 hover:bg-slate-50 p-2 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                title="Center on My Location"
+            >
+                <span>🎯 My Location</span>
+            </button>
         </div>
     );
 };
