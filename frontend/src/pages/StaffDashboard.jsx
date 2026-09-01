@@ -35,6 +35,7 @@ import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
 import FaceAttendanceScanner from '../components/dashboard/biometric/FaceAttendanceScanner';
 import { Users } from 'lucide-react';
 import OutPassManager from '../components/dashboard/common/OutPassManager';
+import DriverTracking from '../components/dashboard/transport/DriverTracking';
 
 const StaffDashboard = () => {
     const { user, logout } = useAuth();
@@ -84,16 +85,12 @@ const StaffDashboard = () => {
     const watchIdRef = useRef(null);
 
     const isDriver = user?.role === 'DRIVER' ||
-        user?.role === 'SCHOOL_ADMIN' ||
         staffProfile?.role?.toLowerCase().includes('driver') ||
         staffProfile?.role?.toLowerCase().includes('transport') ||
         staffProfile?.designation?.toLowerCase().includes('driver') ||
         staffProfile?.department?.toLowerCase().includes('transport') ||
         staffProfile?.vehicle_id ||
-        staffProfile?.transport_route_id ||
-        (staffProfile && Object.values(staffProfile).some(val =>
-            typeof val === 'string' && (val.toLowerCase().includes('driver') || val.toLowerCase().includes('transport'))
-        ));
+        staffProfile?.transport_route_id;
 
     useEffect(() => {
         const fetchSchoolInfo = async () => {
@@ -264,6 +261,7 @@ const StaffDashboard = () => {
         });
 
         // Add additional manual classes and sections
+        const allowed = [];
         Object.keys(classAccess).forEach(cIdStr => {
             const cId = parseInt(cIdStr);
             const schoolClass = schoolConfig.classes.find(c => c.class_id === cId);
@@ -386,6 +384,9 @@ const StaffDashboard = () => {
                     )}
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Transport</p>
+                    {isDriver && (
+                        <NavButton active={activeTab === 'transport'} onClick={() => handleTabChange('transport')} icon={Bus} label="🚀 Let's Drive" />
+                    )}
                     <NavButton active={activeTab === 'fleet-map'} onClick={() => handleTabChange('fleet-map')} icon={Navigation} label="Live Fleet Map" />
 
                     <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2 mt-6">Finance</p>
@@ -472,18 +473,9 @@ const StaffDashboard = () => {
                         {activeTab === 'face-enroll' && <FaceEnrollment config={{ classes: [] }} preferredFacingMode="environment" />}
                         {activeTab === 'face-scanner' && <FaceAttendanceScanner config={{ classes: [] }} preferredFacingMode="user" />}
 
-                        {/* Unified Transport View */}
+                        {/* Driver Trip Tracker - Let's Drive */}
                         {activeTab === 'transport' && isDriver && (
-                            <DriverTrackingView
-                                vehicles={vehicles}
-                                selectedVehicle={selectedVehicle}
-                                setSelectedVehicle={setSelectedVehicle}
-                                startTracking={startTracking}
-                                stopTracking={stopTracking}
-                                isTracking={isTracking}
-                                location={location}
-                                logs={logs}
-                            />
+                            <DriverTracking />
                         )}
                         {activeTab === 'fleet-map' && <AdminLiveMap />}
 

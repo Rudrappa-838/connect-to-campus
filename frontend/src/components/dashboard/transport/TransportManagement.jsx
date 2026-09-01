@@ -1,61 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Bus, MapPin, Navigation, Plus, Edit2, Trash2, Map as MapIcon, RotateCw } from 'lucide-react';
+import { Bus, MapPin, Navigation, Plus, Edit2, Trash2, RotateCw, Phone, User, Users, Clock } from 'lucide-react';
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
-// LiveMap import removed as it is now handled by AdminLiveMap component in dashboard Sidebar
-// import LiveMap from './LiveMap';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Polyline, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-
-// Fix Leaflet default icon issue
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-
-const LocationPicker = ({ onLocationSelect }) => {
-    useMapEvents({
-        click(e) {
-            onLocationSelect(e.latlng);
-        },
-    });
-    return null;
-};
-
-// Map Controller Component
-const MapController = ({ stops, isEditing }) => {
-    const map = useMap();
-
-    useEffect(() => {
-        // If we have stops with valid coordinates, focus on them
-        const validStops = stops.filter(s => s.lat && s.lng);
-        if (validStops.length > 0) {
-            if (validStops.length === 1) {
-                map.setView([validStops[0].lat, validStops[0].lng], 15);
-            } else {
-                const bounds = L.latLngBounds(validStops.map(s => [s.lat, s.lng]));
-                map.fitBounds(bounds, { padding: [50, 50] });
-            }
-        } else if (!isEditing) {
-            // Only try current location if creating new (and no stops added yet)
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const { latitude, longitude } = position.coords;
-                        map.setView([latitude, longitude], 15);
-                    },
-                    (error) => console.error("Location access denied:", error)
-                );
-            }
-        }
-    }, [stops, isEditing, map]);
-
-    return null;
-};
 
 const TimePicker12H = ({ value, onChange, className = "" }) => {
     const parseTime = (val) => {
@@ -86,17 +33,17 @@ const TimePicker12H = ({ value, onChange, className = "" }) => {
             <select
                 value={tm.hour}
                 onChange={e => handleChange('hour', e.target.value)}
-                className="p-2 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="p-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
                     <option key={h} value={h}>{h}</option>
                 ))}
             </select>
-            <span className="text-slate-400">:</span>
+            <span className="text-slate-400 font-bold">:</span>
             <select
                 value={tm.minute}
                 onChange={e => handleChange('minute', e.target.value)}
-                className="p-2 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="p-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
                 {Array.from({ length: 12 }, (_, i) => (i * 5).toString().padStart(2, '0')).map(m => (
                     <option key={m} value={m}>{m}</option>
@@ -105,7 +52,7 @@ const TimePicker12H = ({ value, onChange, className = "" }) => {
             <select
                 value={tm.period}
                 onChange={e => handleChange('period', e.target.value)}
-                className="p-2 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="p-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
                 <option value="AM">AM</option>
                 <option value="PM">PM</option>
@@ -115,8 +62,6 @@ const TimePicker12H = ({ value, onChange, className = "" }) => {
 };
 
 const TransportManagement = ({ initialTab }) => {
-    // activeTab logic removed, using initialTab directly
-
     const [vehicles, setVehicles] = useState([]);
     const [routes, setRoutes] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -131,24 +76,19 @@ const TransportManagement = ({ initialTab }) => {
     // Driver Search State
     const [driverSearch, setDriverSearch] = useState('');
     const [driverResults, setDriverResults] = useState([]);
-    const [isSearchingDriver, setIsSearchingDriver] = useState(false);
 
     const handleDriverSearch = async (e) => {
         const query = e.target.value;
         setDriverSearch(query);
         if (query.length > 1) {
-            setIsSearchingDriver(true);
             try {
                 const res = await api.get(`/staff?search=${query}`);
                 setDriverResults(res.data);
             } catch (error) {
                 console.error(error);
-            } finally {
-                setIsSearchingDriver(false);
             }
         } else {
             setDriverResults([]);
-            setIsSearchingDriver(false);
         }
     };
 
@@ -168,9 +108,8 @@ const TransportManagement = ({ initialTab }) => {
     const [isEditingRoute, setIsEditingRoute] = useState(false);
     const [selectedRouteId, setSelectedRouteId] = useState(null);
     const [routeForm, setRouteForm] = useState({
-        route_name: '', start_point: '', end_point: '', start_time: ''
+        route_name: '', start_point: '', end_point: '', start_time: '', vehicle_id: ''
     });
-    const [stops, setStops] = useState([{ name: '', time: '', lat: null, lng: null }]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -195,27 +134,19 @@ const TransportManagement = ({ initialTab }) => {
 
     const handleAddVehicle = async () => {
         if (isSubmitting) return;
+        if (!vehicleForm.vehicle_number) {
+            return toast.error('Please enter vehicle / bus number');
+        }
         setIsSubmitting(true);
         try {
             const payload = { ...vehicleForm };
-            const assignRouteId = payload.assign_route_id;
-            // Clean payload
-            delete payload.assign_route_id;
             if (!payload.gps_device_id) delete payload.gps_device_id;
 
-            const res = await api.post('/transport/vehicles', payload);
-            const newVehicleId = res.data.vehicleId || res.data.id; // handle variation in response
-
-            // If Route Selected, Update Route
-            if (assignRouteId && newVehicleId) {
-                await api.put(`/transport/routes/${assignRouteId}`, {
-                    vehicle_id: newVehicleId
-                });
-            }
+            await api.post('/transport/vehicles', payload);
 
             toast.success('Vehicle added successfully');
             setShowVehicleModal(false);
-            setVehicleForm({ vehicle_number: '', vehicle_model: '', driver_name: '', driver_phone: '', capacity: '', gps_device_id: '', assign_route_id: '', driver_id: '' });
+            setVehicleForm({ vehicle_number: '', vehicle_model: '', driver_name: '', driver_phone: '', capacity: '', gps_device_id: '', driver_id: '' });
             fetchData();
         } catch (error) {
             console.error(error);
@@ -227,7 +158,7 @@ const TransportManagement = ({ initialTab }) => {
 
     const handleDeleteVehicle = async (id) => {
         if (isSubmitting) return;
-        if (!window.confirm('Are you sure?')) return;
+        if (!window.confirm('Are you sure you want to delete this vehicle?')) return;
         setIsSubmitting(true);
         try {
             await api.delete(`/transport/vehicles/${id}`);
@@ -242,19 +173,20 @@ const TransportManagement = ({ initialTab }) => {
 
     const handleAddRoute = async () => {
         if (isSubmitting) return;
+        if (!routeForm.route_name) {
+            return toast.error('Please enter Route Name');
+        }
+        if (!routeForm.start_point || !routeForm.end_point) {
+            return toast.error('Please enter Starting Point and Ending Point');
+        }
         setIsSubmitting(true);
         try {
-            console.log('Saving Route. Edit Mode:', isEditingRoute, 'ID:', selectedRouteId);
-
             if (isEditingRoute) {
-                if (!selectedRouteId) {
-                    toast.error('Error: missing Route ID');
-                    return;
-                }
-                await api.put(`/transport/routes/${selectedRouteId}`, { ...routeForm, stops });
+                if (!selectedRouteId) return toast.error('Error: missing Route ID');
+                await api.put(`/transport/routes/${selectedRouteId}`, routeForm);
                 toast.success('Route updated successfully');
             } else {
-                await api.post('/transport/routes', { ...routeForm, stops });
+                await api.post('/transport/routes', routeForm);
                 toast.success('Route created successfully');
             }
             setShowRouteModal(false);
@@ -263,11 +195,7 @@ const TransportManagement = ({ initialTab }) => {
             fetchData();
         } catch (error) {
             console.error('Route Save Error:', error);
-            const serverError = error.response?.data?.error;
-            const fallbackMsg = isEditingRoute ? 'Failed to update route' : 'Failed to create route';
-            const mainMsg = error.response?.data?.message || fallbackMsg;
-
-            toast.error(serverError ? `${mainMsg}: ${serverError}` : mainMsg);
+            toast.error(error.response?.data?.message || 'Failed to save route');
         } finally {
             setIsSubmitting(false);
         }
@@ -278,25 +206,17 @@ const TransportManagement = ({ initialTab }) => {
             route_name: route.route_name,
             start_point: route.start_point,
             end_point: route.end_point,
-            start_time: route.start_time
+            start_time: route.start_time || '',
+            vehicle_id: route.vehicle_id || ''
         });
-
-        // Map DB stops to Form stops
-        setStops((route.stops || []).map(s => ({
-            name: s.stop_name || '',
-            time: s.pickup_time || '',
-            lat: s.lat != null ? parseFloat(s.lat) : null,
-            lng: s.lng != null ? parseFloat(s.lng) : null
-        })));
-
-        setSelectedRouteId(route.id); // Restored
+        setSelectedRouteId(route.id);
         setIsEditingRoute(true);
         setShowRouteModal(true);
     };
 
     const handleDeleteRoute = async (id) => {
         if (isSubmitting) return;
-        if (!window.confirm('Are you sure you want to delete this route? This will also remove all its stops.')) return;
+        if (!window.confirm('Are you sure you want to delete this route?')) return;
         setIsSubmitting(true);
         try {
             await api.delete(`/transport/routes/${id}`);
@@ -311,35 +231,10 @@ const TransportManagement = ({ initialTab }) => {
     };
 
     const handleCreateRoute = () => {
-        setRouteForm({ route_name: '', start_point: '', end_point: '', start_time: '' });
-        setStops([]); // Start empty to force map selection
+        setRouteForm({ route_name: '', start_point: '', end_point: '', start_time: '', vehicle_id: '' });
         setSelectedRouteId(null);
         setIsEditingRoute(false);
         setShowRouteModal(true);
-    };
-
-    const handleStopChange = (index, field, value) => {
-        const newStops = [...stops];
-        newStops[index][field] = value;
-        setStops(newStops);
-    };
-
-    const addStopField = () => {
-        setStops([...stops, { name: '', time: '', lat: null, lng: null }]);
-    };
-
-    const handleMapClick = (latlng) => {
-        setStops([...stops, {
-            name: `Stop ${stops.length + 1}`,
-            time: '',
-            lat: latlng.lat,
-            lng: latlng.lng
-        }]);
-        toast.success('Stop added from map!');
-    };
-    const removeStop = (index) => {
-        const newStops = stops.filter((_, i) => i !== index);
-        setStops(newStops);
     };
 
     const formatTime = (time) => {
@@ -352,62 +247,84 @@ const TransportManagement = ({ initialTab }) => {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-800">Transport Management</h2>
-                    <p className="text-slate-500">
-                        {initialTab === 'vehicles' ? 'Manage fleet and vehicle details' : 'Manage routes and stops'}
-                    </p>
+        <div className="space-y-6">
+            {loading ? (
+                <div className="flex justify-center p-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                 </div>
-                {/* Internal tabs removed to fix sidebar sync */}
-            </div>
-
-            {
-                loading ? (
-                    <div className="text-center py-20 text-slate-500">Loading transport data...</div>
-                ) : (
-                    <>
-                        {initialTab === 'vehicles' && (
-                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                                <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                                    <h3 className="font-bold text-slate-700">Fleet List</h3>
-                                    <button
-                                        onClick={() => setShowVehicleModal(true)}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2"
-                                    >
-                                        <Plus size={16} /> Add Vehicle
-                                    </button>
+            ) : (
+                <>
+                    {/* VEHICLES TAB */}
+                    {initialTab === 'vehicles' && (
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                        <Bus className="text-indigo-600" size={20} />
+                                        Fleet & Buses
+                                    </h3>
+                                    <p className="text-xs text-slate-500">Manage school transport vehicles and assigned drivers</p>
                                 </div>
+                                <button
+                                    onClick={() => {
+                                        setVehicleForm({ vehicle_number: '', vehicle_model: '', driver_name: '', driver_phone: '', capacity: '', gps_device_id: '', driver_id: '' });
+                                        setShowVehicleModal(true);
+                                    }}
+                                    className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition-all text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                                >
+                                    <Plus size={16} /> Add Bus / Vehicle
+                                </button>
+                            </div>
+
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-sm text-left text-slate-600">
-                                        <thead className="text-xs text-slate-500 uppercase bg-slate-50">
-                                            <tr>
-                                                <th className="px-6 py-3">Vehicle No</th>
-                                                <th className="px-6 py-3">Model</th>
-                                                <th className="px-6 py-3">Driver</th>
-                                                <th className="px-6 py-3">Capacity</th>
-                                                <th className="px-6 py-3">Status</th>
-                                                <th className="px-6 py-3">Actions</th>
+                                    <table className="w-full text-left border-collapse text-sm">
+                                        <thead>
+                                            <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                                <th className="p-4">Bus / Vehicle No</th>
+                                                <th className="p-4">Model</th>
+                                                <th className="p-4">Assigned Driver</th>
+                                                <th className="p-4">Driver Phone</th>
+                                                <th className="p-4">Capacity</th>
+                                                <th className="p-4">Status</th>
+                                                <th className="p-4 text-right">Actions</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
+                                        <tbody className="divide-y divide-slate-100">
                                             {vehicles.map(vehicle => (
-                                                <tr key={vehicle.id} className="bg-white border-b hover:bg-slate-50">
-                                                    <td className="px-6 py-4 font-bold text-slate-800">{vehicle.vehicle_number}</td>
-                                                    <td className="px-6 py-4">{vehicle.vehicle_model}</td>
-                                                    <td className="px-6 py-4">
-                                                        <div>{vehicle.driver_name}</div>
-                                                        <div className="text-xs text-slate-500">{vehicle.driver_phone}</div>
+                                                <tr key={vehicle.id} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="p-4 font-black text-slate-800 flex items-center gap-2">
+                                                        <span className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                                            <Bus size={18} />
+                                                        </span>
+                                                        {vehicle.vehicle_number}
                                                     </td>
-                                                    <td className="px-6 py-4">{vehicle.capacity}</td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${vehicle.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                            {vehicle.status}
+                                                    <td className="p-4 text-slate-600 font-medium">{vehicle.vehicle_model || 'School Bus'}</td>
+                                                    <td className="p-4 font-bold text-slate-700">{vehicle.driver_name || <span className="text-slate-400 font-normal italic">Unassigned</span>}</td>
+                                                    <td className="p-4 text-slate-600">
+                                                        {vehicle.driver_phone ? (
+                                                            <a href={`tel:${vehicle.driver_phone}`} className="text-indigo-600 hover:underline flex items-center gap-1 font-medium">
+                                                                <Phone size={12} /> {vehicle.driver_phone}
+                                                            </a>
+                                                        ) : '--'}
+                                                    </td>
+                                                    <td className="p-4 text-slate-600 font-medium">{vehicle.capacity ? `${vehicle.capacity} Seats` : '--'}</td>
+                                                    <td className="p-4">
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+                                                            vehicle.status === 'Active' 
+                                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                                                : 'bg-slate-100 text-slate-500'
+                                                        }`}>
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${vehicle.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                                                            {vehicle.status === 'Active' ? 'Active / On Trip' : 'Idle'}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 flex gap-2">
-                                                        <button onClick={() => handleDeleteVehicle(vehicle.id)} disabled={isSubmitting} className={`text-red-500 hover:bg-red-50 p-1.5 rounded-md ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                                    <td className="p-4 text-right">
+                                                        <button
+                                                            onClick={() => handleDeleteVehicle(vehicle.id)}
+                                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Delete Vehicle"
+                                                        >
                                                             <Trash2 size={16} />
                                                         </button>
                                                     </td>
@@ -415,8 +332,8 @@ const TransportManagement = ({ initialTab }) => {
                                             ))}
                                             {vehicles.length === 0 && (
                                                 <tr>
-                                                    <td colSpan="6" className="px-6 py-8 text-center text-slate-400 italic">
-                                                        No vehicles found. Add your first vehicle to get started.
+                                                    <td colSpan="7" className="p-8 text-center text-slate-400 italic">
+                                                        No vehicles added yet. Click "Add Bus / Vehicle" above to register your first bus.
                                                     </td>
                                                 </tr>
                                             )}
@@ -424,34 +341,37 @@ const TransportManagement = ({ initialTab }) => {
                                     </table>
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        {initialTab === 'routes' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-end">
-                                    <button
-                                        onClick={handleCreateRoute}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
-                                    >
-                                        <Plus size={16} /> Create New Route
-                                    </button>
+                    {/* ROUTES TAB */}
+                    {initialTab === 'routes' && (
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                        <Navigation className="text-indigo-600" size={20} />
+                                        Transport Routes
+                                    </h3>
+                                    <p className="text-xs text-slate-500">Configure route names, starting points, and ending destinations</p>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {routes.map(route => (
-                                        <div key={route.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div>
-                                                    <h3 className="font-bold text-lg text-slate-800">{route.route_name}</h3>
-                                                    <div className="text-sm text-slate-500 flex items-center gap-2 mt-1">
-                                                        <Bus size={14} /> {route.vehicle_number || 'No Vehicle Assigned'}
-                                                        <span className="mx-2 text-slate-300">|</span>
-                                                        <RotateCw size={14} /> {formatTime(route.start_time) || 'N/A'}
-                                                    </div>
+                                <button
+                                    onClick={handleCreateRoute}
+                                    className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition-all text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                                >
+                                    <Plus size={16} /> Create New Route
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {routes.map(route => (
+                                    <div key={route.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                                                    <Navigation size={22} />
                                                 </div>
-                                                <div className="flex gap-2 items-center">
-                                                    <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-xs font-bold">
-                                                        {route.stops?.length || 0} Stops
-                                                    </span>
+                                                <div className="flex gap-1">
                                                     <button
                                                         onClick={() => handleEditRoute(route)}
                                                         className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -461,274 +381,246 @@ const TransportManagement = ({ initialTab }) => {
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteRoute(route.id)}
-                                                        disabled={isSubmitting}
-                                                        className={`p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                                         title="Delete Route"
                                                     >
                                                         <Trash2 size={16} />
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div className="space-y-3 relative">
-                                                <div className="absolute left-1.5 top-2 bottom-2 w-0.5 bg-slate-200"></div>
-                                                {route.stops?.map((stop, idx) => (
-                                                    <div key={idx} className="flex items-center gap-3 relative z-10">
-                                                        <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-500 flex-shrink-0"></div>
-                                                        <div className="flex-1 text-sm">
-                                                            <div className="font-medium text-slate-700">{stop.stop_name}</div>
-                                                            <div className="text-xs text-slate-400">{formatTime(stop.pickup_time)}</div>
-                                                        </div>
+
+                                            <h3 className="font-black text-lg text-slate-800 mb-2">{route.route_name}</h3>
+
+                                            <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-slate-600 mb-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                                                    <span className="font-bold text-slate-500">From:</span>
+                                                    <span className="font-bold text-slate-800 truncate">{route.start_point || 'Not specified'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0"></span>
+                                                    <span className="font-bold text-slate-500">To:</span>
+                                                    <span className="font-bold text-slate-800 truncate">{route.end_point || 'Not specified'}</span>
+                                                </div>
+                                                {route.start_time && (
+                                                    <div className="flex items-center gap-2 pt-1 border-t border-slate-200/50">
+                                                        <Clock size={12} className="text-slate-400" />
+                                                        <span className="font-bold text-slate-500">Departure:</span>
+                                                        <span className="font-bold text-slate-700">{formatTime(route.start_time)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="text-[11px] text-slate-400 flex items-center justify-between pt-2 border-t border-slate-100">
+                                            <span>Assigned Bus: <strong className="text-slate-700">{route.vehicle_number || 'Any Available'}</strong></span>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {routes.length === 0 && (
+                                    <div className="col-span-full py-12 text-center text-slate-400 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                                        <Navigation size={40} className="mx-auto mb-3 opacity-30 text-indigo-600" />
+                                        <p className="font-bold text-slate-600">No routes created yet.</p>
+                                        <p className="text-xs text-slate-400 mt-1">Create simple routes with a starting point and destination.</p>
+                                        <button onClick={handleCreateRoute} className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-indigo-700 transition-all">
+                                            + Create First Route
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* ADD / EDIT VEHICLE MODAL */}
+            {showVehicleModal && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
+                                <Bus className="text-indigo-600" size={20} />
+                                Add New Bus / Vehicle
+                            </h3>
+                            <button onClick={() => setShowVehicleModal(false)} className="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vehicle / Bus Number *</label>
+                                <input
+                                    className="w-full p-3 border-2 border-slate-100 rounded-xl text-sm font-bold focus:border-indigo-500 outline-none"
+                                    placeholder="e.g. Bus 01 or KA-01-AB-1234"
+                                    autoComplete="off"
+                                    value={vehicleForm.vehicle_number}
+                                    onChange={e => setVehicleForm({ ...vehicleForm, vehicle_number: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vehicle Model / Type</label>
+                                <input
+                                    className="w-full p-3 border-2 border-slate-100 rounded-xl text-sm font-medium focus:border-indigo-500 outline-none"
+                                    placeholder="e.g. Tata Starbus / 32-Seater"
+                                    autoComplete="off"
+                                    value={vehicleForm.vehicle_model}
+                                    onChange={e => setVehicleForm({ ...vehicleForm, vehicle_model: e.target.value })}
+                                />
+                            </div>
+
+                            {/* Driver Search Section */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Assigned Driver</label>
+                                {vehicleForm.driver_name ? (
+                                    <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                                        <div>
+                                            <div className="font-bold text-slate-800">{vehicleForm.driver_name}</div>
+                                            <div className="text-xs text-slate-500">{vehicleForm.driver_phone || 'No phone'}</div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setVehicleForm({ ...vehicleForm, driver_name: '', driver_phone: '', driver_id: '' })}
+                                            className="text-xs bg-white border border-indigo-200 text-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-100 transition-colors"
+                                        >
+                                            Change
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="relative">
+                                        <input
+                                            className="w-full p-3 border-2 border-slate-100 rounded-xl text-sm focus:border-indigo-500 outline-none font-medium"
+                                            placeholder="Search staff by name or ID..."
+                                            autoComplete="off"
+                                            value={driverSearch}
+                                            onChange={handleDriverSearch}
+                                        />
+                                        {driverResults.length > 0 && (
+                                            <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto">
+                                                {driverResults.map(s => (
+                                                    <div
+                                                        key={s.id}
+                                                        onClick={() => selectDriver(s)}
+                                                        className="p-3 hover:bg-indigo-50 cursor-pointer text-sm border-b border-slate-100 last:border-0"
+                                                    >
+                                                        <div className="font-bold text-slate-800">{s.name}</div>
+                                                        <div className="text-xs text-slate-500">ID: {s.employee_id} • Ph: {s.phone || 'N/A'}</div>
                                                     </div>
                                                 ))}
                                             </div>
-                                        </div>
-                                    ))}
-                                    {routes.length === 0 && (
-                                        <div className="col-span-full py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200 border-dashed">
-                                            <Navigation size={48} className="mx-auto mb-4 opacity-20" />
-                                            <p>No routes created yet.</p>
-                                            <button onClick={handleCreateRoute} className="mt-4 text-indigo-600 hover:underline font-bold text-sm">Create your first route</button>
-                                        </div>
-                                    )}
-                                </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </>
-                )
-            }
 
-            {/* Add Vehicle Modal */}
-            {
-                showVehicleModal && createPortal(
-                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                        <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                <h3 className="font-bold text-slate-800">Add New Vehicle</h3>
-                                <button onClick={() => setShowVehicleModal(false)} className="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Seating Capacity</label>
+                                <input
+                                    type="number"
+                                    className="w-full p-3 border-2 border-slate-100 rounded-xl text-sm font-medium focus:border-indigo-500 outline-none"
+                                    placeholder="e.g. 35"
+                                    autoComplete="off"
+                                    value={vehicleForm.capacity}
+                                    onChange={e => setVehicleForm({ ...vehicleForm, capacity: e.target.value })}
+                                />
                             </div>
-                            <div className="p-6 space-y-4">
-                                <input
-                                    className="w-full p-2 border rounded-lg text-sm" placeholder="Vehicle Number (e.g. KA-01-AB-1234)"
-                                    autoComplete="off"
-                                    value={vehicleForm.vehicle_number} onChange={e => setVehicleForm({ ...vehicleForm, vehicle_number: e.target.value })}
-                                />
-                                <input
-                                    className="w-full p-2 border rounded-lg text-sm" placeholder="Model (e.g. Tata Starbus)"
-                                    autoComplete="off"
-                                    value={vehicleForm.vehicle_model} onChange={e => setVehicleForm({ ...vehicleForm, vehicle_model: e.target.value })}
-                                />
 
-                                {/* Driver Search Section */}
-                                <div className="space-y-2">
-                                    {vehicleForm.driver_name ? (
-                                        <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
-                                            <div>
-                                                <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-0.5">Assigned Driver</div>
-                                                <div className="font-bold text-slate-800">{vehicleForm.driver_name}</div>
-                                                <div className="text-xs text-slate-500">{vehicleForm.driver_phone}</div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setVehicleForm({ ...vehicleForm, driver_name: '', driver_phone: '' })}
-                                                className="text-xs bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded-lg font-bold hover:bg-indigo-100 transition-colors"
-                                            >
-                                                Change
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="relative">
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Search Driver (Staff)</label>
-                                            <input
-                                                className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                                placeholder="Search by ID or Name..."
-                                                autoComplete="off"
-                                                value={driverSearch}
-                                                onChange={(e) => {
-                                                    const val = e.target.value.replace(/[^a-zA-Z0-9 ]/g, '');
-                                                    handleDriverSearch({ target: { value: val } });
-                                                }}
-                                            />
-                                            {driverResults.length > 0 && (
-                                                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
-                                                    {driverResults.map(s => (
-                                                        <div
-                                                            key={s.id}
-                                                            onClick={() => selectDriver(s)}
-                                                            className="p-2 hover:bg-slate-50 cursor-pointer text-sm border-b border-slate-100 last:border-0"
-                                                        >
-                                                            <div className="font-bold text-slate-700">{s.name}</div>
-                                                            <div className="text-xs text-slate-500">ID: {s.employee_id} | Ph: {s.phone}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
+                            <button
+                                onClick={handleAddVehicle}
+                                disabled={isSubmitting}
+                                className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                            >
+                                {isSubmitting ? 'Saving...' : 'Add Vehicle'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
 
+            {/* ADD / EDIT ROUTE MODAL (Simplified: No Map, No Stops) */}
+            {showRouteModal && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
+                                <Navigation className="text-indigo-600" size={20} />
+                                {isEditingRoute ? 'Edit Route' : 'Create New Route'}
+                            </h3>
+                            <button onClick={() => setShowRouteModal(false)} className="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Route Name *</label>
+                                <input
+                                    className="w-full p-3 border-2 border-slate-100 rounded-xl text-sm font-bold focus:border-indigo-500 outline-none"
+                                    placeholder="e.g. Route 1 - City Center to School"
+                                    autoComplete="off"
+                                    value={routeForm.route_name}
+                                    onChange={e => setRouteForm({ ...routeForm, route_name: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">GPS Device ID / IMEI</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Starting Point *</label>
                                     <input
-                                        className="w-full p-2 border rounded-lg text-sm"
-                                        placeholder="Enter Device IMEI"
+                                        className="w-full p-3 border-2 border-slate-100 rounded-xl text-sm font-medium focus:border-indigo-500 outline-none"
+                                        placeholder="e.g. City Bus Stand"
                                         autoComplete="off"
-                                        value={vehicleForm.gps_device_id}
-                                        onChange={e => setVehicleForm({ ...vehicleForm, gps_device_id: e.target.value })}
+                                        value={routeForm.start_point}
+                                        onChange={e => setRouteForm({ ...routeForm, start_point: e.target.value })}
                                     />
-                                    <div className="text-[10px] text-slate-500 mt-2 bg-slate-50 p-2 rounded border border-slate-100">
-                                        <p className="font-bold mb-1">Hardware Setup:</p>
-                                        <p>Configure your GPS tracker to send POST requests to:</p>
-                                        <code className="block bg-white p-1 mt-1 rounded border select-all">
-                                            {window.location.origin}/api/transport/gps-webhook
-                                        </code>
-                                        <p className="mt-1">Payload: <code className="text-indigo-600">{`{ "imei": "YOUR_IMEI", "lat": 12.34, "lng": 77.12 }`}</code></p>
-                                    </div>
                                 </div>
-                                <input
-                                    type="number" className="w-full p-2 border rounded-lg text-sm" placeholder="Capacity"
-                                    autoComplete="off"
-                                    value={vehicleForm.capacity} onChange={e => setVehicleForm({ ...vehicleForm, capacity: e.target.value })}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Ending Point *</label>
+                                    <input
+                                        className="w-full p-3 border-2 border-slate-100 rounded-xl text-sm font-medium focus:border-indigo-500 outline-none"
+                                        placeholder="e.g. School Campus"
+                                        autoComplete="off"
+                                        value={routeForm.end_point}
+                                        onChange={e => setRouteForm({ ...routeForm, end_point: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Estimated Start Time</label>
+                                <TimePicker12H
+                                    value={routeForm.start_time}
+                                    onChange={val => setRouteForm({ ...routeForm, start_time: val })}
                                 />
-
-                                <div className="pt-2 border-t border-slate-100">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Assign Route (Optional)</label>
-                                    <select
-                                        className="w-full p-2 border rounded-lg text-sm bg-indigo-50/50"
-                                        value={vehicleForm.assign_route_id || ''}
-                                        onChange={e => setVehicleForm({ ...vehicleForm, assign_route_id: e.target.value })}
-                                    >
-                                        <option value="">-- No Route Assigned --</option>
-                                        {routes.map(r => (
-                                            <option key={r.id} value={r.id}>
-                                                {r.route_name} {r.vehicle_id ? '(Assigned)' : '(Unassigned)'}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <p className="text-[10px] text-slate-400 mt-1">* Selecting a route will assign this vehicle to it.</p>
-                                </div>
-                                <button onClick={handleAddVehicle} disabled={isSubmitting} className={`w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>{isSubmitting ? 'Adding...' : 'Add Vehicle'}</button>
                             </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Default Bus (Optional)</label>
+                                <select
+                                    className="w-full p-3 border-2 border-slate-100 rounded-xl text-sm bg-slate-50 font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                    value={routeForm.vehicle_id || ''}
+                                    onChange={e => setRouteForm({ ...routeForm, vehicle_id: e.target.value })}
+                                >
+                                    <option value="">-- Any Available Bus --</option>
+                                    {vehicles.map(v => (
+                                        <option key={v.id} value={v.id}>
+                                            {v.vehicle_number} ({v.driver_name || 'No driver'})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button
+                                onClick={handleAddRoute}
+                                disabled={isSubmitting}
+                                className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                            >
+                                {isSubmitting ? 'Saving...' : (isEditingRoute ? 'Update Route' : 'Create Route')}
+                            </button>
                         </div>
                     </div>
-                    , document.body)
-            }
-
-            {/* Add Route Modal with Map */}
-            {
-                showRouteModal && createPortal(
-                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                        <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden animate-in zoom-in-95 duration-200 h-[85vh] flex flex-col">
-                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 flex-shrink-0">
-                                <h3 className="font-bold text-slate-800">{isEditingRoute ? 'Edit Route' : 'Create New Route'}</h3>
-                                <button onClick={() => setShowRouteModal(false)} className="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
-                            </div>
-
-                            <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2">
-                                {/* Left Column: Form */}
-                                <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                                    <input
-                                        className="w-full p-2 border rounded-lg text-sm" placeholder="Route Name"
-                                        autoComplete="off"
-                                        value={routeForm.route_name} onChange={e => setRouteForm({ ...routeForm, route_name: e.target.value })}
-                                    />
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <input
-                                            className="w-full p-2 border rounded-lg text-sm" placeholder="Start Point"
-                                            autoComplete="off"
-                                            value={routeForm.start_point} onChange={e => setRouteForm({ ...routeForm, start_point: e.target.value })}
-                                        />
-                                        <input
-                                            className="w-full p-2 border rounded-lg text-sm" placeholder="End Point"
-                                            autoComplete="off"
-                                            value={routeForm.end_point} onChange={e => setRouteForm({ ...routeForm, end_point: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-sm font-bold text-slate-500 w-24">Start Time:</label>
-                                        <TimePicker12H
-                                            value={routeForm.start_time}
-                                            onChange={val => setRouteForm({ ...routeForm, start_time: val })}
-                                        />
-                                    </div>
-
-                                    <div className="border-t pt-4">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h4 className="font-bold text-sm text-slate-700">Stops</h4>
-                                            <span className="text-xs text-slate-400">Click map to add stops</span>
-                                        </div>
-                                        <div className="space-y-2">
-                                            {stops.map((stop, index) => (
-                                                <div key={index} className="flex gap-2 items-start animate-in slide-in-from-left-2">
-                                                    <div className="flex-1 space-y-1">
-                                                        <input
-                                                            className="w-full p-2 border rounded-lg text-sm" placeholder="Stop Name"
-                                                            autoComplete="off"
-                                                            value={stop.name} onChange={e => handleStopChange(index, 'name', e.target.value)}
-                                                        />
-                                                        <div className="flex gap-2 items-center">
-                                                            <TimePicker12H
-                                                                value={stop.time}
-                                                                onChange={val => handleStopChange(index, 'time', val)}
-                                                            />
-                                                            {stop.lat && (
-                                                                <div className="text-[10px] text-slate-400 flex items-center bg-slate-50 px-2 rounded">
-                                                                    <MapPin size={10} className="mr-1" />
-                                                                    {Number(stop.lat).toFixed(4)}, {Number(stop.lng).toFixed(4)}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <button onClick={() => removeStop(index)} className="p-2 text-red-500 hover:bg-red-50 rounded">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="mt-2 text-xs text-slate-500 italic bg-slate-50 p-2 rounded text-center">
-                                            ℹ️ Click on the map to add stops sequentially. A route line will connect them.
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Right Column: Map */}
-                                <div className="h-full bg-slate-100 relative">
-                                    <MapContainer center={[12.9716, 77.5946]} zoom={13} style={{ height: '100%', width: '100%' }}>
-                                        <TileLayer
-                                            attribution='Tiles &copy; Esri'
-                                            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                                        />
-                                        <TileLayer
-                                            url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                                        />
-                                        <MapController stops={stops} isEditing={isEditingRoute} />
-                                        <LocationPicker onLocationSelect={handleMapClick} />
-
-                                        {stops.map((stop, idx) => (
-                                            stop.lat && stop.lng && (
-                                                <Marker key={idx} position={[stop.lat, stop.lng]}>
-                                                    <Popup>{stop.name || `Stop ${idx + 1}`}</Popup>
-                                                </Marker>
-                                            )
-                                        ))}
-
-                                        <Polyline
-                                            positions={stops.filter(s => s.lat != null && s.lng != null).map(s => [s.lat, s.lng])}
-                                            pathOptions={{ color: '#4f46e5', weight: 4, opacity: 0.8 }}
-                                        />
-                                    </MapContainer>
-                                </div>
-                            </div>
-
-                            <div className="p-4 border-t border-slate-100 bg-slate-50 flex-shrink-0">
-                                <button onClick={handleAddRoute} disabled={isSubmitting} className={`w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                    {isSubmitting ? 'Saving...' : (isEditingRoute ? 'Update Route' : 'Create Route')}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    , document.body)
-            }
-        </div >
+                </div>,
+                document.body
+            )}
+        </div>
     );
 };
 

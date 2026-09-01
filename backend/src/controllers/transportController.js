@@ -240,63 +240,37 @@ exports.getRoutes = async (req, res) => {
     }
 };
 
-// Add a new route
+// Add a new route (Simplified: name, start point, end point)
 exports.addRoute = async (req, res) => {
-    const client = await pool.connect();
     try {
-        const { route_name, start_point, end_point, start_time, vehicle_id, stops } = req.body;
+        const { route_name, start_point, end_point, start_time, vehicle_id } = req.body;
         const school_id = req.user.schoolId;
 
         const validStartTime = (start_time && start_time.trim() !== '') ? start_time : null;
 
-        await client.query('BEGIN');
-
-        const routeRes = await client.query(
+        const routeRes = await pool.query(
             `INSERT INTO transport_routes (school_id, vehicle_id, route_name, start_point, end_point, start_time)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
             [school_id, vehicle_id || null, route_name, start_point, end_point, validStartTime]
         );
-        const routeId = routeRes.rows[0].id;
 
-        if (stops && stops.length > 0) {
-            for (let i = 0; i < stops.length; i++) {
-                const stop = stops[i];
-                const validPickupTime = (stop.time && stop.time.trim() !== '') ? stop.time : null;
-                const lat = (stop.lat && stop.lat !== '') ? stop.lat : 0;
-                const lng = (stop.lng && stop.lng !== '') ? stop.lng : 0;
-
-                await client.query(
-                    `INSERT INTO transport_stops (route_id, stop_name, stop_order, lat, lng, pickup_time)
-                     VALUES ($1, $2, $3, $4, $5, $6)`,
-                    [routeId, stop.name, i + 1, lat, lng, validPickupTime]
-                );
-            }
-        }
-
-        await client.query('COMMIT');
-        res.status(201).json({ message: 'Route created successfully', routeId });
+        res.status(201).json({ message: 'Route created successfully', route: routeRes.rows[0] });
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error('Error adding route:', error);
         res.status(500).json({ message: 'Server error adding route', error: error.message });
-    } finally {
-        client.release();
     }
 };
 
 // Update Route
 exports.updateRoute = async (req, res) => {
-    const client = await pool.connect();
     try {
         const { id } = req.params;
-        const { route_name, start_point, end_point, start_time, vehicle_id, stops } = req.body;
+        const { route_name, start_point, end_point, start_time, vehicle_id } = req.body;
         const school_id = req.user.schoolId;
 
         const validStartTime = (start_time && start_time.trim() !== '') ? start_time : null;
 
-        await client.query('BEGIN');
-
-        const routeRes = await client.query(
+        const routeRes = await pool.query(
             `UPDATE transport_routes 
              SET route_name = COALESCE($1, route_name), 
                  start_point = COALESCE($2, start_point), 
@@ -308,36 +282,13 @@ exports.updateRoute = async (req, res) => {
         );
 
         if (routeRes.rows.length === 0) {
-            await client.query('ROLLBACK');
             return res.status(404).json({ message: 'Route not found' });
         }
 
-        if (stops && stops.length > 0) {
-            await client.query('DELETE FROM transport_stops WHERE route_id = $1', [id]);
-            for (let i = 0; i < stops.length; i++) {
-                const stop = stops[i];
-                const validPickupTime = (stop.time && stop.time.trim() !== '') ? stop.time : null;
-                const latitude = parseFloat(stop.lat);
-                const longitude = parseFloat(stop.lng);
-                const lat = !isNaN(latitude) ? latitude : 0;
-                const lng = !isNaN(longitude) ? longitude : 0;
-
-                await client.query(
-                    `INSERT INTO transport_stops (route_id, stop_name, stop_order, lat, lng, pickup_time)
-                     VALUES ($1, $2, $3, $4, $5, $6)`,
-                    [id, stop.name || `Stop ${i + 1}`, i + 1, lat, lng, validPickupTime]
-                );
-            }
-        }
-
-        await client.query('COMMIT');
         res.json(routeRes.rows[0]);
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error('Error updating route:', error);
         res.status(500).json({ message: 'Server error updating route', error: error.message });
-    } finally {
-        client.release();
     }
 };
 
@@ -362,7 +313,7 @@ exports.deleteRoute = async (req, res) => {
         await client.query('UPDATE teachers SET transport_route_id = NULL WHERE transport_route_id = $1', [id]);
         await client.query('UPDATE staff SET transport_route_id = NULL WHERE transport_route_id = $1', [id]);
 
-        // Delete stops
+        // Delete stops if any
         await client.query('DELETE FROM transport_stops WHERE route_id = $1', [id]);
         
         // Delete route
@@ -384,23 +335,37 @@ exports.deleteRoute = async (req, res) => {
 // =====================================================
 /**
  * Called by the driver's mobile app.
- * Saves location AND broadcasts via WebSocket instantly.
+ * Saves location, heading, route AND broadcasts via WebSocket instantly.
  * Speed from Capacitor is in m/s — convert to km/h.
  */
 exports.updateLocation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { lat, lng, speed } = req.body;
+        const { lat, lng, speed, heading, route_id, route_name, status } = req.body;
         const school_id = req.user.schoolId;
 
-        // Capacitor sends speed in m/s → convert to km/h
-        const speedKmh = speed ? Math.round(parseFloat(speed) * 3.6 * 10) / 10 : 0;
+        // Capacitor sends speed in m/s → convert to km/h (if < 100 assume m/s or direct km/h)
+        let speedKmh = 0;
+        if (speed !== undefined && speed !== null && !isNaN(speed)) {
+            const rawSpeed = parseFloat(speed);
+            speedKmh = rawSpeed > 0 ? Math.round(rawSpeed * 3.6 * 10) / 10 : 0;
+        }
+
+        const headingVal = heading !== undefined && !isNaN(heading) ? parseFloat(heading) : 0;
+        const vehicleStatus = status || 'Active';
 
         const result = await pool.query(
             `UPDATE transport_vehicles 
-             SET current_lat = $1, current_lng = $2, speed = $3, status = 'Active', last_updated = NOW()
-             WHERE id = $4 AND school_id = $5 RETURNING *`,
-            [lat, lng, speedKmh, id, school_id]
+             SET current_lat = $1, 
+                 current_lng = $2, 
+                 speed = $3, 
+                 heading = $4,
+                 current_route_id = COALESCE($5, current_route_id),
+                 current_route_name = COALESCE($6, current_route_name),
+                 status = $7, 
+                 last_updated = NOW()
+             WHERE id = $8 AND school_id = $9 RETURNING *`,
+            [lat, lng, speedKmh, headingVal, route_id || null, route_name || null, vehicleStatus, id, school_id]
         );
 
         if (result.rows.length === 0) {
@@ -413,9 +378,9 @@ exports.updateLocation = async (req, res) => {
         // 🚀 Push to all students/admins in this school instantly via WebSocket
         broadcastLocation(school_id, vehicle);
 
-        res.json({ ok: true, speed: speedKmh });
+        res.json({ ok: true, speed: speedKmh, vehicle_number: vehicle.vehicle_number, route_name: vehicle.current_route_name });
     } catch (error) {
-        console.error(error);
+        console.error('Error updating vehicle location:', error);
         res.status(500).json({ message: 'Server error updating location' });
     }
 };
@@ -533,9 +498,9 @@ exports.getMyRoute = async (req, res) => {
         }
 
         const routeResult = await pool.query(`
-            SELECT r.*, v.vehicle_number, v.driver_name, v.driver_phone, v.current_lat, v.current_lng, v.speed, v.status as vehicle_status, v.last_updated
+            SELECT r.*, v.vehicle_number, v.driver_name, v.driver_phone, v.current_lat, v.current_lng, v.speed, v.heading, v.current_route_name, v.status as vehicle_status, v.last_updated
             FROM transport_routes r
-            LEFT JOIN transport_vehicles v ON r.vehicle_id = v.id
+            LEFT JOIN transport_vehicles v ON (r.vehicle_id = v.id OR v.current_route_id = r.id)
             WHERE r.id = $1 AND r.school_id = $2
         `, [route_id, schoolId]);
 

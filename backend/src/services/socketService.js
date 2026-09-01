@@ -79,12 +79,16 @@ const broadcastLocation = (schoolId, vehicleData) => {
         vehicleId: vehicleData.id,
         vehicleNumber: vehicleData.vehicle_number,
         driverName: vehicleData.driver_name,
+        driverPhone: vehicleData.driver_phone,
+        routeName: vehicleData.current_route_name || vehicleData.route_name || null,
+        routeId: vehicleData.current_route_id || vehicleData.route_id || null,
         lat: parseFloat(vehicleData.current_lat),
         lng: parseFloat(vehicleData.current_lng),
         speed: parseFloat(vehicleData.speed || 0).toFixed(1),
+        heading: parseFloat(vehicleData.heading || 0),
         status: vehicleData.status,
         lastUpdated: vehicleData.last_updated || new Date(),
-        source: vehicleData._source || 'gps', // 'gps' | 'mobile' | 'hardware'
+        source: vehicleData._source || 'mobile', // 'gps' | 'mobile' | 'hardware'
     });
 };
 

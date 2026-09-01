@@ -288,6 +288,13 @@ const startServer = async () => {
                         distance NUMERIC(10, 2)
                     );
                     CREATE INDEX IF NOT EXISTS idx_geofence_logs_staff_date ON staff_attendance_geofence_logs(staff_id, date);
+
+                    -- G. TRANSPORT VEHICLES ROUTE & HEADING EXTENSIONS
+                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'transport_vehicles') THEN
+                        ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS current_route_id INTEGER;
+                        ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS current_route_name VARCHAR(255);
+                        ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS heading NUMERIC(5, 2) DEFAULT 0;
+                    END IF;
                 END $$;
             `);
             // Fix: Add missing columns to schools table (institution_type, gemini_api_key, marksheet_template)

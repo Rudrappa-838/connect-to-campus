@@ -62,11 +62,11 @@ router.put('/vehicles/:id', authorize('SCHOOL_ADMIN', 'TRANSPORT_MANAGER'), upda
 router.delete('/vehicles/:id', authorize('SCHOOL_ADMIN'), deleteVehicle);
 
 // Driver Mobile GPS Location Push
-router.put('/vehicles/:id/location', authorize('SCHOOL_ADMIN', 'DRIVER'), updateLocation);
+router.put('/vehicles/:id/location', authorize('SCHOOL_ADMIN', 'DRIVER', 'STAFF'), updateLocation);
 
 // Route Management
-router.get('/routes', authorize('SCHOOL_ADMIN', 'TRANSPORT_MANAGER', 'PARENT', 'STUDENT', 'TEACHER', 'STAFF'), getRoutes);
-router.get('/my-route', authorize('STUDENT', 'DRIVER', 'PARENT'), getMyRoute);
+router.get('/routes', authorize('SCHOOL_ADMIN', 'TRANSPORT_MANAGER', 'PARENT', 'STUDENT', 'TEACHER', 'STAFF', 'DRIVER'), getRoutes);
+router.get('/my-route', authorize('STUDENT', 'DRIVER', 'PARENT', 'STAFF'), getMyRoute);
 router.post('/routes', authorize('SCHOOL_ADMIN'), addRoute);
 router.put('/routes/:id', authorize('SCHOOL_ADMIN'), updateRoute);
 router.delete('/routes/:id', authorize('SCHOOL_ADMIN'), deleteRoute);
