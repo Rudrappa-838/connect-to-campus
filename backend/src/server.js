@@ -618,6 +618,7 @@ const startServer = async () => {
                 `);
             } catch (e) {
                 // Ignore if already exist
+            }
             // ─────────────────────────────────────────────────────────────────────────────
             // Transport Module Auto-Migration
             await client.query(`
