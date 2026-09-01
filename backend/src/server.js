@@ -618,6 +618,72 @@ const startServer = async () => {
                 `);
             } catch (e) {
                 // Ignore if already exist
+            // ─────────────────────────────────────────────────────────────────────────────
+            // Transport Module Auto-Migration
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS transport_vehicles (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    vehicle_number VARCHAR(50) NOT NULL,
+                    vehicle_model VARCHAR(100),
+                    driver_name VARCHAR(100),
+                    driver_phone VARCHAR(50),
+                    capacity INTEGER,
+                    status VARCHAR(50) DEFAULT 'Active',
+                    current_lat DECIMAL(10, 8) DEFAULT 0,
+                    current_lng DECIMAL(11, 8) DEFAULT 0,
+                    speed FLOAT DEFAULT 0,
+                    gps_device_id VARCHAR(255),
+                    driver_id INTEGER,
+                    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS transport_routes (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    vehicle_id INTEGER REFERENCES transport_vehicles(id) ON DELETE SET NULL,
+                    route_name VARCHAR(100) NOT NULL,
+                    start_point VARCHAR(100),
+                    end_point VARCHAR(100),
+                    start_time TIME,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS transport_stops (
+                    id SERIAL PRIMARY KEY,
+                    route_id INTEGER REFERENCES transport_routes(id) ON DELETE CASCADE,
+                    stop_name VARCHAR(100) NOT NULL,
+                    stop_order INTEGER,
+                    lat DECIMAL(10, 8),
+                    lng DECIMAL(11, 8),
+                    pickup_time TIME
+                );
+
+                CREATE TABLE IF NOT EXISTS transport_assignments (
+                    id SERIAL PRIMARY KEY,
+                    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+                    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                    route_id INTEGER REFERENCES transport_routes(id) ON DELETE CASCADE,
+                    stop_id INTEGER REFERENCES transport_stops(id) ON DELETE CASCADE,
+                    pickup_or_drop VARCHAR(20) DEFAULT 'Both',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            // Add columns to transport_vehicles in case it already exists without newest fields
+            try {
+                await client.query(`
+                    ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS gps_device_id VARCHAR(255);
+                    ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS driver_id INTEGER;
+                    ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS speed FLOAT DEFAULT 0;
+                    ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                    ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS current_lat DECIMAL(10, 8) DEFAULT 0;
+                    ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS current_lng DECIMAL(11, 8) DEFAULT 0;
+                    ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Active';
+                `);
+            } catch (e) {
+                // Ignore if already exists
             }
             // ─────────────────────────────────────────────────────────────────────────────
 

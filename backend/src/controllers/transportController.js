@@ -147,16 +147,20 @@ exports.addVehicle = async (req, res) => {
         const { vehicle_number, vehicle_model, driver_name, driver_phone, capacity, driver_id, gps_device_id } = req.body;
         const school_id = req.user.schoolId;
 
+        const parsedDriverId = driver_id && !isNaN(parseInt(driver_id)) ? parseInt(driver_id) : null;
+        const parsedCapacity = capacity && !isNaN(parseInt(capacity)) ? parseInt(capacity) : null;
+        const cleanGpsId = (gps_device_id && String(gps_device_id).trim() !== '') ? String(gps_device_id).trim() : null;
+
         const result = await pool.query(
             `INSERT INTO transport_vehicles (school_id, vehicle_number, vehicle_model, driver_name, driver_phone, capacity, driver_id, gps_device_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-            [school_id, vehicle_number, vehicle_model, driver_name, driver_phone, capacity, driver_id, gps_device_id || null]
+            [school_id, vehicle_number, vehicle_model, driver_name, driver_phone, parsedCapacity, parsedDriverId, cleanGpsId]
         );
 
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error adding vehicle' });
+        console.error('Error adding vehicle:', error);
+        res.status(500).json({ message: error.message || 'Server error adding vehicle' });
     }
 };
 
@@ -167,11 +171,15 @@ exports.updateVehicle = async (req, res) => {
         const { vehicle_number, vehicle_model, driver_name, driver_phone, capacity, status, driver_id, gps_device_id } = req.body;
         const school_id = req.user.schoolId;
 
+        const parsedDriverId = driver_id && !isNaN(parseInt(driver_id)) ? parseInt(driver_id) : null;
+        const parsedCapacity = capacity && !isNaN(parseInt(capacity)) ? parseInt(capacity) : null;
+        const cleanGpsId = (gps_device_id && String(gps_device_id).trim() !== '') ? String(gps_device_id).trim() : null;
+
         const result = await pool.query(
             `UPDATE transport_vehicles 
              SET vehicle_number = $1, vehicle_model = $2, driver_name = $3, driver_phone = $4, capacity = $5, status = $6, driver_id = $7, gps_device_id = $8
              WHERE id = $9 AND school_id = $10 RETURNING *`,
-            [vehicle_number, vehicle_model, driver_name, driver_phone, capacity, status, driver_id, gps_device_id || null, id, school_id]
+            [vehicle_number, vehicle_model, driver_name, driver_phone, parsedCapacity, status || 'Active', parsedDriverId, cleanGpsId, id, school_id]
         );
 
         if (result.rows.length === 0) {
@@ -180,8 +188,8 @@ exports.updateVehicle = async (req, res) => {
 
         res.json(result.rows[0]);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error updating vehicle' });
+        console.error('Error updating vehicle:', error);
+        res.status(500).json({ message: error.message || 'Server error updating vehicle' });
     }
 };
 
