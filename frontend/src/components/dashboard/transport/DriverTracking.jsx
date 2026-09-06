@@ -220,7 +220,7 @@ const DriverTracking = ({ onBack }) => {
     };
 
     // Send location to server with call & network resilience
-    const sendLocationUpdate = async (latitude, longitude, speed, heading) => {
+    const sendLocationUpdate = async (latitude, longitude, speed, heading, accuracy) => {
         if (!selectedVehicle) return;
 
         const activeRouteObj = routes.find(r => String(r.id) === String(selectedRoute));
@@ -229,8 +229,9 @@ const DriverTracking = ({ onBack }) => {
             await api.put(`/transport/vehicles/${selectedVehicle}/location`, {
                 lat: latitude,
                 lng: longitude,
-                speed: speed || 0,
+                speed: speed || 0,         // m/s — backend converts to km/h
                 heading: heading || 0,
+                accuracy: accuracy || null, // meters — backend rejects if > 50
                 route_id: activeRouteObj ? activeRouteObj.id : null,
                 route_name: activeRouteObj ? activeRouteObj.route_name : null,
                 status: 'Active'
@@ -317,10 +318,16 @@ const DriverTracking = ({ onBack }) => {
                     }
 
                     if (position?.coords) {
-                        const { latitude, longitude, speed, heading } = position.coords;
+                        const { latitude, longitude, speed, heading, accuracy } = position.coords;
 
                         if (latitude === 0 && longitude === 0) return;
                         if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
+
+                        // Skip bad accuracy fixes (building shadows, tunnels, cold start)
+                        if (accuracy && accuracy > 40) {
+                            console.warn(`GPS fix skipped — accuracy: ${Math.round(accuracy)}m`);
+                            return;
+                        }
 
                         const now = Date.now();
                         // Send update every 1 second
@@ -330,7 +337,7 @@ const DriverTracking = ({ onBack }) => {
                             setCurrentSpeed(speed ? Math.round(speed * 3.6) : 0);
                             setCurrentHeading(heading || 0);
                             setLastUpdated(new Date());
-                            await sendLocationUpdate(latitude, longitude, speed, heading);
+                            await sendLocationUpdate(latitude, longitude, speed, heading, accuracy);
                         }
                     }
                 }

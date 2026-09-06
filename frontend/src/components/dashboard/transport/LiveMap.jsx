@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -84,6 +84,35 @@ const SmoothRecenter = ({ lat, lng }) => {
         }
     }, [lat, lng, map]);
     return null;
+};
+
+/**
+ * SmoothBusMarker — animates each bus marker smoothly to its new GPS position.
+ * Uses Leaflet's native setLatLng() so the icon glides instead of teleporting.
+ */
+const SmoothBusMarker = ({ vehicle }) => {
+    const markerRef = useRef(null);
+    const prevPosRef = useRef(null);
+
+    const lat = parseFloat(vehicle.current_lat);
+    const lng = parseFloat(vehicle.current_lng);
+    const icon = createLiveBusIcon(vehicle);
+
+    useEffect(() => {
+        if (!markerRef.current) return;
+        const marker = markerRef.current;
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const prev = prevPosRef.current;
+        if (prev && (prev[0] !== lat || prev[1] !== lng)) {
+            marker.setLatLng([lat, lng]);
+        }
+        marker.setIcon(icon);
+        prevPosRef.current = [lat, lng];
+    }, [vehicle.current_lat, vehicle.current_lng, vehicle.speed, vehicle.heading, vehicle.status]);
+
+    if (isNaN(lat) || isNaN(lng)) return null;
+    return <Marker ref={markerRef} position={[lat, lng]} icon={icon} />;
 };
 
 const SOCKET_URL = import.meta.env.VITE_API_URL
@@ -282,13 +311,9 @@ const LiveMap = ({ vehicles = [] }) => {
                     </Marker>
                 )}
 
-                {/* Only Live Moving Bus Markers with Floating Badges (No Route Polylines) */}
+                {/* Smooth Animated Bus Markers */}
                 {activeVehicles.map(vehicle => (
-                    <Marker
-                        key={vehicle.id}
-                        position={[parseFloat(vehicle.current_lat), parseFloat(vehicle.current_lng)]}
-                        icon={createLiveBusIcon(vehicle)}
-                    />
+                    <SmoothBusMarker key={vehicle.id} vehicle={vehicle} />
                 ))}
             </MapContainer>
 

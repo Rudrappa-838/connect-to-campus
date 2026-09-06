@@ -86,6 +86,44 @@ const SmoothRecenter = ({ lat, lng }) => {
     return null;
 };
 
+/**
+ * SmoothBusMarker — animates the bus marker to new positions instead of teleporting.
+ * Uses Leaflet's native marker.setLatLng() which triggers Leaflet's internal animation.
+ */
+const SmoothBusMarker = ({ busState }) => {
+    const markerRef = useRef(null);
+    const prevPosRef = useRef(null);
+
+    const position = [busState.lat, busState.lng];
+    const icon = createLiveBusIcon(busState);
+
+    useEffect(() => {
+        if (!markerRef.current) return;
+        const marker = markerRef.current;
+
+        const newLat = busState.lat;
+        const newLng = busState.lng;
+        if (!newLat || !newLng || isNaN(newLat) || isNaN(newLng)) return;
+
+        const prev = prevPosRef.current;
+        if (prev && (prev[0] !== newLat || prev[1] !== newLng)) {
+            // Smoothly move marker to new position
+            marker.setLatLng([newLat, newLng]);
+        }
+        // Always update icon (speed badge, heading rotation)
+        marker.setIcon(icon);
+        prevPosRef.current = [newLat, newLng];
+    }, [busState.lat, busState.lng, busState.speed, busState.heading, busState.status]);
+
+    return (
+        <Marker
+            ref={markerRef}
+            position={position}
+            icon={icon}
+        />
+    );
+};
+
 const SOCKET_URL = import.meta.env.VITE_API_URL
     ? import.meta.env.VITE_API_URL.replace('/api', '')
     : (import.meta.env.PROD ? 'https://connect2campus.co.in' : 'http://localhost:5000');
@@ -223,24 +261,26 @@ const StudentTransport = () => {
 
         socket.on('disconnect', () => setConnected(false));
 
-        // Real-time GPS push
+        // Real-time GPS push — always update busState when we get a location for our vehicle
         socket.on('vehicle:location', (data) => {
-            if (targetVehicleId && data.vehicleId !== targetVehicleId && targetVehicleId !== data.id) {
-                // If we don't have a specific bus, accept any active bus
-                if (busState && busState.vehicleId && busState.vehicleId !== data.vehicleId) return;
+            // Only filter if we have a specific vehicle assigned AND the update is for a different vehicle
+            if (targetVehicleId && String(data.vehicleId) !== String(targetVehicleId)) {
+                return; // This update is for a different bus — ignore it
             }
 
-            setBusState({
+            setBusState(prev => ({
+                ...prev,
                 lat: parseFloat(data.lat),
                 lng: parseFloat(data.lng),
                 speed: parseFloat(data.speed || 0),
                 heading: parseFloat(data.heading || 0),
                 status: data.status,
+                vehicleId: data.vehicleId,
                 vehicleNumber: data.vehicleNumber,
                 driverName: data.driverName,
                 driverPhone: data.driverPhone,
-                routeName: data.routeName || routeInfo?.route_name,
-            });
+                routeName: data.routeName || prev?.routeName,
+            }));
             setLastUpdate(new Date());
         });
     };
@@ -368,12 +408,9 @@ const StudentTransport = () => {
                             </Marker>
                         )}
 
-                        {/* Live Moving Bus Marker */}
+                        {/* Smooth Moving Bus Marker */}
                         {busState && busState.lat && busState.lng && (
-                            <Marker
-                                position={[busState.lat, busState.lng]}
-                                icon={createLiveBusIcon(busState)}
-                            />
+                            <SmoothBusMarker busState={busState} />
                         )}
                     </MapContainer>
 

@@ -86,6 +86,35 @@ const MapFlyTo = ({ target }) => {
     return null;
 };
 
+/**
+ * SmoothBusMarker — animates each bus marker smoothly to its new GPS position in Admin Live Map.
+ */
+const SmoothBusMarker = ({ vehicle, isSelected }) => {
+    const markerRef = useRef(null);
+    const prevPosRef = useRef(null);
+
+    const lat = parseFloat(vehicle.current_lat);
+    const lng = parseFloat(vehicle.current_lng);
+    const icon = createLiveBusIcon(vehicle, isSelected);
+
+    useEffect(() => {
+        if (!markerRef.current) return;
+        const marker = markerRef.current;
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const prev = prevPosRef.current;
+        if (prev && (prev[0] !== lat || prev[1] !== lng)) {
+            marker.setLatLng([lat, lng]);
+        }
+        marker.setIcon(icon);
+        prevPosRef.current = [lat, lng];
+    }, [vehicle.current_lat, vehicle.current_lng, vehicle.speed, vehicle.heading, vehicle.status, isSelected]);
+
+    if (isNaN(lat) || isNaN(lng)) return null;
+    return <Marker ref={markerRef} position={[lat, lng]} icon={icon} />;
+};
+
+
 const SOCKET_URL = import.meta.env.VITE_API_URL
     ? import.meta.env.VITE_API_URL.replace('/api', '')
     : (import.meta.env.PROD ? 'https://connect2campus.co.in' : 'http://localhost:5000');
@@ -339,10 +368,10 @@ const AdminLiveMap = () => {
 
                             {/* Live Moving Bus Markers with Floating Badges */}
                             {liveVehicles.map(v => (
-                                <Marker
+                                <SmoothBusMarker
                                     key={v.id}
-                                    position={[v.current_lat, v.current_lng]}
-                                    icon={createLiveBusIcon(v, selectedId === v.id)}
+                                    vehicle={v}
+                                    isSelected={selectedId === v.id}
                                 />
                             ))}
                         </MapContainer>

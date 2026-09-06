@@ -346,21 +346,89 @@ exports.deleteRoute = async (req, res) => {
  * Saves location, heading, route AND broadcasts via WebSocket instantly.
  * Speed from Capacitor is in m/s — convert to km/h.
  */
+// =====================================================
+// OSRM ROAD SNAPPING
+// Snaps a raw GPS coordinate to the nearest road segment
+// Uses public OSRM router — free, no API key needed
+// =====================================================
+const snapToRoad = async (lat, lng) => {
+    try {
+        const https = require('https');
+        const url = `https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}?number=1`;
+
+        return await new Promise((resolve) => {
+            const req = https.get(url, { timeout: 2000 }, (res) => {
+                let data = '';
+                res.on('data', chunk => { data += chunk; });
+                res.on('end', () => {
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (parsed.code === 'Ok' && parsed.waypoints && parsed.waypoints.length > 0) {
+                            const snapped = parsed.waypoints[0].location; // [lng, lat]
+                            const snappedLat = snapped[1];
+                            const snappedLng = snapped[0];
+                            const distance = parsed.waypoints[0].distance; // meters from raw GPS to road
+
+                            // Only use snapped position if within 80m (GPS could be legitimately off-road)
+                            if (distance <= 80) {
+                                return resolve({ lat: snappedLat, lng: snappedLng, snapped: true });
+                            }
+                        }
+                    } catch (e) {}
+                    resolve({ lat, lng, snapped: false }); // fallback to raw
+                });
+            });
+            req.on('error', () => resolve({ lat, lng, snapped: false }));
+            req.on('timeout', () => { req.destroy(); resolve({ lat, lng, snapped: false }); });
+        });
+    } catch (e) {
+        return { lat, lng, snapped: false };
+    }
+};
+
 exports.updateLocation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { lat, lng, speed, heading, route_id, route_name, status } = req.body;
+        const { lat, lng, speed, heading, route_id, route_name, status, accuracy } = req.body;
         const school_id = req.user.schoolId;
 
-        // Capacitor sends speed in m/s → convert to km/h (if < 100 assume m/s or direct km/h)
+        // Reject extremely inaccurate positions (GPS cold start / indoor / tunnel)
+        if (accuracy !== undefined && !isNaN(accuracy) && parseFloat(accuracy) > 50) {
+            console.warn(`⚠️ GPS update rejected — poor accuracy: ${accuracy}m`);
+            return res.json({ ok: false, reason: 'low_accuracy', accuracy });
+        }
+
+        // Validate coordinates
+        const parsedLat = parseFloat(lat);
+        const parsedLng = parseFloat(lng);
+        if (isNaN(parsedLat) || isNaN(parsedLng) || parsedLat === 0 || parsedLng === 0) {
+            return res.json({ ok: false, reason: 'invalid_coords' });
+        }
+        if (parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) {
+            return res.json({ ok: false, reason: 'out_of_range_coords' });
+        }
+
+        // Smart speed conversion:
+        // Capacitor Geolocation returns speed in m/s → multiply by 3.6 for km/h
+        // If speed >= 55 (impossible in m/s for a bus), assume it was already sent as km/h
         let speedKmh = 0;
         if (speed !== undefined && speed !== null && !isNaN(speed)) {
             const rawSpeed = parseFloat(speed);
-            speedKmh = rawSpeed > 0 ? Math.round(rawSpeed * 3.6 * 10) / 10 : 0;
+            if (rawSpeed > 0) {
+                // m/s range for a bus: 0–20 m/s (0–72 km/h). If > 55, treat as already km/h.
+                speedKmh = rawSpeed < 55
+                    ? Math.round(rawSpeed * 3.6 * 10) / 10  // m/s → km/h
+                    : Math.round(rawSpeed * 10) / 10;        // already km/h
+            }
         }
 
         const headingVal = heading !== undefined && !isNaN(heading) ? parseFloat(heading) : 0;
         const vehicleStatus = status || 'Active';
+
+        // 🗺️ Snap GPS to nearest road for accurate display
+        const snapped = await snapToRoad(parsedLat, parsedLng);
+        const finalLat = snapped.lat;
+        const finalLng = snapped.lng;
 
         const result = await pool.query(
             `UPDATE transport_vehicles 
@@ -373,7 +441,7 @@ exports.updateLocation = async (req, res) => {
                  status = $7, 
                  last_updated = NOW()
              WHERE id = $8 AND school_id = $9 RETURNING *`,
-            [lat, lng, speedKmh, headingVal, route_id || null, route_name || null, vehicleStatus, id, school_id]
+            [finalLat, finalLng, speedKmh, headingVal, route_id || null, route_name || null, vehicleStatus, id, school_id]
         );
 
         if (result.rows.length === 0) {
@@ -386,12 +454,13 @@ exports.updateLocation = async (req, res) => {
         // 🚀 Push to all students/admins in this school instantly via WebSocket
         broadcastLocation(school_id, vehicle);
 
-        res.json({ ok: true, speed: speedKmh, vehicle_number: vehicle.vehicle_number, route_name: vehicle.current_route_name });
+        res.json({ ok: true, speed: speedKmh, snapped: snapped.snapped, vehicle_number: vehicle.vehicle_number, route_name: vehicle.current_route_name });
     } catch (error) {
         console.error('Error updating vehicle location:', error);
         res.status(500).json({ message: 'Server error updating location' });
     }
 };
+
 
 // =====================================================
 // UNIVERSAL GPS HARDWARE WEBHOOK

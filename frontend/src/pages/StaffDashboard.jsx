@@ -173,9 +173,14 @@ const StaffDashboard = () => {
                         return;
                     }
                     if (position) {
-                        const { latitude, longitude } = position.coords;
+                        const { latitude, longitude, speed, heading, accuracy } = position.coords;
+                        // Skip very inaccurate fixes (building/tunnel interference)
+                        if (accuracy && accuracy > 40) {
+                            addLog(`GPS skipped — accuracy: ${Math.round(accuracy)}m (too poor)`);
+                            return;
+                        }
                         setLocation({ lat: latitude, lng: longitude });
-                        sendLocationUpdate(latitude, longitude);
+                        sendLocationUpdate(latitude, longitude, speed, heading, accuracy);
                     }
                 }
             );
@@ -199,9 +204,17 @@ const StaffDashboard = () => {
         addLog('Tracking stopped.');
     };
 
-    const sendLocationUpdate = async (lat, lng) => {
+    const sendLocationUpdate = async (lat, lng, speed, heading, accuracy) => {
         try {
-            await api.put(`/transport/vehicles/${selectedVehicle}/location`, { lat, lng });
+            // Send raw speed in m/s — the backend converts to km/h (Capacitor returns m/s)
+            await api.put(`/transport/vehicles/${selectedVehicle}/location`, {
+                lat,
+                lng,
+                speed: speed || 0,   // m/s — backend handles conversion
+                heading: heading || 0,
+                accuracy: accuracy || null,
+                status: 'Active',
+            });
             addLog(`Updated: ${lat.toFixed(5)}, ${lng.toFixed(5)} at ${new Date().toLocaleTimeString()}`);
         } catch (error) {
             console.error(error);

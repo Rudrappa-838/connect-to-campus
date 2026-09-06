@@ -39,21 +39,13 @@ allprojects {
         }
     }
     
-    // Force Java 17 via toolchain for ALL projects (including plugins)
+    // Configure Java compatibility for all Android projects
     afterEvaluate { project ->
         if (project.hasProperty('android')) {
             android {
                 compileOptions {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
-                }
-            }
-        }
-
-        if (project.extensions.findByType(org.gradle.api.plugins.JavaPluginExtension)) {
-            java {
-                toolchain {
-                    languageVersion = JavaLanguageVersion.of(17)
                 }
             }
         }
