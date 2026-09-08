@@ -86,14 +86,13 @@ exports.addStaff = async (req, res) => {
         // Let's use the provided role if it matches enum, or default to STAFF. 
         // Actually, users table 'role' column likely supports 'STAFF', 'DRIVER'.
         const userRole = ['DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'].includes(role.toUpperCase()) ? role.toUpperCase() : 'STAFF';
+        const STAFF_SUB_ROLES = ['STAFF', 'DRIVER', 'ACCOUNTANT', 'LIBRARIAN', 'WARDEN'];
 
-        let userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, userRole]);
+        let userCheck = await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND role = ANY($2::text[])', [loginEmail, STAFF_SUB_ROLES]);
         if (userCheck.rows.length > 0) {
-            loginEmail = `${employee_id}@staff.school.com`;
-            userCheck = await client.query('SELECT id FROM users WHERE email = $1 AND role = $2', [loginEmail, userRole]);
-        }
-
-        if (userCheck.rows.length === 0) {
+            // Update role and linked_id on existing record rather than creating duplicate
+            await client.query('UPDATE users SET role = $1, linked_id = $2 WHERE id = $3', [userRole, result.rows[0].id, userCheck.rows[0].id]);
+        } else {
             await client.query(
                 `INSERT INTO users (email, password, role, school_id, must_change_password, linked_id) VALUES ($1, $2, $3, $4, TRUE, $5)`,
                 [loginEmail, defaultPassword, userRole, school_id, result.rows[0].id]
