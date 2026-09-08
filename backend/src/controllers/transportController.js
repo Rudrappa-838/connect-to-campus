@@ -389,7 +389,7 @@ const snapToRoad = async (lat, lng) => {
 exports.updateLocation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { lat, lng, speed, heading, route_id, route_name, status, accuracy } = req.body;
+        const { lat, lng, speed, speedUnit, heading, route_id, route_name, status, accuracy } = req.body;
         const school_id = req.user.schoolId;
 
         // Reject only truly terrible accuracy (>100m = deep indoor / tunnel)
@@ -409,17 +409,21 @@ exports.updateLocation = async (req, res) => {
             return res.json({ ok: false, reason: 'out_of_range_coords' });
         }
 
-        // Smart speed conversion:
-        // Capacitor Geolocation returns speed in m/s → multiply by 3.6 for km/h
-        // If speed >= 55 (impossible in m/s for a bus), assume it was already sent as km/h
+        // Speed conversion:
+        // - If driver sends speedUnit='kmh' → use directly (new accurate calculation)
+        // - Otherwise: Capacitor returns m/s → multiply by 3.6. If >=55, assume already km/h (legacy fallback)
         let speedKmh = 0;
         if (speed !== undefined && speed !== null && !isNaN(speed)) {
             const rawSpeed = parseFloat(speed);
             if (rawSpeed > 0) {
-                // m/s range for a bus: 0–20 m/s (0–72 km/h). If > 55, treat as already km/h.
-                speedKmh = rawSpeed < 55
-                    ? Math.round(rawSpeed * 3.6 * 10) / 10  // m/s → km/h
-                    : Math.round(rawSpeed * 10) / 10;        // already km/h
+                if (speedUnit === 'kmh') {
+                    speedKmh = Math.round(rawSpeed * 10) / 10; // Already km/h — use directly
+                } else {
+                    // Legacy: Capacitor m/s or unknown unit
+                    speedKmh = rawSpeed < 55
+                        ? Math.round(rawSpeed * 3.6 * 10) / 10  // m/s → km/h
+                        : Math.round(rawSpeed * 10) / 10;        // already km/h
+                }
             }
         }
 

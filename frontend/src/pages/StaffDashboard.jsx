@@ -83,6 +83,7 @@ const StaffDashboard = () => {
     const [logs, setLogs] = useState([]);
     const [location, setLocation] = useState(null);
     const watchIdRef = useRef(null);
+    const prevGpsRef = useRef(null); // { lat, lng, timestamp } of last SENT update
 
     const isDriver = user?.role === 'DRIVER' ||
         staffProfile?.role?.toLowerCase().includes('driver') ||
@@ -158,6 +159,7 @@ const StaffDashboard = () => {
             }
 
             setIsTracking(true);
+            prevGpsRef.current = null; // Reset on new tracking session
             addLog('Tracking started...');
 
             const id = await Geolocation.watchPosition(
@@ -172,16 +174,71 @@ const StaffDashboard = () => {
                         addLog(`GPS Error: ${err.message}`);
                         return;
                     }
-                    if (position) {
-                        const { latitude, longitude, speed, heading, accuracy } = position.coords;
-                        // Skip very inaccurate fixes (building/tunnel interference)
-                        if (accuracy && accuracy > 100) {
-                            addLog(`GPS skipped — accuracy: ${Math.round(accuracy)}m (too poor)`);
+                    if (!position) return;
+
+                    const { latitude, longitude, speed: rawSpeed, heading: rawHeading, accuracy } = position.coords;
+                    const now = Date.now();
+
+                    // Skip very inaccurate fixes (deep indoor / tunnel)
+                    if (accuracy && accuracy > 100) {
+                        addLog(`GPS skipped — accuracy: ${Math.round(accuracy)}m (too poor)`);
+                        return;
+                    }
+
+                    // ── Minimum distance filter (5m) ──────────────────────────────
+                    // Prevents GPS jitter from sending fake "movement" updates
+                    const prev = prevGpsRef.current;
+                    let distanceMeters = 0;
+                    if (prev) {
+                        // Haversine distance formula
+                        const R = 6371000;
+                        const dLat = (latitude - prev.lat) * Math.PI / 180;
+                        const dLng = (longitude - prev.lng) * Math.PI / 180;
+                        const a = Math.sin(dLat/2)**2 +
+                                  Math.cos(prev.lat * Math.PI/180) * Math.cos(latitude * Math.PI/180) *
+                                  Math.sin(dLng/2)**2;
+                        distanceMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+                        if (distanceMeters < 5) {
+                            // Less than 5m moved — GPS jitter, skip this update
                             return;
                         }
-                        setLocation({ lat: latitude, lng: longitude });
-                        sendLocationUpdate(latitude, longitude, speed, heading, accuracy);
                     }
+
+                    // ── Calculate speed from position delta ────────────────────────
+                    // Capacitor speed is often null or 0 at low speeds — calculate it ourselves
+                    let speedKmh = 0;
+                    if (prev && distanceMeters > 0) {
+                        const timeDeltaSec = (now - prev.timestamp) / 1000;
+                        if (timeDeltaSec > 0) {
+                            const calculatedMs = distanceMeters / timeDeltaSec; // m/s
+                            speedKmh = calculatedMs * 3.6; // km/h
+                        }
+                    }
+                    // Use device speed if it looks valid (> calculated and reasonable)
+                    if (rawSpeed !== null && rawSpeed > 0) {
+                        const deviceKmh = rawSpeed * 3.6;
+                        // Prefer device speed if within reasonable range of calculated
+                        if (speedKmh === 0 || Math.abs(deviceKmh - speedKmh) < 20) {
+                            speedKmh = deviceKmh;
+                        }
+                    }
+                    speedKmh = Math.min(Math.round(speedKmh * 10) / 10, 120); // Cap at 120 km/h
+
+                    // ── Calculate heading from successive GPS points ───────────────
+                    // Phone compass heading is unreliable at slow speed — compute from travel direction
+                    let computedHeading = rawHeading || 0;
+                    if (prev && distanceMeters > 3) {
+                        const dLat2 = latitude - prev.lat;
+                        const dLng2 = longitude - prev.lng;
+                        const bearing = (Math.atan2(dLng2, dLat2) * 180 / Math.PI + 360) % 360;
+                        computedHeading = bearing;
+                    }
+
+                    // ── Update state and send ──────────────────────────────────────
+                    prevGpsRef.current = { lat: latitude, lng: longitude, timestamp: now };
+                    setLocation({ lat: latitude, lng: longitude });
+                    sendLocationUpdate(latitude, longitude, speedKmh, computedHeading, accuracy);
                 }
             );
             watchIdRef.current = id;
@@ -200,22 +257,23 @@ const StaffDashboard = () => {
             }
             watchIdRef.current = null;
         }
+        prevGpsRef.current = null;
         setIsTracking(false);
         addLog('Tracking stopped.');
     };
 
-    const sendLocationUpdate = async (lat, lng, speed, heading, accuracy) => {
+    const sendLocationUpdate = async (lat, lng, speedKmh, heading, accuracy) => {
         try {
-            // Send raw speed in m/s — the backend converts to km/h (Capacitor returns m/s)
             await api.put(`/transport/vehicles/${selectedVehicle}/location`, {
                 lat,
                 lng,
-                speed: speed || 0,   // m/s — backend handles conversion
+                speed: speedKmh,     // Already in km/h
+                speedUnit: 'kmh',    // Tell backend not to convert
                 heading: heading || 0,
                 accuracy: accuracy || null,
                 status: 'Active',
             });
-            addLog(`Updated: ${lat.toFixed(5)}, ${lng.toFixed(5)} at ${new Date().toLocaleTimeString()}`);
+            addLog(`📍 ${lat.toFixed(5)}, ${lng.toFixed(5)} | 🚀 ${Math.round(speedKmh)} km/h | 🧭 ${Math.round(heading)}°`);
         } catch (error) {
             console.error(error);
             addLog('Failed to send update to server');
