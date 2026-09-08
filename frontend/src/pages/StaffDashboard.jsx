@@ -175,7 +175,7 @@ const StaffDashboard = () => {
                     if (position) {
                         const { latitude, longitude, speed, heading, accuracy } = position.coords;
                         // Skip very inaccurate fixes (building/tunnel interference)
-                        if (accuracy && accuracy > 40) {
+                        if (accuracy && accuracy > 100) {
                             addLog(`GPS skipped — accuracy: ${Math.round(accuracy)}m (too poor)`);
                             return;
                         }

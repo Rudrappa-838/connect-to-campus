@@ -392,8 +392,9 @@ exports.updateLocation = async (req, res) => {
         const { lat, lng, speed, heading, route_id, route_name, status, accuracy } = req.body;
         const school_id = req.user.schoolId;
 
-        // Reject extremely inaccurate positions (GPS cold start / indoor / tunnel)
-        if (accuracy !== undefined && !isNaN(accuracy) && parseFloat(accuracy) > 50) {
+        // Reject only truly terrible accuracy (>100m = deep indoor / tunnel)
+        // 40–100m is common when bus just starts moving — we accept it
+        if (accuracy !== undefined && !isNaN(accuracy) && parseFloat(accuracy) > 100) {
             console.warn(`⚠️ GPS update rejected — poor accuracy: ${accuracy}m`);
             return res.json({ ok: false, reason: 'low_accuracy', accuracy });
         }
@@ -425,11 +426,7 @@ exports.updateLocation = async (req, res) => {
         const headingVal = heading !== undefined && !isNaN(heading) ? parseFloat(heading) : 0;
         const vehicleStatus = status || 'Active';
 
-        // 🗺️ Snap GPS to nearest road for accurate display
-        const snapped = await snapToRoad(parsedLat, parsedLng);
-        const finalLat = snapped.lat;
-        const finalLng = snapped.lng;
-
+        // 🚀 STEP 1: Save raw GPS & broadcast IMMEDIATELY (zero delay for live tracking)
         const result = await pool.query(
             `UPDATE transport_vehicles 
              SET current_lat = $1, 
@@ -441,7 +438,7 @@ exports.updateLocation = async (req, res) => {
                  status = $7, 
                  last_updated = NOW()
              WHERE id = $8 AND school_id = $9 RETURNING *`,
-            [finalLat, finalLng, speedKmh, headingVal, route_id || null, route_name || null, vehicleStatus, id, school_id]
+            [parsedLat, parsedLng, speedKmh, headingVal, route_id || null, route_name || null, vehicleStatus, id, school_id]
         );
 
         if (result.rows.length === 0) {
@@ -451,10 +448,29 @@ exports.updateLocation = async (req, res) => {
         const vehicle = result.rows[0];
         vehicle._source = 'mobile';
 
-        // 🚀 Push to all students/admins in this school instantly via WebSocket
+        // 🚀 Broadcast raw position IMMEDIATELY — no waiting for road snapping
         broadcastLocation(school_id, vehicle);
 
-        res.json({ ok: true, speed: speedKmh, snapped: snapped.snapped, vehicle_number: vehicle.vehicle_number, route_name: vehicle.current_route_name });
+        // Respond to driver app immediately (don't block on road snapping)
+        res.json({ ok: true, speed: speedKmh, snapped: false, vehicle_number: vehicle.vehicle_number, route_name: vehicle.current_route_name });
+
+        // 🗺️ STEP 2: Road snap in BACKGROUND — re-broadcast with snapped coords if improved
+        // This does NOT block the driver app or the live map initial update
+        snapToRoad(parsedLat, parsedLng).then(async (snapped) => {
+            if (snapped.snapped && (snapped.lat !== parsedLat || snapped.lng !== parsedLng)) {
+                try {
+                    await pool.query(
+                        `UPDATE transport_vehicles SET current_lat = $1, current_lng = $2 WHERE id = $3`,
+                        [snapped.lat, snapped.lng, id]
+                    );
+                    // Re-broadcast with road-snapped position
+                    broadcastLocation(school_id, { ...vehicle, current_lat: snapped.lat, current_lng: snapped.lng });
+                } catch (e) {
+                    // Ignore — raw coords already broadcast, no harm done
+                }
+            }
+        }).catch(() => {}); // Never let road snapping crash anything
+
     } catch (error) {
         console.error('Error updating vehicle location:', error);
         res.status(500).json({ message: 'Server error updating location' });
