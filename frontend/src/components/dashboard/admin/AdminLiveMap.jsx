@@ -26,29 +26,29 @@ const createLiveBusIcon = (vehicle, isSelected = false) => {
     const isLive = vehicle._isLive || vehicle.status === 'Active';
 
     const html = `
-        <div style="position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: ${isSelected ? 1000 : 500};">
+        <div style="width: 140px; display: flex; flex-direction: column; align-items: center; pointer-events: auto; z-index: ${isSelected ? 1000 : 500};">
             <!-- Compact Floating Badge directly above Bus Icon -->
-            <div style="background: ${isSelected ? 'rgba(30, 27, 75, 0.96)' : 'rgba(15, 23, 42, 0.92)'}; backdrop-filter: blur(6px); color: white; padding: 3px 7px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); border: ${isSelected ? '1.5px solid #818cf8' : '1px solid rgba(255,255,255,0.2)'}; white-space: nowrap; text-align: center; margin-bottom: 3px; min-width: 90px; max-width: 150px; pointer-events: auto;">
+            <div style="background: ${isSelected ? 'rgba(30, 27, 75, 0.96)' : 'rgba(15, 23, 42, 0.92)'}; backdrop-filter: blur(6px); color: white; padding: 3px 8px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); border: ${isSelected ? '2px solid #818cf8' : '1px solid rgba(255,255,255,0.25)'}; white-space: nowrap; text-align: center; margin-bottom: 3px; max-width: 140px;">
                 <div style="display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 800; font-size: 11px; color: #facc15;">
                     <span>🚌 ${vehicleNumber}</span>
                     <span style="background: ${!isLive ? '#64748b' : speed > 60 ? '#ef4444' : isMoving ? '#10b981' : '#f59e0b'}; color: white; font-size: 8px; font-weight: 800; padding: 0.5px 4px; border-radius: 4px;">
                         ${!isLive ? 'Off' : isMoving ? `${Math.round(speed)}k` : 'Stop'}
                     </span>
                 </div>
-                ${routeName ? `<div style="font-size: 9px; font-weight: 600; color: #93c5fd; margin-top: 1px; max-width: 140px; overflow: hidden; text-overflow: ellipsis;">📍 ${routeName}</div>` : ''}
+                ${routeName ? `<div style="font-size: 9px; font-weight: 600; color: #93c5fd; margin-top: 1px; max-width: 130px; overflow: hidden; text-overflow: ellipsis;">📍 ${routeName}</div>` : ''}
                 ${driverName ? `<div style="font-size: 8.5px; color: #cbd5e1; margin-top: 0.5px;">👤 ${driverName}</div>` : ''}
             </div>
 
             <!-- Small Bus Icon with Radar Pulse & Directional Rotation -->
-            <div style="position: relative; width: 32px; height: 32px;">
-                <div style="background: #fbbf24; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid #0f172a; box-shadow: 0 3px 10px rgba(0,0,0,0.35); transform: rotate(${heading}deg); transition: transform 0.3s ease;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <div style="position: relative; width: 34px; height: 34px;">
+                <div style="background: #fbbf24; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid #0f172a; box-shadow: 0 4px 12px rgba(0,0,0,0.4); transform: rotate(${heading}deg); transition: transform 0.3s ease;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M8 6v6"></path><path d="M15 6v6"></path><path d="M2 12h19.6"></path>
                         <path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"></path>
                         <circle cx="7" cy="18" r="2"></circle><path d="M9 18h5"></path><circle cx="17" cy="18" r="2"></circle>
                     </svg>
                 </div>
-                ${isLive ? '<div style="position: absolute; bottom: -1px; right: -1px; width: 9px; height: 9px; background: #10b981; border-radius: 50%; border: 1.5px solid white; animation: ping 1s infinite;"></div>' : ''}
+                ${isLive ? '<div style="position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; background: #10b981; border-radius: 50%; border: 1.5px solid white; animation: ping 1s infinite;"></div>' : ''}
             </div>
         </div>
     `;
@@ -56,8 +56,8 @@ const createLiveBusIcon = (vehicle, isSelected = false) => {
     return L.divIcon({
         className: 'custom-admin-bus-icon-wrapper',
         html: html,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0],
+        iconSize: [140, 75],
+        iconAnchor: [70, 75],
     });
 };
 
@@ -227,11 +227,6 @@ const AdminLiveMap = () => {
                 const { latitude, longitude } = pos.coords;
                 setUserLocation([latitude, longitude]);
                 setGpsPermissionDenied(false);
-                // Only auto-fly to user location on first fix
-                if (!hasCenteredUser.current) {
-                    hasCenteredUser.current = true;
-                    setFlyTarget({ lat: latitude, lng: longitude });
-                }
             },
             (err) => {
                 console.warn('User GPS error:', err.message);
@@ -268,13 +263,15 @@ const AdminLiveMap = () => {
                 const map = {};
                 vRes.data.forEach(v => {
                     const hasCoords = v.current_lat && v.current_lng && parseFloat(v.current_lat) !== 0;
+                    const isActive = hasCoords && v.status === 'Active';
+
                     map[v.id] = {
                         ...v,
                         current_lat: v.current_lat ? parseFloat(v.current_lat) : null,
                         current_lng: v.current_lng ? parseFloat(v.current_lng) : null,
                         speed: parseFloat(v.speed || 0),
                         heading: parseFloat(v.heading || 0),
-                        _isLive: hasCoords && (v.status === 'Active'),
+                        _isLive: isActive,
                     };
                 });
                 setVehicleMap(map);
@@ -320,6 +317,7 @@ const AdminLiveMap = () => {
         // Real-time vehicle location push
         socket.on('vehicle:location', (data) => {
             const now = new Date();
+            const isActive = data.status === 'Active';
             setVehicleMap(prev => ({
                 ...prev,
                 [data.vehicleId]: {
@@ -330,21 +328,54 @@ const AdminLiveMap = () => {
                     driver_phone: data.driverPhone || prev[data.vehicleId]?.driver_phone,
                     current_route_name: data.routeName || prev[data.vehicleId]?.current_route_name,
                     current_route_id: data.routeId || prev[data.vehicleId]?.current_route_id,
-                    current_lat: parseFloat(data.lat),
-                    current_lng: parseFloat(data.lng),
+                    current_lat: !isNaN(parseFloat(data.lat)) ? parseFloat(data.lat) : prev[data.vehicleId]?.current_lat,
+                    current_lng: !isNaN(parseFloat(data.lng)) ? parseFloat(data.lng) : prev[data.vehicleId]?.current_lng,
                     speed: parseFloat(data.speed || 0),
                     heading: parseFloat(data.heading || 0),
                     status: data.status,
-                    _isLive: true,
+                    _isLive: isActive,
                     _lastWS: now,
                 },
             }));
             setUpdateLog(prev => ({ ...prev, [data.vehicleId]: now }));
+
+            // When an active GPS coordinate arrives, follow the bus smoothly on the map
+            if (isActive && !isNaN(parseFloat(data.lat)) && !isNaN(parseFloat(data.lng))) {
+                setFlyTarget({ lat: parseFloat(data.lat), lng: parseFloat(data.lng) });
+            }
         });
     };
 
     const vehicles = Object.values(vehicleMap);
-    const liveVehicles = vehicles.filter(v => v.current_lat && v.current_lng && parseFloat(v.current_lat) !== 0);
+    // Only show buses on the map when the driver is actively on trip right now.
+    // Must be marked 'Active' AND actively transmitting GPS (within last 3 minutes or received via live WebSocket).
+    const liveVehicles = vehicles.filter(v => {
+        if (!v.current_lat || !v.current_lng || parseFloat(v.current_lat) === 0) return false;
+        if (v.status !== 'Active') return false;
+
+        // If received via live WebSocket in this session, it is actively driving right now
+        if (v._lastWS) return true;
+
+        // If loaded from initial API fetch, only show if updated within the last 3 minutes
+        if (v.last_updated) {
+            const diffMs = Date.now() - new Date(v.last_updated).getTime();
+            return diffMs >= 0 && diffMs < 3 * 60 * 1000;
+        }
+
+        return false;
+    });
+
+    // Auto-center directly on the active bus when map loads or when driver starts trip
+    const hasAutoCenteredOnBus = useRef(false);
+    useEffect(() => {
+        if (!hasAutoCenteredOnBus.current && liveVehicles.length > 0) {
+            const firstLive = liveVehicles[0];
+            if (firstLive?.current_lat && firstLive?.current_lng) {
+                hasAutoCenteredOnBus.current = true;
+                setFlyTarget({ lat: firstLive.current_lat, lng: firstLive.current_lng });
+            }
+        }
+    }, [liveVehicles]);
 
     const handleVehicleClick = (v) => {
         if (!v.current_lat || !v.current_lng) return;
@@ -359,10 +390,10 @@ const AdminLiveMap = () => {
         return sec < 60 ? `${sec}s ago` : `${Math.round(sec / 60)}m ago`;
     };
 
-    // Map center: user's actual GPS location (fresh watchPosition) → live bus → India center
-    const mapCenter = userLocation
-        ? userLocation
-        : (liveVehicles.length > 0 ? [liveVehicles[0].current_lat, liveVehicles[0].current_lng] : [20.5937, 78.9629]);
+    // Prioritize active bus coordinates so viewer immediately sees the live bus
+    const mapCenter = (liveVehicles.length > 0 && liveVehicles[0]?.current_lat && liveVehicles[0]?.current_lng)
+        ? [liveVehicles[0].current_lat, liveVehicles[0].current_lng]
+        : (userLocation ? userLocation : [20.5937, 78.9629]);
 
     const [mapType, setMapType] = useState('streets'); // 'streets' | 'hybrid' | 'osm'
 
@@ -404,31 +435,6 @@ const AdminLiveMap = () => {
                     </div>
                 ) : (
                     <>
-                        {/* Map Style Selector */}
-                        <div className="absolute top-4 right-4 z-[400] bg-white/95 backdrop-blur-md p-1 rounded-xl shadow-xl border border-slate-200/80 flex gap-1 text-xs font-bold">
-                            <button
-                                onClick={() => setMapType('streets')}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${mapType === 'streets' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
-                                title="Detailed streets, shops, buildings, and landmarks"
-                            >
-                                🏬 Detailed Places
-                            </button>
-                            <button
-                                onClick={() => setMapType('hybrid')}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${mapType === 'hybrid' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
-                                title="Satellite view with place labels"
-                            >
-                                🛰️ Satellite + Labels
-                            </button>
-                            <button
-                                onClick={() => setMapType('osm')}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${mapType === 'osm' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
-                                title="Standard map"
-                            >
-                                🌐 Standard
-                            </button>
-                        </div>
-
                         <MapContainer
                             center={mapCenter}
                             zoom={15}
@@ -483,10 +489,35 @@ const AdminLiveMap = () => {
                             ))}
                         </MapContainer>
 
+                        {/* Map Style Selector - Layered above Leaflet tiles and panes */}
+                        <div className="absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl border border-slate-200/80 flex gap-1 text-xs font-bold pointer-events-auto">
+                            <button
+                                onClick={() => setMapType('streets')}
+                                className={`px-3 py-1.5 rounded-xl transition-all ${mapType === 'streets' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                                title="Detailed streets, shops, buildings, and landmarks"
+                            >
+                                🏬 Detailed Places
+                            </button>
+                            <button
+                                onClick={() => setMapType('hybrid')}
+                                className={`px-3 py-1.5 rounded-xl transition-all ${mapType === 'hybrid' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                                title="Satellite view with place labels"
+                            >
+                                🛰️ Satellite + Labels
+                            </button>
+                            <button
+                                onClick={() => setMapType('osm')}
+                                className={`px-3 py-1.5 rounded-xl transition-all ${mapType === 'osm' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                                title="Standard map"
+                            >
+                                🌐 Standard
+                            </button>
+                        </div>
+
                         {/* My Location Floating Action Button */}
                         <button
                             onClick={acquireUserLocation}
-                            className="absolute bottom-6 right-4 z-[400] bg-white text-slate-800 hover:bg-slate-50 active:scale-95 p-3 rounded-2xl shadow-2xl border border-slate-200/80 font-bold text-xs flex items-center gap-2 transition-all"
+                            className="absolute bottom-6 right-4 z-[1000] bg-white text-slate-800 hover:bg-slate-50 active:scale-95 p-3 rounded-2xl shadow-2xl border border-slate-200/80 font-bold text-xs flex items-center gap-2 transition-all pointer-events-auto cursor-pointer"
                             title="Center on My Live Location"
                         >
                             <MapPin size={16} className="text-blue-600" />
@@ -523,8 +554,8 @@ const AdminLiveMap = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {vehicles.map(v => {
                     const isSelected = selectedId === v.id;
-                    const hasCoords = v.current_lat && v.current_lng && parseFloat(v.current_lat) !== 0;
-                    const isLive = v._isLive || (hasCoords && v.status === 'Active');
+                    const hasCoords = Boolean(v.current_lat && v.current_lng && parseFloat(v.current_lat) !== 0);
+                    const isLive = liveVehicles.some(lv => lv.id === v.id);
                     const since = getTimeSince(v.id);
 
                     return (

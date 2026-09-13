@@ -327,3 +327,14 @@ input, textarea, select {
   animation: bell-shake 0.8s cubic-bezier(.36, .07, .19, .97) both infinite;
   transform-origin: top center;
 }
+
+/* Leaflet Custom Marker Fixes - prevent white border/box and allow full visibility */
+.custom-admin-bus-icon-wrapper,
+.custom-live-bus-icon-wrapper,
+.custom-teacher-bus-icon-wrapper,
+.custom-student-bus-icon-wrapper,
+.driver-bus-icon {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+}

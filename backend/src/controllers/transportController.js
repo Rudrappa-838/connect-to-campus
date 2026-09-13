@@ -133,6 +133,11 @@ const parseUniversalGPS = (body) => {
 exports.getVehicles = async (req, res) => {
     try {
         const school_id = req.user.schoolId;
+        // Auto-cleanup stale active vehicles (no GPS update for > 30 minutes)
+        await pool.query(
+            "UPDATE transport_vehicles SET status = 'Idle', speed = 0 WHERE school_id = $1 AND status = 'Active' AND last_updated < NOW() - INTERVAL '30 minutes'",
+            [school_id]
+        );
         const result = await pool.query('SELECT * FROM transport_vehicles WHERE school_id = $1 ORDER BY id DESC', [school_id]);
         res.json(result.rows);
     } catch (error) {
@@ -392,11 +397,26 @@ exports.updateLocation = async (req, res) => {
         const { lat, lng, speed, speedUnit, heading, route_id, route_name, status, accuracy } = req.body;
         const school_id = req.user.schoolId;
 
-        // Reject only truly terrible accuracy (>100m = deep indoor / tunnel)
-        // 40–100m is common when bus just starts moving — we accept it
-        if (accuracy !== undefined && !isNaN(accuracy) && parseFloat(accuracy) > 100) {
-            console.warn(`⚠️ GPS update rejected — poor accuracy: ${accuracy}m`);
-            return res.json({ ok: false, reason: 'low_accuracy', accuracy });
+        // 🛑 Handle manual Stop Trip from driver — instantly mark Idle & broadcast to remove bus icon
+        if (status === 'Idle') {
+            const idleResult = await pool.query(
+                `UPDATE transport_vehicles 
+                 SET status = 'Idle', 
+                     speed = 0, 
+                     last_updated = NOW()
+                 WHERE id = $1 AND school_id = $2 RETURNING *`,
+                [id, school_id]
+            );
+
+            if (idleResult.rows.length === 0) {
+                return res.status(404).json({ message: 'Vehicle not found' });
+            }
+
+            const vehicle = idleResult.rows[0];
+            vehicle._source = 'mobile';
+            broadcastLocation(school_id, vehicle);
+
+            return res.json({ ok: true, status: 'Idle', message: 'Trip ended. Vehicle status set to Idle.' });
         }
 
         // Validate coordinates
@@ -430,7 +450,7 @@ exports.updateLocation = async (req, res) => {
         const headingVal = heading !== undefined && !isNaN(heading) ? parseFloat(heading) : 0;
         const vehicleStatus = status || 'Active';
 
-        // 🚀 STEP 1: Save raw GPS & broadcast IMMEDIATELY (zero delay for live tracking)
+        // 🚀 Save EXACT driver GPS & broadcast IMMEDIATELY
         const result = await pool.query(
             `UPDATE transport_vehicles 
              SET current_lat = $1, 
@@ -452,28 +472,11 @@ exports.updateLocation = async (req, res) => {
         const vehicle = result.rows[0];
         vehicle._source = 'mobile';
 
-        // 🚀 Broadcast raw position IMMEDIATELY — no waiting for road snapping
+        // Broadcast exact position to all connected dashboards
         broadcastLocation(school_id, vehicle);
 
-        // Respond to driver app immediately (don't block on road snapping)
-        res.json({ ok: true, speed: speedKmh, snapped: false, vehicle_number: vehicle.vehicle_number, route_name: vehicle.current_route_name });
-
-        // 🗺️ STEP 2: Road snap in BACKGROUND — re-broadcast with snapped coords if improved
-        // This does NOT block the driver app or the live map initial update
-        snapToRoad(parsedLat, parsedLng).then(async (snapped) => {
-            if (snapped.snapped && (snapped.lat !== parsedLat || snapped.lng !== parsedLng)) {
-                try {
-                    await pool.query(
-                        `UPDATE transport_vehicles SET current_lat = $1, current_lng = $2 WHERE id = $3`,
-                        [snapped.lat, snapped.lng, id]
-                    );
-                    // Re-broadcast with road-snapped position
-                    broadcastLocation(school_id, { ...vehicle, current_lat: snapped.lat, current_lng: snapped.lng });
-                } catch (e) {
-                    // Ignore — raw coords already broadcast, no harm done
-                }
-            }
-        }).catch(() => {}); // Never let road snapping crash anything
+        // Respond to driver app immediately
+        res.json({ ok: true, speed: speedKmh, vehicle_number: vehicle.vehicle_number, route_name: vehicle.current_route_name });
 
     } catch (error) {
         console.error('Error updating vehicle location:', error);

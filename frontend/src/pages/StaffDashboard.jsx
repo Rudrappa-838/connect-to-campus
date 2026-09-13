@@ -84,6 +84,7 @@ const StaffDashboard = () => {
     const [location, setLocation] = useState(null);
     const watchIdRef = useRef(null);
     const prevGpsRef = useRef(null); // { lat, lng, timestamp } of last SENT update
+    const [showLocationDisclosure, setShowLocationDisclosure] = useState(false);
 
     const isDriver = user?.role === 'DRIVER' ||
         staffProfile?.role?.toLowerCase().includes('driver') ||
@@ -106,7 +107,6 @@ const StaffDashboard = () => {
         };
 
         const fetchProfile = async () => {
-            setProfileLoading(true);
             try {
                 const res = await api.get('/staff/profile');
                 setStaffProfile(res.data);
@@ -119,11 +119,7 @@ const StaffDashboard = () => {
 
         fetchSchoolInfo();
         fetchProfile();
-
-        return () => {
-            if (isDriver) stopTracking();
-        };
-    }, [activeTab, user?.role]); // Use user role as dependency
+    }, [user?.id, user?.role]);
 
     // Update vehicles when profile loads and identifies as driver
     useEffect(() => {
@@ -142,14 +138,29 @@ const StaffDashboard = () => {
         }
     };
 
+    // Show the Google Play-required prominent disclosure before requesting background location
     const startTracking = async () => {
         if (!selectedVehicle) return toast.error('Please select a vehicle first');
+        if (isMobileApp) {
+            // Must show prominent disclosure BEFORE requesting background location permission
+            setShowLocationDisclosure(true);
+            return;
+        }
+        await beginTrackingAfterDisclosure();
+    };
 
+    // Called after user accepts the prominent disclosure dialog
+    const handleDisclosureAccept = async () => {
+        setShowLocationDisclosure(false);
+        await beginTrackingAfterDisclosure();
+    };
+
+    const beginTrackingAfterDisclosure = async () => {
         try {
             if (isMobileApp) {
                 const perm = await Geolocation.checkPermissions();
                 if (perm.location !== 'granted') {
-                    const req = await Geolocation.requestPermissions();
+                    const req = await Geolocation.requestPermissions({ permissions: ['location', 'coarseLocation'] });
                     if (req.location !== 'granted') {
                         return toast.error('Location permission denied. Please enable it in phone settings.');
                     }
@@ -419,13 +430,13 @@ const StaffDashboard = () => {
                         </>
                     )}
 
-                    {(profileLoading || staffProfile?.can_enroll_face || staffProfile?.can_take_face_attendance) && (
+                    {Boolean(staffProfile?.can_enroll_face || staffProfile?.can_take_face_attendance) && (
                         <div className="mt-6">
                             <p className="px-4 text-xs font-bold text-blue-200 uppercase tracking-wider mb-2">Biometrics</p>
-                            {(profileLoading || staffProfile?.can_enroll_face) && (
+                            {Boolean(staffProfile?.can_enroll_face) && (
                                 <NavButton active={activeTab === 'face-enroll'} onClick={() => handleTabChange('face-enroll')} icon={Users} label="Face Enrollment" />
                             )}
-                            {(profileLoading || staffProfile?.can_take_face_attendance) && (
+                            {Boolean(staffProfile?.can_take_face_attendance) && (
                                 <NavButton active={activeTab === 'face-scanner'} onClick={() => handleTabChange('face-scanner')} icon={CheckSquare} label="Face Scanner" />
                             )}
                         </div>
@@ -544,9 +555,11 @@ const StaffDashboard = () => {
                         {activeTab === 'face-enroll' && <FaceEnrollment config={{ classes: [] }} preferredFacingMode="environment" />}
                         {activeTab === 'face-scanner' && <FaceAttendanceScanner config={{ classes: [] }} preferredFacingMode="user" />}
 
-                        {/* Driver Trip Tracker - Let's Drive */}
-                        {activeTab === 'transport' && isDriver && (
-                            <DriverTracking />
+                        {/* Driver Trip Tracker - Let's Drive (kept mounted so tab switching never destroys ongoing GPS trip) */}
+                        {isDriver && (
+                            <div style={{ display: activeTab === 'transport' ? 'block' : 'none' }}>
+                                <DriverTracking />
+                            </div>
                         )}
                         {activeTab === 'fleet-map' && <AdminLiveMap />}
 
@@ -597,6 +610,89 @@ const StaffDashboard = () => {
                 onClose={() => setShowLogoutModal(false)}
                 onConfirm={handleConfirmLogout}
             />
+
+            {/* ── Google Play Prominent Disclosure Modal (required before ACCESS_BACKGROUND_LOCATION) ── */}
+            {showLocationDisclosure && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
+                >
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
+                        style={{ fontFamily: 'sans-serif' }}
+                    >
+                        {/* Header */}
+                        <div style={{ background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', padding: '20px 24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{
+                                    background: 'rgba(255,255,255,0.25)', borderRadius: '12px',
+                                    width: 44, height: 44, display: 'flex', alignItems: 'center',
+                                    justifyContent: 'center', flexShrink: 0
+                                }}>
+                                    <MapPin size={22} color="#fff" />
+                                </div>
+                                <div>
+                                    <h2 style={{ color: '#fff', fontWeight: 700, fontSize: 17, margin: 0 }}>
+                                        Location Access Required
+                                    </h2>
+                                    <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, margin: '2px 0 0' }}>
+                                        Connect to Campus — Driver Mode
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div style={{ padding: '20px 24px', fontSize: 14, color: '#374151', lineHeight: '1.6' }}>
+                            <p style={{ fontWeight: 600, marginBottom: 12, color: '#111827' }}>
+                                This app collects location data in the <strong>background</strong> to:
+                            </p>
+                            <ul style={{ margin: 0, paddingLeft: 20, color: '#374151' }}>
+                                <li style={{ marginBottom: 8 }}>
+                                    📍 Continuously broadcast your bus's <strong>live GPS position</strong> to parents and school admins while you are on a trip
+                                </li>
+                                <li style={{ marginBottom: 8 }}>
+                                    🚌 Ensure accurate vehicle tracking even when the app is in the background or screen is off
+                                </li>
+                                <li style={{ marginBottom: 8 }}>
+                                    🔒 Data is only shared with authorized school administrators and parents of enrolled students
+                                </li>
+                            </ul>
+                            <div style={{
+                                marginTop: 16, padding: '10px 14px',
+                                background: '#eff6ff', borderRadius: 10,
+                                border: '1px solid #bfdbfe', fontSize: 12, color: '#1e40af'
+                            }}>
+                                ℹ️ Location is <strong>only active while tracking is ON</strong>. You can stop tracking at any time using the Stop button.
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ padding: '0 24px 24px', display: 'flex', gap: 10 }}>
+                            <button
+                                onClick={() => setShowLocationDisclosure(false)}
+                                style={{
+                                    flex: 1, padding: '12px 0', borderRadius: 10, border: '1.5px solid #d1d5db',
+                                    background: '#fff', color: '#374151', fontWeight: 600, fontSize: 14,
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDisclosureAccept}
+                                style={{
+                                    flex: 2, padding: '12px 0', borderRadius: 10, border: 'none',
+                                    background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+                                    color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer'
+                                }}
+                            >
+                                Allow &amp; Start Tracking
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

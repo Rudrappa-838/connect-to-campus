@@ -25,30 +25,30 @@ const createLiveBusIcon = (vehicle) => {
     const isMoving = speed > 2;
 
     const html = `
-        <div style="position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; pointer-events: none;">
+        <div style="width: 140px; display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
             <!-- Compact Floating Badge attached on Top of Bus Icon -->
-            <div style="background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(6px); color: white; padding: 3px 7px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.2); white-space: nowrap; text-align: center; margin-bottom: 3px; min-width: 90px; max-width: 150px; pointer-events: auto;">
+            <div style="background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(6px); color: white; padding: 3px 8px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.25); white-space: nowrap; text-align: center; margin-bottom: 3px; max-width: 140px;">
                 <div style="display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 800; font-size: 11px; color: #facc15;">
                     <span>🚌 ${vehicleNumber}</span>
                     <span style="background: ${speed > 60 ? '#ef4444' : isMoving ? '#10b981' : '#64748b'}; color: white; font-size: 8px; font-weight: 800; padding: 0.5px 4px; border-radius: 4px;">
                         ${isMoving ? `${Math.round(speed)}k` : 'Stop'}
                     </span>
                 </div>
-                ${routeName ? `<div style="font-size: 9px; font-weight: 600; color: #93c5fd; margin-top: 1px; max-width: 140px; overflow: hidden; text-overflow: ellipsis;">📍 ${routeName}</div>` : ''}
+                ${routeName ? `<div style="font-size: 9px; font-weight: 600; color: #93c5fd; margin-top: 1px; max-width: 130px; overflow: hidden; text-overflow: ellipsis;">📍 ${routeName}</div>` : ''}
                 ${driverName ? `<div style="font-size: 8.5px; color: #cbd5e1; margin-top: 0.5px;">👤 ${driverName}</div>` : ''}
             </div>
 
             <!-- Small Bus Icon with Radar Pulse -->
-            <div style="position: relative; width: 32px; height: 32px;">
-                <div style="background: #fbbf24; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid #0f172a; box-shadow: 0 3px 10px rgba(0,0,0,0.35); transform: rotate(${heading}deg); transition: transform 0.3s ease;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <div style="position: relative; width: 34px; height: 34px;">
+                <div style="background: #fbbf24; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid #0f172a; box-shadow: 0 4px 12px rgba(0,0,0,0.4); transform: rotate(${heading}deg); transition: transform 0.3s ease;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M8 6v6"></path><path d="M15 6v6"></path><path d="M2 12h19.6"></path>
                         <path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"></path>
                         <circle cx="7" cy="18" r="2"></circle><path d="M9 18h5"></path><circle cx="17" cy="18" r="2"></circle>
                     </svg>
                 </div>
                 <!-- Radar Ping Dot -->
-                <div style="position: absolute; bottom: -1px; right: -1px; width: 9px; height: 9px; background: #10b981; border-radius: 50%; border: 1.5px solid white; animation: ping 1s infinite;"></div>
+                <div style="position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; background: #10b981; border-radius: 50%; border: 1.5px solid white; animation: ping 1s infinite;"></div>
             </div>
         </div>
     `;
@@ -56,8 +56,8 @@ const createLiveBusIcon = (vehicle) => {
     return L.divIcon({
         className: 'custom-live-bus-icon-wrapper',
         html: html,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0],
+        iconSize: [140, 75],
+        iconAnchor: [70, 75],
     });
 };
 
@@ -137,10 +137,6 @@ const LiveMap = ({ vehicles = [] }) => {
                         const { latitude, longitude } = pos.coords;
                         setUserLocation([latitude, longitude]);
                         setGpsPermissionDenied(false);
-                        if (!hasCenteredUser.current) {
-                            hasCenteredUser.current = true;
-                            setFlyTarget({ lat: latitude, lng: longitude });
-                        }
                     },
                     (err) => {
                         console.warn("GPS error:", err.message);
@@ -184,6 +180,7 @@ const LiveMap = ({ vehicles = [] }) => {
         socket.on('disconnect', () => setConnected(false));
 
         socket.on('vehicle:location', (data) => {
+            const now = new Date();
             setLiveVehicles(prev => {
                 const exists = prev.some(v => v.id === data.vehicleId);
                 if (exists) {
@@ -196,7 +193,8 @@ const LiveMap = ({ vehicles = [] }) => {
                         current_route_name: data.routeName || v.current_route_name,
                         current_route_id: data.routeId || v.current_route_id,
                         status: data.status,
-                        last_updated: data.lastUpdated
+                        last_updated: data.lastUpdated,
+                        _lastWS: now,
                     } : v);
                 } else {
                     return [...prev, {
@@ -211,7 +209,8 @@ const LiveMap = ({ vehicles = [] }) => {
                         current_route_name: data.routeName,
                         current_route_id: data.routeId,
                         status: data.status,
-                        last_updated: data.lastUpdated
+                        last_updated: data.lastUpdated,
+                        _lastWS: now,
                     }];
                 }
             });
@@ -223,43 +222,40 @@ const LiveMap = ({ vehicles = [] }) => {
     const activeVehicles = liveVehicles.filter(v => {
         const lat = parseFloat(v.current_lat);
         const lng = parseFloat(v.current_lng);
-        return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+        if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return false;
+        if (v.status !== 'Active') return false;
+
+        // If received via live WebSocket in this session, it is actively driving right now
+        if (v._lastWS) return true;
+
+        // If loaded from initial API fetch, only show if updated within the last 3 minutes
+        if (v.last_updated) {
+            const diffMs = Date.now() - new Date(v.last_updated).getTime();
+            return diffMs >= 0 && diffMs < 3 * 60 * 1000;
+        }
+
+        return false;
     });
 
-    // Prioritize user's actual current location as initial center
-    const mapCenter = userLocation
-        ? userLocation
-        : (activeVehicles.length > 0 ? [parseFloat(activeVehicles[0].current_lat), parseFloat(activeVehicles[0].current_lng)] : [20.5937, 78.9629]);
+    // Auto-center directly on active bus
+    const hasAutoCentered = useRef(false);
+    useEffect(() => {
+        if (!hasAutoCentered.current && activeVehicles.length > 0) {
+            const first = activeVehicles[0];
+            hasAutoCentered.current = true;
+            setFlyTarget({ lat: parseFloat(first.current_lat), lng: parseFloat(first.current_lng) });
+        }
+    }, [activeVehicles]);
+
+    // Prioritize active bus as map center
+    const mapCenter = (activeVehicles.length > 0 && activeVehicles[0]?.current_lat && activeVehicles[0]?.current_lng)
+        ? [parseFloat(activeVehicles[0].current_lat), parseFloat(activeVehicles[0].current_lng)]
+        : (userLocation ? userLocation : [20.5937, 78.9629]);
 
     const [mapType, setMapType] = useState('streets'); // 'streets' | 'hybrid' | 'osm'
 
     return (
         <div className="w-full h-full relative rounded-2xl overflow-hidden shadow-xl border border-slate-200">
-            {/* Map Style Selector */}
-            <div className="absolute top-4 right-4 z-[400] bg-white/95 backdrop-blur-md p-1 rounded-xl shadow-xl border border-slate-200/80 flex gap-1 text-xs font-bold">
-                <button
-                    onClick={() => setMapType('streets')}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${mapType === 'streets' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
-                    title="Detailed streets, shops, buildings, and landmarks"
-                >
-                    🏬 Detailed Places
-                </button>
-                <button
-                    onClick={() => setMapType('hybrid')}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${mapType === 'hybrid' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
-                    title="Satellite view with place labels"
-                >
-                    🛰️ Satellite + Labels
-                </button>
-                <button
-                    onClick={() => setMapType('osm')}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${mapType === 'osm' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
-                    title="Standard map"
-                >
-                    🌐 Standard
-                </button>
-            </div>
-
             <MapContainer
                 center={mapCenter}
                 zoom={15}
@@ -317,6 +313,31 @@ const LiveMap = ({ vehicles = [] }) => {
                 ))}
             </MapContainer>
 
+            {/* Map Style Selector - Layered above Leaflet tiles and panes */}
+            <div className="absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl border border-slate-200/80 flex gap-1 text-xs font-bold pointer-events-auto">
+                <button
+                    onClick={() => setMapType('streets')}
+                    className={`px-3 py-1.5 rounded-xl transition-all ${mapType === 'streets' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                    title="Detailed streets, shops, buildings, and landmarks"
+                >
+                    🏬 Detailed Places
+                </button>
+                <button
+                    onClick={() => setMapType('hybrid')}
+                    className={`px-3 py-1.5 rounded-xl transition-all ${mapType === 'hybrid' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                    title="Satellite view with place labels"
+                >
+                    🛰️ Satellite + Labels
+                </button>
+                <button
+                    onClick={() => setMapType('osm')}
+                    className={`px-3 py-1.5 rounded-xl transition-all ${mapType === 'osm' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                    title="Standard map"
+                >
+                    🌐 Standard
+                </button>
+            </div>
+
             {/* My Location Floating Action Button */}
             <button
                 onClick={() => {
@@ -325,7 +346,7 @@ const LiveMap = ({ vehicles = [] }) => {
                         setFlyTarget({ lat: userLocation[0], lng: userLocation[1] });
                     }
                 }}
-                className="absolute bottom-6 right-4 z-[400] bg-white text-slate-800 hover:bg-slate-50 p-2.5 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                className="absolute bottom-6 right-4 z-[1000] bg-white text-slate-800 hover:bg-slate-50 p-2.5 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer pointer-events-auto"
                 title="Center on My Location"
             >
                 <MapPin size={14} className="text-blue-600" />
@@ -333,7 +354,7 @@ const LiveMap = ({ vehicles = [] }) => {
             </button>
 
             {/* Live Indicator Overlay */}
-            <div className="absolute top-4 left-4 z-[400] flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl text-white text-xs shadow-lg border border-slate-700/60">
+            <div className="absolute top-4 left-4 z-[1000] flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl text-white text-xs shadow-lg border border-slate-700/60 pointer-events-auto">
                 <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`}></span>
                 <span className="font-black tracking-wide">
                     {connected ? `LIVE TRACKING (${activeVehicles.length} BUSES)` : 'CONNECTING GPS...'}

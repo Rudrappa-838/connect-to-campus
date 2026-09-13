@@ -100,7 +100,12 @@ const DriverTracking = ({ onBack }) => {
         isTrackingRef.current = isTracking;
     }, [isTracking]);
 
-    // Detect platform & restore any ongoing trip
+    // Clean up any stale saved trip on initial load so it NEVER auto-starts
+    useEffect(() => {
+        localStorage.removeItem('active_driver_trip');
+    }, []);
+
+    // Detect platform & fetch initial vehicles/routes
     useEffect(() => {
         const checkMobile = () => {
             if (Capacitor.isNativePlatform()) {
@@ -114,23 +119,6 @@ const DriverTracking = ({ onBack }) => {
         };
         checkMobile();
         fetchInitialData();
-
-        // Restore active trip from storage if driver refreshed or switched apps
-        try {
-            const savedTrip = localStorage.getItem('active_driver_trip');
-            if (savedTrip) {
-                const parsed = JSON.parse(savedTrip);
-                if (parsed?.selectedVehicle && parsed?.isTracking) {
-                    setSelectedVehicle(parsed.selectedVehicle);
-                    setSelectedRoute(parsed.selectedRoute || '');
-                    setTripSeconds(parsed.tripSeconds || 0);
-                    // Automatically restart tracking
-                    setTimeout(() => {
-                        startTrackingWithParams(parsed.selectedVehicle, parsed.selectedRoute || '');
-                    }, 500);
-                }
-            }
-        } catch (e) {}
 
         // Network status listeners
         const handleOnline = () => {
@@ -191,31 +179,19 @@ const DriverTracking = ({ onBack }) => {
         };
     }, [selectedVehicle, selectedRoute]);
 
-    // ─── Trip timer & persistence ─────────────────────────────────────────────
+    // ─── Trip timer ─────────────────────────────────────────────
     useEffect(() => {
         if (isTracking) {
             tripTimerRef.current = setInterval(() => {
-                setTripSeconds(prev => {
-                    const next = prev + 1;
-                    try {
-                        localStorage.setItem('active_driver_trip', JSON.stringify({
-                            selectedVehicle,
-                            selectedRoute,
-                            isTracking: true,
-                            tripSeconds: next
-                        }));
-                    } catch (e) {}
-                    return next;
-                });
+                setTripSeconds(prev => prev + 1);
             }, 1000);
         } else {
             if (tripTimerRef.current) clearInterval(tripTimerRef.current);
-            localStorage.removeItem('active_driver_trip');
         }
         return () => {
             if (tripTimerRef.current) clearInterval(tripTimerRef.current);
         };
-    }, [isTracking, selectedVehicle, selectedRoute]);
+    }, [isTracking]);
 
     // ─── Layer 2: Backup Heartbeat ─────────────────────────────────────────────
     // Every 5 seconds, if tracking is active and we have a last known GPS,
@@ -379,11 +355,10 @@ const DriverTracking = ({ onBack }) => {
                     if (latitude === 0 && longitude === 0) return;
                     if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
 
-                    // Relaxed accuracy threshold: 80m (was 40m)
-                    // During phone calls, GPS accuracy degrades to 50-70m — we still accept those.
-                    // Only reject if truly lost (>80m = deep indoor, underground, GPS completely off).
-                    if (accuracy && accuracy > GPS_REJECT_ACCURACY_M) {
-                        console.warn(`[GPS] Fix skipped — poor accuracy: ${Math.round(accuracy)}m (threshold: ${GPS_REJECT_ACCURACY_M}m)`);
+                    // Only reject in native mobile app if accuracy is completely lost (>200m)
+                    // In web browser, allow browser geolocation without strict mobile threshold
+                    if (isMobileApp && accuracy && accuracy > 200) {
+                        console.warn(`[GPS] Fix skipped — poor accuracy: ${Math.round(accuracy)}m`);
                         return;
                     }
 
@@ -431,21 +406,32 @@ const DriverTracking = ({ onBack }) => {
 
             toast.loading('Acquiring GPS...', { id: 'gps-start' });
 
-            // Initial immediate fix — get first position fast
+            // Initial immediate fix — get first position fast with fallback
             try {
-                const initPos = await Geolocation.getCurrentPosition({
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                });
+                let initPos = null;
+                try {
+                    initPos = await Geolocation.getCurrentPosition({
+                        enableHighAccuracy: true,
+                        timeout: 6000,
+                        maximumAge: 0
+                    });
+                } catch (highAccErr) {
+                    // Fallback to standard accuracy on web/laptops if high accuracy times out
+                    initPos = await Geolocation.getCurrentPosition({
+                        enableHighAccuracy: false,
+                        timeout: 8000,
+                        maximumAge: 10000
+                    });
+                }
+
                 if (initPos?.coords) {
-                    const { latitude, longitude, speed, heading } = initPos.coords;
+                    const { latitude, longitude, speed, heading, accuracy } = initPos.coords;
                     setLastPosition([latitude, longitude]);
                     setCurrentSpeed(speed ? Math.round(speed * 3.6) : 0);
                     setCurrentHeading(heading || 0);
                     setLastUpdated(new Date());
                     lastKnownGpsRef.current = { lat: latitude, lng: longitude, speed, heading };
-                    await sendLocationUpdate(latitude, longitude, speed, heading);
+                    await sendLocationUpdate(latitude, longitude, speed, heading, accuracy);
                 }
             } catch (initErr) {
                 console.warn('Initial fix warning (non-fatal):', initErr);
@@ -502,10 +488,15 @@ const DriverTracking = ({ onBack }) => {
                 await api.put(`/transport/vehicles/${selectedVehicle}/location`, {
                     status: 'Idle'
                 });
-            } catch (e) {}
+            } catch (e) {
+                console.error('Failed to set vehicle to Idle on server:', e);
+            }
         }
 
         setIsTracking(false);
+        setTripSeconds(0);
+        setLastPosition(null);
+        setCurrentSpeed(0);
         toast.success('Trip Ended. Status set to Idle.');
     };
 
@@ -713,7 +704,7 @@ const DriverTracking = ({ onBack }) => {
                                         <RecenterMap lat={lastPosition[0]} lng={lastPosition[1]} />
                                         <Marker position={lastPosition} icon={createDriverBusIcon(currentSpeed)} />
                                     </MapContainer>
-                                    <div className="absolute top-2 right-2 z-[400] bg-slate-900/80 px-2.5 py-1 rounded-full text-[10px] font-bold text-emerald-400 backdrop-blur-sm border border-slate-700 flex items-center gap-1">
+                                    <div className="absolute top-2 right-2 z-[1000] pointer-events-none bg-slate-900/80 px-2.5 py-1 rounded-full text-[10px] font-bold text-emerald-400 backdrop-blur-sm border border-slate-700 flex items-center gap-1">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
                                         Live GPS
                                     </div>

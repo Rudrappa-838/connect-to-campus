@@ -26,29 +26,29 @@ const createLiveBusIcon = (busState) => {
     const isLive = busState.status === 'Active';
 
     const html = `
-        <div style="position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; pointer-events: none;">
+        <div style="width: 140px; display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
             <!-- Compact Floating Badge attached on Top of Bus Icon -->
-            <div style="background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(6px); color: white; padding: 3px 7px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.2); white-space: nowrap; text-align: center; margin-bottom: 3px; min-width: 90px; max-width: 150px; pointer-events: auto;">
+            <div style="background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(6px); color: white; padding: 3px 8px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.25); white-space: nowrap; text-align: center; margin-bottom: 3px; max-width: 140px;">
                 <div style="display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 800; font-size: 11px; color: #facc15;">
                     <span>🚌 ${vehicleNumber}</span>
                     <span style="background: ${!isLive ? '#64748b' : speed > 60 ? '#ef4444' : isMoving ? '#10b981' : '#f59e0b'}; color: white; font-size: 8px; font-weight: 800; padding: 0.5px 4px; border-radius: 4px;">
                         ${!isLive ? 'Off' : isMoving ? `${Math.round(speed)}k` : 'Stop'}
                     </span>
                 </div>
-                ${routeName ? `<div style="font-size: 9px; font-weight: 600; color: #93c5fd; margin-top: 1px; max-width: 140px; overflow: hidden; text-overflow: ellipsis;">📍 ${routeName}</div>` : ''}
+                ${routeName ? `<div style="font-size: 9px; font-weight: 600; color: #93c5fd; margin-top: 1px; max-width: 130px; overflow: hidden; text-overflow: ellipsis;">📍 ${routeName}</div>` : ''}
                 ${driverName ? `<div style="font-size: 8.5px; color: #cbd5e1; margin-top: 0.5px;">👤 ${driverName}</div>` : ''}
             </div>
 
             <!-- Small Bus Icon with Radar Pulse -->
-            <div style="position: relative; width: 32px; height: 32px;">
-                <div style="background: #fbbf24; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid #0f172a; box-shadow: 0 3px 10px rgba(0,0,0,0.35); transform: rotate(${heading}deg); transition: transform 0.3s ease;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <div style="position: relative; width: 34px; height: 34px;">
+                <div style="background: #fbbf24; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid #0f172a; box-shadow: 0 4px 12px rgba(0,0,0,0.4); transform: rotate(${heading}deg); transition: transform 0.3s ease;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M8 6v6"></path><path d="M15 6v6"></path><path d="M2 12h19.6"></path>
                         <path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"></path>
                         <circle cx="7" cy="18" r="2"></circle><path d="M9 18h5"></path><circle cx="17" cy="18" r="2"></circle>
                     </svg>
                 </div>
-                ${isLive ? '<div style="position: absolute; bottom: -1px; right: -1px; width: 9px; height: 9px; background: #10b981; border-radius: 50%; border: 1.5px solid white; animation: ping 1s infinite;"></div>' : ''}
+                ${isLive ? '<div style="position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; background: #10b981; border-radius: 50%; border: 1.5px solid white; animation: ping 1s infinite;"></div>' : ''}
             </div>
         </div>
     `;
@@ -56,8 +56,8 @@ const createLiveBusIcon = (busState) => {
     return L.divIcon({
         className: 'custom-student-bus-icon-wrapper',
         html: html,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0],
+        iconSize: [140, 75],
+        iconAnchor: [70, 75],
     });
 };
 
@@ -151,14 +151,9 @@ const StudentTransport = () => {
                         const { latitude, longitude } = pos.coords;
                         setUserLocation([latitude, longitude]);
                         setGpsPermissionDenied(false);
-                        if (!hasCenteredUser.current) {
-                            hasCenteredUser.current = true;
-                            setFlyTarget({ lat: latitude, lng: longitude });
-                        }
                     },
                     (err) => {
                         console.warn("Student GPS prompt / error:", err.message);
-                        setGpsPermissionDenied(true);
                     },
                     { enableHighAccuracy: true, timeout: 8000 }
                 );
@@ -187,6 +182,7 @@ const StudentTransport = () => {
                         driverName: data.driver_name,
                         driverPhone: data.driver_phone,
                         routeName: data.current_route_name || data.route_name,
+                        lastUpdated: data.last_updated,
                     });
                 }
 
@@ -220,6 +216,7 @@ const StudentTransport = () => {
                                 driverName: firstV.driver_name,
                                 driverPhone: firstV.driver_phone,
                                 routeName: firstV.current_route_name,
+                                lastUpdated: firstV.last_updated,
                             });
                         }
                         connectSocket(firstV.school_id, firstV.id);
@@ -306,11 +303,28 @@ const StudentTransport = () => {
         </div>
     );
 
-    const isLive = busState && busState.status === 'Active';
-    // Prioritize user's actual current location
-    const mapCenter = userLocation
-        ? userLocation
-        : (busState?.lat && busState?.lng ? [busState.lat, busState.lng] : [20.5937, 78.9629]);
+    const isLive = Boolean(
+        busState &&
+        busState.lat &&
+        busState.lng &&
+        parseFloat(busState.lat) !== 0 &&
+        busState.status === 'Active' &&
+        (busState._lastWS || (busState.lastUpdated && (Date.now() - new Date(busState.lastUpdated).getTime() < 3 * 60 * 1000)))
+    );
+
+    // Auto-center on active bus
+    const hasAutoCentered = useRef(false);
+    useEffect(() => {
+        if (!hasAutoCentered.current && isLive && busState?.lat && busState?.lng) {
+            hasAutoCentered.current = true;
+            setFlyTarget({ lat: busState.lat, lng: busState.lng });
+        }
+    }, [isLive, busState?.lat, busState?.lng]);
+
+    // Prioritize active bus location as map center
+    const mapCenter = (isLive && busState?.lat && busState?.lng)
+        ? [busState.lat, busState.lng]
+        : (userLocation ? userLocation : [20.5937, 78.9629]);
     const speed = busState?.speed || 0;
 
     return (
@@ -344,24 +358,6 @@ const StudentTransport = () => {
 
                 {/* Live Map (No Polylines - Pure Bus Marker with Floating Badge and Detailed Locations) */}
                 <div className="h-96 w-full rounded-2xl overflow-hidden border border-slate-200 shadow-inner relative z-0">
-                    {/* Map Style Selector */}
-                    <div className="absolute top-3 right-3 z-[400] bg-white/95 backdrop-blur-md p-1 rounded-xl shadow-md border border-slate-200 flex gap-1 text-[11px] font-bold">
-                        <button
-                            onClick={() => setMapType('streets')}
-                            className={`px-2.5 py-1 rounded-lg transition-all ${mapType === 'streets' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
-                            title="Detailed streets, shops, buildings, and landmarks"
-                        >
-                            🏬 Places & Streets
-                        </button>
-                        <button
-                            onClick={() => setMapType('hybrid')}
-                            className={`px-2.5 py-1 rounded-lg transition-all ${mapType === 'hybrid' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
-                            title="Satellite view with place labels"
-                        >
-                            🛰️ Satellite
-                        </button>
-                    </div>
-
                     <MapContainer
                         center={mapCenter}
                         zoom={16}
@@ -408,15 +404,33 @@ const StudentTransport = () => {
                             </Marker>
                         )}
 
-                        {/* Smooth Moving Bus Marker */}
-                        {busState && busState.lat && busState.lng && (
+                        {/* Smooth Moving Bus Marker — only visible when driver has started the trip */}
+                        {isLive && busState && busState.lat && busState.lng && (
                             <SmoothBusMarker busState={busState} />
                         )}
                     </MapContainer>
 
+                    {/* Map Style Selector - Layered above Leaflet tiles and panes */}
+                    <div className="absolute top-3 right-3 z-[1000] bg-white/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-slate-200 flex gap-1 text-[11px] font-bold pointer-events-auto">
+                        <button
+                            onClick={() => setMapType('streets')}
+                            className={`px-2.5 py-1 rounded-xl transition-all ${mapType === 'streets' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                            title="Detailed streets, shops, buildings, and landmarks"
+                        >
+                            🏬 Places & Streets
+                        </button>
+                        <button
+                            onClick={() => setMapType('hybrid')}
+                            className={`px-2.5 py-1 rounded-xl transition-all ${mapType === 'hybrid' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                            title="Satellite view with place labels"
+                        >
+                            🛰️ Satellite
+                        </button>
+                    </div>
+
                     {/* Center on My Location Button & Focus Bus Button */}
-                    <div className="absolute bottom-4 right-4 z-[400] flex gap-2">
-                        {busState && busState.lat && busState.lng && (
+                    <div className="absolute bottom-4 right-4 z-[1000] flex gap-2 pointer-events-auto">
+                        {isLive && busState && busState.lat && busState.lng && (
                             <button
                                 onClick={() => setFlyTarget({ lat: busState.lat, lng: busState.lng })}
                                 className="bg-amber-500 hover:bg-amber-600 text-white p-2.5 rounded-xl shadow-lg text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
@@ -433,14 +447,26 @@ const StudentTransport = () => {
                                     setFlyTarget({ lat: userLocation[0], lng: userLocation[1] });
                                 }
                             }}
-                            className="bg-white text-slate-800 hover:bg-slate-50 p-2.5 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                            className="bg-white hover:bg-slate-50 text-slate-800 p-2.5 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
                             title="Center on My Location"
                         >
-                            <MapPin size={14} className="text-blue-600" />
+                            <Navigation size={14} className="text-blue-600" />
                             <span>My Location</span>
                         </button>
                     </div>
                 </div>
+
+                {/* Standby / Offline Notice when bus is not currently on trip */}
+                {!isLive && (
+                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl flex items-center gap-3 text-slate-600 text-xs font-semibold">
+                        <div className="p-2 bg-slate-200/80 rounded-xl text-slate-700">
+                            <Bus size={16} />
+                        </div>
+                        <div>
+                            <span className="font-bold text-slate-800">Bus is currently on standby / parked.</span> Live tracking and movement will appear here when the driver starts the trip.
+                        </div>
+                    </div>
+                )}
 
                 {/* GPS Required Alert if location is off */}
                 {gpsPermissionDenied && !userLocation && (
