@@ -5,10 +5,39 @@ import { MapPin, Navigation, Bus, Clock, ArrowLeft, RefreshCw, Gauge, Shield, Al
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
 import { Geolocation } from '@capacitor/geolocation';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BACKGROUND GPS STRATEGY
+// On Android, when the screen turns off or a call comes in, the Android OS can
+// throttle the JS/WebView thread. To keep GPS running we use 3 layers:
+//
+//  Layer 1 — Capacitor watchPosition (native API, runs via OS GPS service)
+//            This is our primary GPS source. It fires even in background.
+//            BUT its callback into JS may be throttled when screen is off.
+//
+//  Layer 2 — Backup heartbeat setInterval every 5 seconds
+//            Reads lastKnownGPS and sends it to server. If Layer 1 callbacks
+//            are being throttled, this still keeps the bus visible on the map.
+//
+//  Layer 3 — Persistent LocalNotification while driving
+//            Android sees an active notification → treats app as foreground →
+//            much less likely to kill the JS thread.
+//            This is the closest thing to a Foreground Service from JS.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GPS accuracy thresholds:
+//  > 80m  — reject (deep indoor, GPS completely lost)
+//  40-80m — accept (common during phone calls, building shadows)
+//  < 40m  — ideal (open sky)
+const GPS_REJECT_ACCURACY_M = 80;
+
+// Persistent notification ID for the "Driving Active" notification
+const DRIVING_NOTIF_ID = 88001;
 
 // Custom Bus Icon for Driver's Mini Map (Compact Size)
 const createDriverBusIcon = (speed = 0) => {
@@ -60,11 +89,13 @@ const DriverTracking = ({ onBack }) => {
     const wakeLockRef = useRef(null);
     const watchIdRef = useRef(null);
     const tripTimerRef = useRef(null);
+    const heartbeatRef = useRef(null);      // Layer 2: backup heartbeat interval
     const lastSendTimeRef = useRef(0);
     const isTrackingRef = useRef(false);
     const pendingUpdateRef = useRef(null);
+    const lastKnownGpsRef = useRef(null);   // Stores last valid GPS fix for heartbeat fallback
 
-    // Keep ref in sync
+    // Keep ref in sync with state
     useEffect(() => {
         isTrackingRef.current = isTracking;
     }, [isTracking]);
@@ -104,6 +135,7 @@ const DriverTracking = ({ onBack }) => {
         // Network status listeners
         const handleOnline = () => {
             setNetworkOnline(true);
+            // When network comes back (after call ends), flush the pending update
             if (pendingUpdateRef.current && isTrackingRef.current) {
                 const p = pendingUpdateRef.current;
                 sendLocationUpdate(p.lat, p.lng, p.speed, p.heading);
@@ -120,16 +152,23 @@ const DriverTracking = ({ onBack }) => {
         };
     }, []);
 
-    // Phone Call & Background Resilience Listener
+    // ─── Phone Call & Background Resilience (Layer 1 restoration) ────────────
     useEffect(() => {
         let appListener = null;
         const setupAppListener = async () => {
             if (Capacitor.isNativePlatform()) {
+                // When app resumes from a phone call or switching apps,
+                // re-request wake lock and ensure watchPosition is alive.
                 appListener = await App.addListener('appStateChange', async ({ isActive }) => {
                     if (isActive && isTrackingRef.current) {
-                        // Resumed from a phone call or other app
+                        console.log('[GPS] App resumed — re-acquiring wake lock & restarting GPS if needed');
                         requestWakeLock();
                         restartGpsWatchIfNeeded();
+                        // Flush any pending location that was queued during the call
+                        if (pendingUpdateRef.current) {
+                            const p = pendingUpdateRef.current;
+                            sendLocationUpdate(p.lat, p.lng, p.speed, p.heading);
+                        }
                     }
                 });
             }
@@ -152,13 +191,12 @@ const DriverTracking = ({ onBack }) => {
         };
     }, [selectedVehicle, selectedRoute]);
 
-    // Trip duration timer & persistence
+    // ─── Trip timer & persistence ─────────────────────────────────────────────
     useEffect(() => {
         if (isTracking) {
             tripTimerRef.current = setInterval(() => {
                 setTripSeconds(prev => {
                     const next = prev + 1;
-                    // Persist state
                     try {
                         localStorage.setItem('active_driver_trip', JSON.stringify({
                             selectedVehicle,
@@ -178,6 +216,62 @@ const DriverTracking = ({ onBack }) => {
             if (tripTimerRef.current) clearInterval(tripTimerRef.current);
         };
     }, [isTracking, selectedVehicle, selectedRoute]);
+
+    // ─── Layer 2: Backup Heartbeat ─────────────────────────────────────────────
+    // Every 5 seconds, if tracking is active and we have a last known GPS,
+    // send it to the server. This covers the case where watchPosition callbacks
+    // are throttled by Android when the screen is off or during a call.
+    const startHeartbeat = () => {
+        if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+        heartbeatRef.current = setInterval(() => {
+            if (!isTrackingRef.current) return;
+            const gps = lastKnownGpsRef.current;
+            if (!gps) return;
+            // Only send heartbeat if primary watchPosition hasn't sent in >4 seconds
+            // This avoids double-sending when watchPosition is working normally
+            const timeSinceLastSend = Date.now() - lastSendTimeRef.current;
+            if (timeSinceLastSend >= 4500) {
+                console.log('[GPS Heartbeat] watchPosition seems quiet — sending last known position');
+                sendLocationUpdate(gps.lat, gps.lng, gps.speed, gps.heading);
+            }
+        }, 5000);
+    };
+
+    const stopHeartbeat = () => {
+        if (heartbeatRef.current) {
+            clearInterval(heartbeatRef.current);
+            heartbeatRef.current = null;
+        }
+    };
+
+    // ─── Layer 3: Persistent Notification ─────────────────────────────────────
+    // Posting a visible notification while driving tells Android "this is important,
+    // keep the app process alive." This is the JS-side equivalent of a foreground service.
+    const postDrivingNotification = async () => {
+        if (!Capacitor.isNativePlatform()) return;
+        try {
+            await LocalNotifications.schedule({
+                notifications: [{
+                    id: DRIVING_NOTIF_ID,
+                    title: '🚌 Connect to Campus — GPS Active',
+                    body: 'Live bus tracking is running. Do not force-close the app.',
+                    channelId: 'school_notifications',
+                    ongoing: true,          // Persistent — stays until we cancel it
+                    autoCancel: false,      // User cannot dismiss it while driving
+                    schedule: { at: new Date(Date.now() + 200) },
+                }]
+            });
+        } catch (e) {
+            console.warn('[GPS] Could not post driving notification:', e);
+        }
+    };
+
+    const cancelDrivingNotification = async () => {
+        if (!Capacitor.isNativePlatform()) return;
+        try {
+            await LocalNotifications.cancel({ notifications: [{ id: DRIVING_NOTIF_ID }] });
+        } catch (e) {}
+    };
 
     const fetchInitialData = async () => {
         try {
@@ -199,6 +293,7 @@ const DriverTracking = ({ onBack }) => {
         }
     };
 
+    // Web API wake lock — only works in browser, but harmless on native (just ignored)
     const requestWakeLock = async () => {
         try {
             if ('wakeLock' in navigator) {
@@ -219,7 +314,7 @@ const DriverTracking = ({ onBack }) => {
         }
     };
 
-    // Send location to server with call & network resilience
+    // ─── Send location to server ───────────────────────────────────────────────
     const sendLocationUpdate = async (latitude, longitude, speed, heading, accuracy) => {
         if (!selectedVehicle) return;
 
@@ -231,7 +326,7 @@ const DriverTracking = ({ onBack }) => {
                 lng: longitude,
                 speed: speed || 0,         // m/s — backend converts to km/h
                 heading: heading || 0,
-                accuracy: accuracy || null, // meters — backend rejects if > 50
+                accuracy: accuracy || null,
                 route_id: activeRouteObj ? activeRouteObj.id : null,
                 route_name: activeRouteObj ? activeRouteObj.route_name : null,
                 status: 'Active'
@@ -239,14 +334,15 @@ const DriverTracking = ({ onBack }) => {
             setUpdateCount(prev => prev + 1);
             pendingUpdateRef.current = null;
         } catch (err) {
-            // Queue last known position to sync automatically when call ends or data returns
+            // Queue last known position to sync automatically when network recovers
             pendingUpdateRef.current = { lat: latitude, lng: longitude, speed, heading };
         }
     };
 
     const restartGpsWatchIfNeeded = async () => {
         if (!watchIdRef.current && isTrackingRef.current) {
-            startTracking();
+            console.log('[GPS] watchPosition was dead — restarting...');
+            startWatchPosition();
         }
     };
 
@@ -256,6 +352,63 @@ const DriverTracking = ({ onBack }) => {
         startTracking();
     };
 
+    // ─── Start the native GPS watchPosition ────────────────────────────────────
+    const startWatchPosition = async () => {
+        // Clear any stale watch first
+        if (watchIdRef.current !== null) {
+            try { await Geolocation.clearWatch({ id: watchIdRef.current }); } catch (e) {}
+            watchIdRef.current = null;
+        }
+
+        const id = await Geolocation.watchPosition(
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0  // Always get fresh position, never use cached
+            },
+            async (position, err) => {
+                if (err) {
+                    console.error('GPS Watch error (retrying automatically):', err);
+                    return; // watchPosition retries automatically
+                }
+
+                if (position?.coords) {
+                    const { latitude, longitude, speed, heading, accuracy } = position.coords;
+
+                    // Reject obviously invalid coordinates
+                    if (latitude === 0 && longitude === 0) return;
+                    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
+
+                    // Relaxed accuracy threshold: 80m (was 40m)
+                    // During phone calls, GPS accuracy degrades to 50-70m — we still accept those.
+                    // Only reject if truly lost (>80m = deep indoor, underground, GPS completely off).
+                    if (accuracy && accuracy > GPS_REJECT_ACCURACY_M) {
+                        console.warn(`[GPS] Fix skipped — poor accuracy: ${Math.round(accuracy)}m (threshold: ${GPS_REJECT_ACCURACY_M}m)`);
+                        return;
+                    }
+
+                    // Always update last known GPS for heartbeat fallback
+                    lastKnownGpsRef.current = { lat: latitude, lng: longitude, speed, heading };
+
+                    const now = Date.now();
+                    // Send update at most every 1 second (debounce rapid GPS events)
+                    if (now - lastSendTimeRef.current >= 1000) {
+                        lastSendTimeRef.current = now;
+                        setLastPosition([latitude, longitude]);
+                        setCurrentSpeed(speed ? Math.round(speed * 3.6) : 0);
+                        setCurrentHeading(heading || 0);
+                        setLastUpdated(new Date());
+                        await sendLocationUpdate(latitude, longitude, speed, heading, accuracy);
+                    }
+                }
+            }
+        );
+
+        watchIdRef.current = id;
+        console.log('[GPS] watchPosition started, id:', id);
+    };
+
+    // ─── Main start tracking ───────────────────────────────────────────────────
     const startTracking = async () => {
         if (!selectedVehicle) return toast.error('Please select your Bus Number first');
 
@@ -276,16 +429,9 @@ const DriverTracking = ({ onBack }) => {
                 }
             }
 
-            if (watchIdRef.current !== null) {
-                try {
-                    await Geolocation.clearWatch({ id: watchIdRef.current });
-                } catch (e) {}
-                watchIdRef.current = null;
-            }
+            toast.loading('Acquiring GPS...', { id: 'gps-start' });
 
-            toast.loading("Acquiring GPS...", { id: "gps-start" });
-
-            // Initial immediate fix
+            // Initial immediate fix — get first position fast
             try {
                 const initPos = await Geolocation.getCurrentPosition({
                     enableHighAccuracy: true,
@@ -298,79 +444,59 @@ const DriverTracking = ({ onBack }) => {
                     setCurrentSpeed(speed ? Math.round(speed * 3.6) : 0);
                     setCurrentHeading(heading || 0);
                     setLastUpdated(new Date());
+                    lastKnownGpsRef.current = { lat: latitude, lng: longitude, speed, heading };
                     await sendLocationUpdate(latitude, longitude, speed, heading);
                 }
             } catch (initErr) {
-                console.warn("Initial fix warning:", initErr);
+                console.warn('Initial fix warning (non-fatal):', initErr);
             }
 
-            // Continuous high-accuracy background-resilient watch
-            const id = await Geolocation.watchPosition(
-                {
-                    enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 0
-                },
-                async (position, err) => {
-                    if (err) {
-                        console.error('GPS Watch error (retrying):', err);
-                        return;
-                    }
+            // Layer 1: Start native watchPosition
+            await startWatchPosition();
 
-                    if (position?.coords) {
-                        const { latitude, longitude, speed, heading, accuracy } = position.coords;
-
-                        if (latitude === 0 && longitude === 0) return;
-                        if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
-
-                        // Skip bad accuracy fixes (building shadows, tunnels, cold start)
-                        if (accuracy && accuracy > 40) {
-                            console.warn(`GPS fix skipped — accuracy: ${Math.round(accuracy)}m`);
-                            return;
-                        }
-
-                        const now = Date.now();
-                        // Send update every 1 second
-                        if (now - lastSendTimeRef.current >= 1000) {
-                            lastSendTimeRef.current = now;
-                            setLastPosition([latitude, longitude]);
-                            setCurrentSpeed(speed ? Math.round(speed * 3.6) : 0);
-                            setCurrentHeading(heading || 0);
-                            setLastUpdated(new Date());
-                            await sendLocationUpdate(latitude, longitude, speed, heading, accuracy);
-                        }
-                    }
-                }
-            );
-
-            watchIdRef.current = id;
             setIsTracking(true);
+
+            // Layer 2: Start backup heartbeat
+            startHeartbeat();
+
+            // Layer 3: Post persistent driving notification (keeps Android from killing JS)
+            await postDrivingNotification();
+
+            // Web wake lock (browser only, no-op on native)
             requestWakeLock();
-            toast.success("Let's Drive! GPS Live Tracking Active 🚀", { id: "gps-start" });
+
+            toast.success("Let's Drive! GPS Live Tracking Active 🚀", { id: 'gps-start' });
 
         } catch (err) {
             console.error('Failed to start tracking:', err);
-            toast.error('Could not start GPS. Please check location permissions.', { id: "gps-start" });
+            toast.error('Could not start GPS. Please check location permissions.', { id: 'gps-start' });
         }
     };
 
+    // ─── Stop tracking ─────────────────────────────────────────────────────────
     const stopTracking = async () => {
+        // Stop Layer 1: native watchPosition
         if (watchIdRef.current !== null) {
-            try {
-                await Geolocation.clearWatch({ id: watchIdRef.current });
-            } catch (err) {}
+            try { await Geolocation.clearWatch({ id: watchIdRef.current }); } catch (err) {}
             watchIdRef.current = null;
         }
 
+        // Stop Layer 2: backup heartbeat
+        stopHeartbeat();
+
+        // Stop Layer 3: cancel persistent notification
+        await cancelDrivingNotification();
+
+        // Release web wake lock
         if (wakeLockRef.current) {
-            try {
-                wakeLockRef.current.release();
-            } catch (e) {}
+            try { wakeLockRef.current.release(); } catch (e) {}
             wakeLockRef.current = null;
         }
 
+        lastKnownGpsRef.current = null;
         localStorage.removeItem('active_driver_trip');
 
+        // Mark vehicle as Idle on server
         if (selectedVehicle) {
             try {
                 await api.put(`/transport/vehicles/${selectedVehicle}/location`, {
@@ -380,7 +506,7 @@ const DriverTracking = ({ onBack }) => {
         }
 
         setIsTracking(false);
-        toast.success("Trip Ended. Status set to Idle.");
+        toast.success('Trip Ended. Status set to Idle.');
     };
 
     const formatTimer = (totalSeconds) => {
@@ -536,6 +662,19 @@ const DriverTracking = ({ onBack }) => {
                                     </div>
                                 </div>
                             )}
+
+                            {/* GPS status indicators */}
+                            <div className="flex items-center gap-2 text-[10px] font-bold flex-wrap">
+                                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${networkOnline ? 'bg-emerald-900/60 text-emerald-400' : 'bg-red-900/60 text-red-400'}`}>
+                                    <Wifi size={9} /> {networkOnline ? 'Connected' : 'Offline — queued'}
+                                </span>
+                                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-900/60 text-indigo-300">
+                                    <PhoneCall size={9} /> Call-Safe
+                                </span>
+                                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">
+                                    <Shield size={9} /> Screen-Lock Safe
+                                </span>
+                            </div>
 
                             {/* Speedometer & Stats */}
                             <div className="grid grid-cols-2 gap-3 text-center">

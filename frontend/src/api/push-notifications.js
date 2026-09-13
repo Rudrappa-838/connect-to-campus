@@ -7,6 +7,11 @@ export const registerPushNotifications = async (userId) => {
     if (!Capacitor.isNativePlatform()) return;
 
     try {
+        // 0. Remove ALL previous listeners first (critical for multi-user on same device)
+        //    Without this, every login stacks new listeners → duplicate notifications
+        //    for both old and new user simultaneously.
+        await PushNotifications.removeAllListeners();
+
         // 1. Request Permission
         let permStatus = await PushNotifications.checkPermissions();
         if (permStatus.receive === 'prompt') {
@@ -30,7 +35,6 @@ export const registerPushNotifications = async (userId) => {
         // 3. Create High Importance Channel for Android (Critical for tray visibility)
         if (Capacitor.getPlatform() === 'android') {
             // DO NOT delete channel on every launch. This causes Android system to detach background delivery from FCM if app is killed shortly after.
-
             await PushNotifications.createChannel({
                 id: 'school_notifications',
                 name: 'School Notifications',
@@ -42,12 +46,14 @@ export const registerPushNotifications = async (userId) => {
             });
         }
 
-        // 4. Token Registration Listener
+        // 4. Token Registration Listener — bound to current userId
+        //    This fires after PushNotifications.register() completes.
         PushNotifications.addListener('registration', async (token) => {
-            console.log('Push Registration Success, token:', token.value);
+            console.log('Push Registration Success, token:', token.value, 'for userId:', userId);
             try {
                 // Store token in localStorage for backup
                 localStorage.setItem('fcm_token', token.value);
+                // Always send with current userId so the token is tied to the right account
                 await api.post('/notifications/token', { token: token.value, userId });
             } catch (err) {
                 console.error('Failed to sync push token with backend:', err);
@@ -62,15 +68,15 @@ export const registerPushNotifications = async (userId) => {
         // 6. Push Notification Received Listener (Foreground)
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
             console.log('Push received in foreground:', notification);
-            
+
             // On Android, foreground push notifications are often not shown in the system tray automatically.
             // We force it using LocalNotifications.
             if (Capacitor.getPlatform() === 'android') {
                 LocalNotifications.schedule({
                     notifications: [
                         {
-                            title: notification.title || "New Message",
-                            body: notification.body || "View details in the app",
+                            title: notification.title || 'New Message',
+                            body: notification.body || 'View details in the app',
                             id: Date.now() % 2147483647,
                             schedule: { at: new Date(Date.now() + 100) },
                             extra: notification.data || {},

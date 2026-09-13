@@ -345,7 +345,14 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
     try {
-        await pool.query('UPDATE users SET current_session_token = NULL WHERE id = $1', [req.user.id]);
+        // Clear session token AND fcm_token so this device no longer receives
+        // notifications for the logged-out user. When the next user logs in on
+        // this same device, their registerPushNotifications() will register a
+        // fresh token under their own account.
+        await pool.query(
+            'UPDATE users SET current_session_token = NULL, fcm_token = NULL WHERE id = $1',
+            [req.user.id]
+        );
         res.json({ message: 'Logged out successfully' });
     } catch (error) {
         console.error('Logout error:', error);

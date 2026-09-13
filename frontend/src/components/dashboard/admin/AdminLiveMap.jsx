@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -86,28 +86,100 @@ const MapFlyTo = ({ target }) => {
     return null;
 };
 
-/**
- * SmoothBusMarker — animates each bus marker smoothly to its new GPS position in Admin Live Map.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// OLA-STYLE SMOOTH BUS MARKER
+// Animates each bus smoothly from its old GPS position to the new one using
+// requestAnimationFrame + linear interpolation (lerp). Duration matches the
+// GPS update interval (~1s) so the bus appears to glide continuously.
+// Also calculates bearing from old→new position if heading is unavailable.
+// ─────────────────────────────────────────────────────────────────────────────
 const SmoothBusMarker = ({ vehicle, isSelected }) => {
     const markerRef = useRef(null);
-    const prevPosRef = useRef(null);
+    const animFrameRef = useRef(null);
+    const fromPosRef = useRef(null);    // [lat, lng] animation start
+    const toPosRef = useRef(null);      // [lat, lng] animation target
+    const animStartRef = useRef(null);  // timestamp when animation began
 
     const lat = parseFloat(vehicle.current_lat);
     const lng = parseFloat(vehicle.current_lng);
+
+    // Calculate compass bearing from point A to point B (degrees 0-360)
+    const calcBearing = (aLat, aLng, bLat, bLng) => {
+        const toRad = d => (d * Math.PI) / 180;
+        const toDeg = r => (r * 180) / Math.PI;
+        const dLng = toRad(bLng - aLng);
+        const lat1 = toRad(aLat);
+        const lat2 = toRad(bLat);
+        const y = Math.sin(dLng) * Math.cos(lat2);
+        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+        return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    };
+
+    // Linear interpolation
+    const lerp = (a, b, t) => a + (b - a) * t;
+
     const icon = createLiveBusIcon(vehicle, isSelected);
 
     useEffect(() => {
-        if (!markerRef.current) return;
+        if (!markerRef.current || isNaN(lat) || isNaN(lng)) return;
         const marker = markerRef.current;
-        if (isNaN(lat) || isNaN(lng)) return;
 
-        const prev = prevPosRef.current;
-        if (prev && (prev[0] !== lat || prev[1] !== lng)) {
-            marker.setLatLng([lat, lng]);
+        const prevPos = fromPosRef.current;
+        const targetPos = [lat, lng];
+
+        if (prevPos && (prevPos[0] !== lat || prevPos[1] !== lng)) {
+            // Cancel any in-progress animation
+            if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+
+            // Get current rendered position as animation start (for seamless chaining)
+            const currentMarkerPos = marker.getLatLng();
+            fromPosRef.current = [currentMarkerPos.lat, currentMarkerPos.lng];
+            toPosRef.current = targetPos;
+            animStartRef.current = performance.now();
+
+            // Calculate auto-bearing from movement direction if device didn't provide one
+            const deviceHeading = parseFloat(vehicle.heading || 0);
+            const moveBearing = prevPos
+                ? calcBearing(prevPos[0], prevPos[1], lat, lng)
+                : deviceHeading;
+            const effectiveHeading = deviceHeading > 0 ? deviceHeading : moveBearing;
+
+            const ANIMATION_DURATION = 900; // ms — slightly under 1s GPS interval for overlap
+
+            const animate = (now) => {
+                const elapsed = now - animStartRef.current;
+                const t = Math.min(elapsed / ANIMATION_DURATION, 1);
+
+                // Ease-out cubic for natural deceleration at destination
+                const eased = 1 - Math.pow(1 - t, 3);
+
+                const animLat = lerp(fromPosRef.current[0], toPosRef.current[0], eased);
+                const animLng = lerp(fromPosRef.current[1], toPosRef.current[1], eased);
+
+                marker.setLatLng([animLat, animLng]);
+
+                if (t < 1) {
+                    animFrameRef.current = requestAnimationFrame(animate);
+                } else {
+                    // Animation complete — snap to exact target
+                    marker.setLatLng(targetPos);
+                    animFrameRef.current = null;
+                }
+            };
+
+            animFrameRef.current = requestAnimationFrame(animate);
+        } else if (!prevPos) {
+            // First render — place immediately, no animation
+            marker.setLatLng(targetPos);
         }
+
+        // Always update the icon (speed/heading label may have changed)
         marker.setIcon(icon);
-        prevPosRef.current = [lat, lng];
+        fromPosRef.current = targetPos;
+
+        return () => {
+            if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        };
     }, [vehicle.current_lat, vehicle.current_lng, vehicle.speed, vehicle.heading, vehicle.status, isSelected]);
 
     if (isNaN(lat) || isNaN(lng)) return null;
@@ -131,36 +203,64 @@ const AdminLiveMap = () => {
     const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
     const hasCenteredUser = useRef(false);
     const socketRef = useRef(null);
+    const gpsWatchRef = useRef(null);    // watchPosition ID for user location
 
-    // Acquire User's Exact Live Location
-    const acquireUserLocation = async () => {
-        try {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                        const { latitude, longitude } = pos.coords;
-                        setUserLocation([latitude, longitude]);
-                        setGpsPermissionDenied(false);
-                        if (!hasCenteredUser.current) {
-                            hasCenteredUser.current = true;
-                            setFlyTarget({ lat: latitude, lng: longitude });
-                        }
-                    },
-                    (err) => {
-                        console.warn("User GPS prompt / error:", err.message);
-                        setGpsPermissionDenied(true);
-                    },
-                    { enableHighAccuracy: true, timeout: 8000 }
-                );
-            }
-        } catch (e) {
+    // ─── Continuous user location tracking (watchPosition) ───────────────────
+    // Uses watchPosition instead of one-shot getCurrentPosition to:
+    //  1. Force fresh GPS (maximumAge: 0) — not IP-based cached location
+    //  2. Keep updating as admin moves
+    //  3. Actually get DEVICE GPS coordinates, not server/IP location
+    const startUserLocationWatch = useCallback(() => {
+        if (!navigator.geolocation) {
             setGpsPermissionDenied(true);
+            return;
         }
-    };
+
+        // Stop any existing watch first
+        if (gpsWatchRef.current !== null) {
+            navigator.geolocation.clearWatch(gpsWatchRef.current);
+            gpsWatchRef.current = null;
+        }
+
+        const watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+                const { latitude, longitude } = pos.coords;
+                setUserLocation([latitude, longitude]);
+                setGpsPermissionDenied(false);
+                // Only auto-fly to user location on first fix
+                if (!hasCenteredUser.current) {
+                    hasCenteredUser.current = true;
+                    setFlyTarget({ lat: latitude, lng: longitude });
+                }
+            },
+            (err) => {
+                console.warn('User GPS error:', err.message);
+                setGpsPermissionDenied(true);
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 0,        // Never use cached/IP position — always fresh
+                timeout: 10000
+            }
+        );
+
+        gpsWatchRef.current = watchId;
+    }, []);
+
+    // Manual "My Location" button re-centers the map to current user position
+    const acquireUserLocation = useCallback(() => {
+        if (userLocation) {
+            setFlyTarget({ lat: userLocation[0], lng: userLocation[1] });
+        } else {
+            // If watch hasn't gotten a fix yet, try again
+            startUserLocationWatch();
+        }
+    }, [userLocation, startUserLocationWatch]);
 
     // Initial Load
     useEffect(() => {
-        acquireUserLocation();
+        // Start continuous GPS watch for user location
+        startUserLocationWatch();
 
         const init = async () => {
             try {
@@ -190,8 +290,16 @@ const AdminLiveMap = () => {
         };
 
         init();
-        return () => { if (socketRef.current) socketRef.current.disconnect(); };
-    }, []);
+
+        return () => {
+            if (socketRef.current) socketRef.current.disconnect();
+            // Clean up GPS watch on unmount
+            if (gpsWatchRef.current !== null) {
+                navigator.geolocation.clearWatch(gpsWatchRef.current);
+                gpsWatchRef.current = null;
+            }
+        };
+    }, [startUserLocationWatch]);
 
     // WebSocket connection
     const connectSocket = (schoolId) => {
@@ -251,7 +359,7 @@ const AdminLiveMap = () => {
         return sec < 60 ? `${sec}s ago` : `${Math.round(sec / 60)}m ago`;
     };
 
-    // Prioritize user's actual current location as initial center
+    // Map center: user's actual GPS location (fresh watchPosition) → live bus → India center
     const mapCenter = userLocation
         ? userLocation
         : (liveVehicles.length > 0 ? [liveVehicles[0].current_lat, liveVehicles[0].current_lng] : [20.5937, 78.9629]);
@@ -285,7 +393,7 @@ const AdminLiveMap = () => {
                 </div>
             </div>
 
-            {/* Live Map (No Polylines - Pure Live Bus Icons with Complete Street & Location Details) */}
+            {/* Live Map */}
             <div className="w-full h-[580px] rounded-3xl overflow-hidden border border-slate-200 shadow-2xl relative z-0 bg-slate-100">
                 {loading ? (
                     <div className="w-full h-full flex items-center justify-center bg-slate-50">
@@ -296,7 +404,7 @@ const AdminLiveMap = () => {
                     </div>
                 ) : (
                     <>
-                        {/* Map Style Selector: Detailed Streets / Hybrid / Standard */}
+                        {/* Map Style Selector */}
                         <div className="absolute top-4 right-4 z-[400] bg-white/95 backdrop-blur-md p-1 rounded-xl shadow-xl border border-slate-200/80 flex gap-1 text-xs font-bold">
                             <button
                                 onClick={() => setMapType('streets')}
@@ -328,7 +436,6 @@ const AdminLiveMap = () => {
                             style={{ height: '100%', width: '100%' }}
                             zoomControl={true}
                         >
-                            {/* Detailed Google Street Map with all shops, businesses, landmarks, and area details */}
                             {mapType === 'streets' && (
                                 <TileLayer
                                     attribution='&copy; Google Maps'
@@ -366,7 +473,7 @@ const AdminLiveMap = () => {
                                 </Marker>
                             )}
 
-                            {/* Live Moving Bus Markers with Floating Badges */}
+                            {/* Ola-style Smooth Moving Bus Markers */}
                             {liveVehicles.map(v => (
                                 <SmoothBusMarker
                                     key={v.id}
@@ -378,12 +485,7 @@ const AdminLiveMap = () => {
 
                         {/* My Location Floating Action Button */}
                         <button
-                            onClick={() => {
-                                acquireUserLocation();
-                                if (userLocation) {
-                                    setFlyTarget({ lat: userLocation[0], lng: userLocation[1] });
-                                }
-                            }}
+                            onClick={acquireUserLocation}
                             className="absolute bottom-6 right-4 z-[400] bg-white text-slate-800 hover:bg-slate-50 active:scale-95 p-3 rounded-2xl shadow-2xl border border-slate-200/80 font-bold text-xs flex items-center gap-2 transition-all"
                             title="Center on My Live Location"
                         >
@@ -409,7 +511,7 @@ const AdminLiveMap = () => {
                         </div>
                     </div>
                     <button
-                        onClick={acquireUserLocation}
+                        onClick={startUserLocationWatch}
                         className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 whitespace-nowrap"
                     >
                         📍 Turn On GPS

@@ -49,6 +49,15 @@ export const AuthProvider = ({ children }) => {
         const currentUser = userRef.current; // Use stable ref
         try {
             if (!isRemote && !isAutoLogout) {
+                // On native: remove all push notification listeners BEFORE clearing session.
+                // This immediately stops any in-flight notification from being shown for the old user.
+                if (Capacitor.isNativePlatform()) {
+                    try {
+                        const { PushNotifications } = await import('@capacitor/push-notifications');
+                        await PushNotifications.removeAllListeners();
+                    } catch (e) { /* ignore if plugin unavailable */ }
+                }
+
                 // Broadcast logout to other tabs
                 try {
                     const channel = new BroadcastChannel('school_auth_channel');
