@@ -51,7 +51,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- ACCESS_BACKGROUND_LOCATION intentionally removed: Google Play policy requires this
+         only when the app EXPLICITLY requests "Allow all the time" via a compliant
+         native foreground service. Our approach uses a persistent LocalNotification
+         (ongoing=true) which keeps the OS GPS service alive without needing background
+         location permission. Removing this avoids the Prominent Disclosure policy violation. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     

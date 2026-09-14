@@ -83,7 +83,7 @@ const DriverTracking = ({ onBack }) => {
     const [updateCount, setUpdateCount] = useState(0);
     const [error, setError] = useState(null);
     const [isMobileApp, setIsMobileApp] = useState(false);
-    const [showDisclosure, setShowDisclosure] = useState(false);
+    // Note: ACCESS_BACKGROUND_LOCATION removed from manifest — no disclosure dialog needed.
     const [networkOnline, setNetworkOnline] = useState(navigator.onLine);
 
     const wakeLockRef = useRef(null);
@@ -280,16 +280,6 @@ const DriverTracking = ({ onBack }) => {
         }
     };
 
-    const handleDisclosureAccept = async () => {
-        localStorage.setItem('location_disclosure_accepted', 'true');
-        setShowDisclosure(false);
-        try {
-            await Geolocation.requestPermissions();
-        } catch (err) {
-            console.error('Permission request failed', err);
-        }
-    };
-
     // ─── Send location to server ───────────────────────────────────────────────
     const sendLocationUpdate = async (latitude, longitude, speed, heading, accuracy) => {
         if (!selectedVehicle) return;
@@ -384,19 +374,23 @@ const DriverTracking = ({ onBack }) => {
     };
 
     // ─── Main start tracking ───────────────────────────────────────────────────
+    // ACCESS_BACKGROUND_LOCATION is NOT declared in the manifest, so no prominent
+    // disclosure is required by Google Play policy. We only request ACCESS_FINE_LOCATION
+    // at runtime. The persistent LocalNotification (ongoing=true) keeps Android from
+    // killing the GPS service when the screen turns off or during a call.
     const startTracking = async () => {
         if (!selectedVehicle) return toast.error('Please select your Bus Number first');
+        await beginTracking();
+    };
 
+    // ─── Actual tracking start ─────────────────────────────────────────────────
+    const beginTracking = async () => {
         try {
             if (isMobileApp) {
+                // Request only ACCESS_FINE_LOCATION (not background — not in manifest)
                 const perm = await Geolocation.checkPermissions();
                 if (perm.location !== 'granted') {
-                    const accepted = localStorage.getItem('location_disclosure_accepted');
-                    if (!accepted) {
-                        setShowDisclosure(true);
-                        return;
-                    }
-                    const req = await Geolocation.requestPermissions();
+                    const req = await Geolocation.requestPermissions({ permissions: ['location'] });
                     if (req.location !== 'granted') {
                         setError('PERMISSION_DENIED');
                         return;
@@ -512,34 +506,7 @@ const DriverTracking = ({ onBack }) => {
     return (
         <div className="w-full bg-slate-900 text-white rounded-3xl overflow-hidden shadow-2xl">
 
-            {/* Google Play Prominent Location Disclosure Modal */}
-            {showDisclosure && (
-                <div className="fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4">
-                    <div className="bg-white text-slate-800 rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden">
-                        <div className="bg-indigo-600 p-6 text-white text-center">
-                            <MapPin size={40} className="mx-auto mb-2" />
-                            <h2 className="text-xl font-black">Location Access Required</h2>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <p className="text-slate-700 text-sm font-bold">
-                                📍 Connect to Campus collects location data to enable live bus tracking for students and parents even when the app is in the background or when receiving phone calls while you are driving.
-                            </p>
-                            <button
-                                onClick={handleDisclosureAccept}
-                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-wider active:scale-95 transition-all shadow-lg"
-                            >
-                                ✅ Allow Location & Continue
-                            </button>
-                            <button
-                                onClick={() => setShowDisclosure(false)}
-                                className="w-full py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs"
-                            >
-                                Not Now
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* Compact Status Bar with Call Protection Indicator */}
             <div className="bg-slate-800/90 px-5 py-3.5 flex items-center justify-between border-b border-slate-700/60">
