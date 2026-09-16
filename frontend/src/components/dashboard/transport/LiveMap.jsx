@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -86,6 +86,66 @@ const SmoothRecenter = ({ lat, lng }) => {
     return null;
 };
 
+// Automatically disperse vehicles that share the exact same or overlapping coordinates (e.g. testing from same device or depot)
+const getDispersedLiveVehicles = (vehicles) => {
+    const CLUSTER_THRESHOLD = 0.00045; // ~45 meters
+    const OFFSET_DISTANCE = 0.00042;   // ~45 meters offset so badges don't cover each other
+
+    const clusters = [];
+
+    vehicles.forEach(v => {
+        const lat = parseFloat(v.current_lat);
+        const lng = parseFloat(v.current_lng);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        let addedToCluster = false;
+        for (const cluster of clusters) {
+            const center = cluster.center;
+            const dist = Math.hypot(lat - center.lat, lng - center.lng);
+            if (dist < CLUSTER_THRESHOLD) {
+                cluster.vehicles.push(v);
+                addedToCluster = true;
+                break;
+            }
+        }
+
+        if (!addedToCluster) {
+            clusters.push({
+                center: { lat, lng },
+                vehicles: [v]
+            });
+        }
+    });
+
+    const result = [];
+    clusters.forEach(cluster => {
+        const count = cluster.vehicles.length;
+        if (count === 1) {
+            result.push({
+                ...cluster.vehicles[0],
+                display_lat: parseFloat(cluster.vehicles[0].current_lat),
+                display_lng: parseFloat(cluster.vehicles[0].current_lng)
+            });
+        } else {
+            // Multiple buses at identical coordinates: distribute around center so all badges & icons are visible
+            cluster.vehicles.forEach((v, idx) => {
+                const angle = (2 * Math.PI * idx) / count + (Math.PI / 4);
+                const cosLat = Math.cos((cluster.center.lat * Math.PI) / 180);
+                const dLat = Math.sin(angle) * (OFFSET_DISTANCE * 0.75);
+                const dLng = Math.cos(angle) * (OFFSET_DISTANCE / (cosLat || 1));
+                result.push({
+                    ...v,
+                    display_lat: cluster.center.lat + dLat,
+                    display_lng: cluster.center.lng + dLng,
+                    _isDispersed: true
+                });
+            });
+        }
+    });
+
+    return result;
+};
+
 /**
  * SmoothBusMarker — animates each bus marker smoothly to its new GPS position.
  * Uses Leaflet's native setLatLng() so the icon glides instead of teleporting.
@@ -94,8 +154,8 @@ const SmoothBusMarker = ({ vehicle }) => {
     const markerRef = useRef(null);
     const prevPosRef = useRef(null);
 
-    const lat = parseFloat(vehicle.current_lat);
-    const lng = parseFloat(vehicle.current_lng);
+    const lat = parseFloat(vehicle.display_lat ?? vehicle.current_lat);
+    const lng = parseFloat(vehicle.display_lng ?? vehicle.current_lng);
     const icon = createLiveBusIcon(vehicle);
 
     useEffect(() => {
@@ -109,7 +169,7 @@ const SmoothBusMarker = ({ vehicle }) => {
         }
         marker.setIcon(icon);
         prevPosRef.current = [lat, lng];
-    }, [vehicle.current_lat, vehicle.current_lng, vehicle.speed, vehicle.heading, vehicle.status]);
+    }, [lat, lng, vehicle.speed, vehicle.heading, vehicle.status]);
 
     if (isNaN(lat) || isNaN(lng)) return null;
     return <Marker ref={markerRef} position={[lat, lng]} icon={icon} />;
@@ -237,15 +297,21 @@ const LiveMap = ({ vehicles = [] }) => {
         return false;
     });
 
+    const dispersedVehicles = useMemo(() => {
+        return getDispersedLiveVehicles(activeVehicles);
+    }, [activeVehicles]);
+
     // Auto-center directly on active bus
     const hasAutoCentered = useRef(false);
     useEffect(() => {
-        if (!hasAutoCentered.current && activeVehicles.length > 0) {
-            const first = activeVehicles[0];
+        if (!hasAutoCentered.current && dispersedVehicles.length > 0) {
+            const first = dispersedVehicles[0];
             hasAutoCentered.current = true;
-            setFlyTarget({ lat: parseFloat(first.current_lat), lng: parseFloat(first.current_lng) });
+            const fLat = first.display_lat ?? first.current_lat;
+            const fLng = first.display_lng ?? first.current_lng;
+            setFlyTarget({ lat: parseFloat(fLat), lng: parseFloat(fLng) });
         }
-    }, [activeVehicles]);
+    }, [dispersedVehicles]);
 
     // Prioritize active bus as map center
     const mapCenter = (activeVehicles.length > 0 && activeVehicles[0]?.current_lat && activeVehicles[0]?.current_lng)
@@ -308,7 +374,7 @@ const LiveMap = ({ vehicles = [] }) => {
                 )}
 
                 {/* Smooth Animated Bus Markers */}
-                {activeVehicles.map(vehicle => (
+                {dispersedVehicles.map(vehicle => (
                     <SmoothBusMarker key={vehicle.id} vehicle={vehicle} />
                 ))}
             </MapContainer>

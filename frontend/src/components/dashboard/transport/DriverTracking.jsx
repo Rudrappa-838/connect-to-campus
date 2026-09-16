@@ -249,7 +249,10 @@ const DriverTracking = ({ onBack }) => {
         } catch (e) {}
     };
 
-    const fetchInitialData = async () => {
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const fetchInitialData = async (isManual = false) => {
+        if (isManual) setIsRefreshing(true);
         try {
             const [vRes, rRes] = await Promise.all([
                 api.get('/transport/vehicles'),
@@ -264,8 +267,12 @@ const DriverTracking = ({ onBack }) => {
             if (!selectedRoute && rRes.data.length === 1) {
                 setSelectedRoute(String(rRes.data[0].id));
             }
+            if (isManual) toast.success('Fleet & route statuses updated');
         } catch (error) {
             console.error('Failed to load transport data', error);
+            if (isManual) toast.error('Failed to refresh data');
+        } finally {
+            if (isManual) setIsRefreshing(false);
         }
     };
 
@@ -300,6 +307,11 @@ const DriverTracking = ({ onBack }) => {
             setUpdateCount(prev => prev + 1);
             pendingUpdateRef.current = null;
         } catch (err) {
+            if (err.response?.status === 409) {
+                toast.error(err.response.data?.message || 'Route is already in use by another active bus.');
+                stopTracking();
+                return;
+            }
             // Queue last known position to sync automatically when network recovers
             pendingUpdateRef.current = { lat: latitude, lng: longitude, speed, heading };
         }
@@ -380,6 +392,19 @@ const DriverTracking = ({ onBack }) => {
     // killing the GPS service when the screen turns off or during a call.
     const startTracking = async () => {
         if (!selectedVehicle) return toast.error('Please select your Bus Number first');
+
+        if (selectedRoute) {
+            const activeVehOnRoute = vehicles.find(v => 
+                v.status === 'Active' && 
+                String(v.id) !== String(selectedVehicle) && 
+                (String(v.current_route_id) === String(selectedRoute) || String(v.id) === String(routes.find(r => String(r.id) === String(selectedRoute))?.active_vehicle_id))
+            );
+
+            if (activeVehOnRoute) {
+                return toast.error(`Route is already in use by Bus ${activeVehOnRoute.vehicle_number} (${activeVehOnRoute.driver_name || 'Driver'}). Please choose another route.`);
+            }
+        }
+
         await beginTracking();
     };
 
@@ -542,6 +567,20 @@ const DriverTracking = ({ onBack }) => {
 
                         {/* Select Bus & Route Card */}
                         <div className="bg-slate-800 rounded-3xl p-5 border border-slate-700/60 shadow-xl space-y-4">
+                            <div className="flex items-center justify-between pb-1 border-b border-slate-700/50">
+                                <span className="text-xs font-black uppercase tracking-wider text-slate-300">Trip Configuration</span>
+                                <button
+                                    type="button"
+                                    onClick={() => fetchInitialData(true)}
+                                    disabled={isRefreshing}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-700/70 hover:bg-slate-700 text-slate-300 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                                    title="Refresh current bus and route status"
+                                >
+                                    <RefreshCw size={12} className={isRefreshing ? 'animate-spin text-yellow-400' : ''} />
+                                    <span>{isRefreshing ? 'Refreshing...' : 'Refresh Status'}</span>
+                                </button>
+                            </div>
+
                             <div>
                                 <label className="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5 ml-1">
                                     1. Select Bus Number *
@@ -552,12 +591,27 @@ const DriverTracking = ({ onBack }) => {
                                     onChange={e => setSelectedVehicle(e.target.value)}
                                 >
                                     <option value="">-- Choose Bus Number --</option>
-                                    {vehicles.map(v => (
-                                        <option key={v.id} value={v.id}>
-                                            🚌 {v.vehicle_number} {v.driver_name ? `(${v.driver_name})` : ''}
-                                        </option>
-                                    ))}
+                                    {vehicles.map(v => {
+                                        const isVehActive = v.status === 'Active' && v.last_updated && (Date.now() - new Date(v.last_updated).getTime() < 10 * 60 * 1000);
+                                        return (
+                                            <option key={v.id} value={v.id}>
+                                                {isVehActive
+                                                    ? `🚌 ${v.vehicle_number} — 🟢 IN TRIP (${v.current_route_name ? v.current_route_name + ' • ' : ''}${v.driver_name || 'Active'})`
+                                                    : `🚌 ${v.vehicle_number} — Standby / Available ${v.driver_name ? '(' + v.driver_name + ')' : ''}`
+                                                }
+                                            </option>
+                                        );
+                                    })}
                                 </select>
+
+                                {activeVehicleObj && activeVehicleObj.status === 'Active' && (
+                                    <div className="mt-2 p-2.5 bg-amber-500/15 border border-amber-500/40 rounded-xl text-[11px] text-amber-200 flex items-start gap-2">
+                                        <span className="flex-shrink-0">⚠️</span>
+                                        <span>
+                                            <strong>{activeVehicleObj.vehicle_number}</strong> is currently marked IN TRIP {activeVehicleObj.driver_name ? `by ${activeVehicleObj.driver_name}` : ''}. Starting will update and take over live tracking for this bus.
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             <div>
@@ -570,23 +624,74 @@ const DriverTracking = ({ onBack }) => {
                                     onChange={e => setSelectedRoute(e.target.value)}
                                 >
                                     <option value="">-- Any Route / General Trip --</option>
-                                    {routes.map(r => (
-                                        <option key={r.id} value={r.id}>
-                                            📍 {r.route_name} ({r.start_point} → {r.end_point})
-                                        </option>
-                                    ))}
+                                    {routes.map(r => {
+                                        const isTakenByOther = vehicles.find(v => 
+                                            v.status === 'Active' && 
+                                            String(v.id) !== String(selectedVehicle) && 
+                                            (String(v.current_route_id) === String(r.id) || String(v.id) === String(r.active_vehicle_id))
+                                        );
+                                        const isCurrentVehicleOnRoute = selectedVehicle && vehicles.find(v => 
+                                            String(v.id) === String(selectedVehicle) && 
+                                            String(v.current_route_id) === String(r.id)
+                                        );
+
+                                        return (
+                                            <option 
+                                                key={r.id} 
+                                                value={r.id} 
+                                                disabled={Boolean(isTakenByOther)}
+                                                className={isTakenByOther ? "text-slate-500 bg-slate-900" : "text-white bg-slate-900"}
+                                            >
+                                                {isTakenByOther
+                                                    ? `🔒 ${r.route_name} — In Use by Bus ${isTakenByOther.vehicle_number} (${isTakenByOther.driver_name || 'Driver'})`
+                                                    : isCurrentVehicleOnRoute
+                                                        ? `📍 ${r.route_name} — Your Current Route (${r.start_point} → ${r.end_point})`
+                                                        : `📍 ${r.route_name} — Available (${r.start_point} → ${r.end_point})`
+                                                }
+                                            </option>
+                                        );
+                                    })}
                                 </select>
+
+                                {(() => {
+                                    if (!selectedRoute) return null;
+                                    const activeVehOnRoute = vehicles.find(v => 
+                                        v.status === 'Active' && 
+                                        String(v.id) !== String(selectedVehicle) && 
+                                        (String(v.current_route_id) === String(selectedRoute) || String(v.id) === String(routes.find(r => String(r.id) === String(selectedRoute))?.active_vehicle_id))
+                                    );
+                                    if (activeVehOnRoute) {
+                                        return (
+                                            <div className="mt-2 p-3 bg-red-500/15 border border-red-500/40 rounded-xl text-xs text-red-200 flex items-start gap-2">
+                                                <span className="flex-shrink-0 text-base">⛔</span>
+                                                <span>
+                                                    <strong>Route In Use:</strong> This route is currently being run by <strong>Bus {activeVehOnRoute.vehicle_number}</strong> ({activeVehOnRoute.driver_name || 'Driver'}). Please select another route or run a General Trip.
+                                                </span>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
 
                             {/* START BUTTON */}
-                            <button
-                                onClick={startTracking}
-                                disabled={!selectedVehicle}
-                                className="w-full py-5 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-slate-950 rounded-2xl font-black text-xl tracking-wider shadow-2xl active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3 uppercase mt-2"
-                            >
-                                <Navigation size={26} className="fill-slate-950" />
-                                🚀 Let's Drive
-                            </button>
+                            {(() => {
+                                const isRouteLocked = selectedRoute && vehicles.some(v => 
+                                    v.status === 'Active' && 
+                                    String(v.id) !== String(selectedVehicle) && 
+                                    (String(v.current_route_id) === String(selectedRoute) || String(v.id) === String(routes.find(r => String(r.id) === String(selectedRoute))?.active_vehicle_id))
+                                );
+                                return (
+                                    <button
+                                        onClick={startTracking}
+                                        disabled={!selectedVehicle || isRouteLocked}
+                                        className="w-full py-5 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-slate-950 rounded-2xl font-black text-xl tracking-wider shadow-2xl active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3 uppercase mt-2"
+                                    >
+                                        <Navigation size={26} className="fill-slate-950" />
+                                        {isRouteLocked ? '🔒 Route In Use' : "🚀 Let's Drive"}
+                                    </button>
+                                );
+                            })()}
                         </div>
                     </div>
                 ) : (

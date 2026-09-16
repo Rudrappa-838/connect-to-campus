@@ -182,9 +182,9 @@ exports.updateVehicle = async (req, res) => {
 
         const result = await pool.query(
             `UPDATE transport_vehicles 
-             SET vehicle_number = $1, vehicle_model = $2, driver_name = $3, driver_phone = $4, capacity = $5, status = $6, driver_id = $7, gps_device_id = $8
+             SET vehicle_number = $1, vehicle_model = $2, driver_name = $3, driver_phone = $4, capacity = $5, status = COALESCE($6, status), driver_id = $7, gps_device_id = $8
              WHERE id = $9 AND school_id = $10 RETURNING *`,
-            [vehicle_number, vehicle_model, driver_name, driver_phone, parsedCapacity, status || 'Active', parsedDriverId, cleanGpsId, id, school_id]
+            [vehicle_number, vehicle_model, driver_name, driver_phone, parsedCapacity, status || null, parsedDriverId, cleanGpsId, id, school_id]
         );
 
         if (result.rows.length === 0) {
@@ -200,23 +200,49 @@ exports.updateVehicle = async (req, res) => {
 
 // Delete vehicle
 exports.deleteVehicle = async (req, res) => {
+    const client = await pool.connect();
     try {
+        await client.query('BEGIN');
         const { id } = req.params;
         const school_id = req.user.schoolId;
 
-        const result = await pool.query(
-            'DELETE FROM transport_vehicles WHERE id = $1 AND school_id = $2 RETURNING *',
+        // Check if vehicle exists
+        const check = await client.query(
+            'SELECT id, vehicle_number FROM transport_vehicles WHERE id = $1 AND school_id = $2',
             [id, school_id]
         );
 
-        if (result.rows.length === 0) {
+        if (check.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ message: 'Vehicle not found' });
         }
 
+        // Unlink from routes where vehicle_id = id to prevent foreign key constraint violations
+        await client.query(
+            'UPDATE transport_routes SET vehicle_id = NULL WHERE vehicle_id = $1 AND school_id = $2',
+            [id, school_id]
+        );
+
+        // Clear current_route_id on any vehicle referencing this or if this vehicle was active
+        await client.query(
+            'UPDATE transport_vehicles SET current_route_id = NULL WHERE id = $1 AND school_id = $2',
+            [id, school_id]
+        );
+
+        // Delete the vehicle
+        await client.query(
+            'DELETE FROM transport_vehicles WHERE id = $1 AND school_id = $2',
+            [id, school_id]
+        );
+
+        await client.query('COMMIT');
         res.json({ message: 'Vehicle deleted successfully' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error deleting vehicle' });
+        await client.query('ROLLBACK');
+        console.error('Error deleting vehicle:', error);
+        res.status(500).json({ message: error.message || 'Server error deleting vehicle' });
+    } finally {
+        client.release();
     }
 };
 
@@ -230,9 +256,12 @@ exports.getRoutes = async (req, res) => {
         const school_id = req.user.schoolId;
 
         const routesResult = await pool.query(`
-            SELECT r.*, v.vehicle_number, v.driver_name, v.current_lat, v.current_lng, v.status as vehicle_status
+            SELECT r.*, 
+                   v.vehicle_number, v.driver_name, v.current_lat, v.current_lng, v.status as vehicle_status,
+                   active_v.id as active_vehicle_id, active_v.vehicle_number as active_vehicle_number, active_v.driver_name as active_driver_name
             FROM transport_routes r
             LEFT JOIN transport_vehicles v ON r.vehicle_id = v.id
+            LEFT JOIN transport_vehicles active_v ON (active_v.current_route_id = r.id AND active_v.status = 'Active')
             WHERE r.school_id = $1 ORDER BY r.id ASC
         `, [school_id]);
 
@@ -397,12 +426,14 @@ exports.updateLocation = async (req, res) => {
         const { lat, lng, speed, speedUnit, heading, route_id, route_name, status, accuracy } = req.body;
         const school_id = req.user.schoolId;
 
-        // 🛑 Handle manual Stop Trip from driver — instantly mark Idle & broadcast to remove bus icon
+        // 🛑 Handle manual Stop Trip from driver — instantly mark Idle, clear active route & broadcast to remove bus icon
         if (status === 'Idle') {
             const idleResult = await pool.query(
                 `UPDATE transport_vehicles 
                  SET status = 'Idle', 
-                     speed = 0, 
+                     speed = 0,
+                     current_route_id = NULL,
+                     current_route_name = NULL,
                      last_updated = NOW()
                  WHERE id = $1 AND school_id = $2 RETURNING *`,
                 [id, school_id]
@@ -416,7 +447,7 @@ exports.updateLocation = async (req, res) => {
             vehicle._source = 'mobile';
             broadcastLocation(school_id, vehicle);
 
-            return res.json({ ok: true, status: 'Idle', message: 'Trip ended. Vehicle status set to Idle.' });
+            return res.json({ ok: true, status: 'Idle', message: 'Trip ended. Vehicle status set to Idle and route released.' });
         }
 
         // Validate coordinates
@@ -450,6 +481,30 @@ exports.updateLocation = async (req, res) => {
         const headingVal = heading !== undefined && !isNaN(heading) ? parseFloat(heading) : 0;
         const vehicleStatus = status || 'Active';
 
+        const parsedRouteId = (route_id && !isNaN(parseInt(route_id))) ? parseInt(route_id) : null;
+        const cleanRouteName = (route_name && String(route_name).trim() !== '') ? String(route_name).trim() : null;
+
+        // Route exclusivity: if this bus is on a specific route, ensure another active bus is not already using it
+        if (parsedRouteId && vehicleStatus === 'Active') {
+            const conflictCheck = await pool.query(
+                `SELECT id, vehicle_number, driver_name 
+                 FROM transport_vehicles 
+                 WHERE school_id = $1 
+                   AND id != $2 
+                   AND status = 'Active' 
+                   AND current_route_id = $3`,
+                [school_id, id, parsedRouteId]
+            );
+
+            if (conflictCheck.rows.length > 0) {
+                const confVeh = conflictCheck.rows[0];
+                return res.status(409).json({ 
+                    ok: false, 
+                    message: `Route is already in use by Bus ${confVeh.vehicle_number} (${confVeh.driver_name || 'Driver'}). Please select another route.` 
+                });
+            }
+        }
+
         // 🚀 Save EXACT driver GPS & broadcast IMMEDIATELY
         const result = await pool.query(
             `UPDATE transport_vehicles 
@@ -462,7 +517,7 @@ exports.updateLocation = async (req, res) => {
                  status = $7, 
                  last_updated = NOW()
              WHERE id = $8 AND school_id = $9 RETURNING *`,
-            [parsedLat, parsedLng, speedKmh, headingVal, route_id || null, route_name || null, vehicleStatus, id, school_id]
+            [parsedLat, parsedLng, speedKmh, headingVal, parsedRouteId, cleanRouteName, vehicleStatus, id, school_id]
         );
 
         if (result.rows.length === 0) {
@@ -600,8 +655,10 @@ exports.getMyRoute = async (req, res) => {
         const routeResult = await pool.query(`
             SELECT r.*, v.vehicle_number, v.driver_name, v.driver_phone, v.current_lat, v.current_lng, v.speed, v.heading, v.current_route_name, v.status as vehicle_status, v.last_updated
             FROM transport_routes r
-            LEFT JOIN transport_vehicles v ON (r.vehicle_id = v.id OR v.current_route_id = r.id)
+            LEFT JOIN transport_vehicles v ON (v.current_route_id = r.id OR r.vehicle_id = v.id)
             WHERE r.id = $1 AND r.school_id = $2
+            ORDER BY (v.status = 'Active') DESC, v.last_updated DESC NULLS LAST
+            LIMIT 1
         `, [route_id, schoolId]);
 
         if (routeResult.rows.length === 0) {

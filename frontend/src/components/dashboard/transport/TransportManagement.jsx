@@ -69,6 +69,8 @@ const TransportManagement = ({ initialTab }) => {
 
     // Vehicle Form State
     const [showVehicleModal, setShowVehicleModal] = useState(false);
+    const [isEditingVehicle, setIsEditingVehicle] = useState(false);
+    const [selectedVehicleId, setSelectedVehicleId] = useState(null);
     const [vehicleForm, setVehicleForm] = useState({
         vehicle_number: '', vehicle_model: '', driver_name: '', driver_phone: '', capacity: '', gps_device_id: '', driver_id: ''
     });
@@ -103,6 +105,28 @@ const TransportManagement = ({ initialTab }) => {
         setDriverSearch('');
     };
 
+    const handleCreateVehicle = () => {
+        setVehicleForm({ vehicle_number: '', vehicle_model: '', driver_name: '', driver_phone: '', capacity: '', gps_device_id: '', driver_id: '' });
+        setIsEditingVehicle(false);
+        setSelectedVehicleId(null);
+        setShowVehicleModal(true);
+    };
+
+    const handleEditVehicle = (vehicle) => {
+        setVehicleForm({
+            vehicle_number: vehicle.vehicle_number || '',
+            vehicle_model: vehicle.vehicle_model || '',
+            driver_name: vehicle.driver_name || '',
+            driver_phone: vehicle.driver_phone || '',
+            capacity: vehicle.capacity || '',
+            gps_device_id: vehicle.gps_device_id || '',
+            driver_id: vehicle.driver_id || ''
+        });
+        setIsEditingVehicle(true);
+        setSelectedVehicleId(vehicle.id);
+        setShowVehicleModal(true);
+    };
+
     // Route Form State
     const [showRouteModal, setShowRouteModal] = useState(false);
     const [isEditingRoute, setIsEditingRoute] = useState(false);
@@ -132,7 +156,7 @@ const TransportManagement = ({ initialTab }) => {
         fetchData();
     }, []);
 
-    const handleAddVehicle = async () => {
+    const handleSaveVehicle = async () => {
         if (isSubmitting) return;
         if (!vehicleForm.vehicle_number) {
             return toast.error('Please enter vehicle / bus number');
@@ -142,15 +166,23 @@ const TransportManagement = ({ initialTab }) => {
             const payload = { ...vehicleForm };
             if (!payload.gps_device_id) delete payload.gps_device_id;
 
-            await api.post('/transport/vehicles', payload);
+            if (isEditingVehicle) {
+                if (!selectedVehicleId) return toast.error('Error: missing Vehicle ID');
+                await api.put(`/transport/vehicles/${selectedVehicleId}`, payload);
+                toast.success('Vehicle updated successfully');
+            } else {
+                await api.post('/transport/vehicles', payload);
+                toast.success('Vehicle added successfully');
+            }
 
-            toast.success('Vehicle added successfully');
             setShowVehicleModal(false);
+            setIsEditingVehicle(false);
+            setSelectedVehicleId(null);
             setVehicleForm({ vehicle_number: '', vehicle_model: '', driver_name: '', driver_phone: '', capacity: '', gps_device_id: '', driver_id: '' });
             fetchData();
         } catch (error) {
             console.error(error);
-            toast.error('Failed to add vehicle');
+            toast.error(error.response?.data?.message || (isEditingVehicle ? 'Failed to update vehicle' : 'Failed to add vehicle'));
         } finally {
             setIsSubmitting(false);
         }
@@ -266,10 +298,7 @@ const TransportManagement = ({ initialTab }) => {
                                     <p className="text-xs text-slate-500">Manage school transport vehicles and assigned drivers</p>
                                 </div>
                                 <button
-                                    onClick={() => {
-                                        setVehicleForm({ vehicle_number: '', vehicle_model: '', driver_name: '', driver_phone: '', capacity: '', gps_device_id: '', driver_id: '' });
-                                        setShowVehicleModal(true);
-                                    }}
+                                    onClick={handleCreateVehicle}
                                     className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition-all text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20"
                                 >
                                     <Plus size={16} /> Add Bus / Vehicle
@@ -320,13 +349,22 @@ const TransportManagement = ({ initialTab }) => {
                                                         </span>
                                                     </td>
                                                     <td className="p-4 text-right">
-                                                        <button
-                                                            onClick={() => handleDeleteVehicle(vehicle.id)}
-                                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                                            title="Delete Vehicle"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            <button
+                                                                onClick={() => handleEditVehicle(vehicle)}
+                                                                className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                                title="Edit Vehicle"
+                                                            >
+                                                                <Edit2 size={16} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteVehicle(vehicle.id)}
+                                                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Delete Vehicle"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -441,9 +479,9 @@ const TransportManagement = ({ initialTab }) => {
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
                                 <Bus className="text-indigo-600" size={20} />
-                                Add New Bus / Vehicle
+                                {isEditingVehicle ? 'Edit Bus / Vehicle' : 'Add New Bus / Vehicle'}
                             </h3>
-                            <button onClick={() => setShowVehicleModal(false)} className="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+                            <button onClick={() => { setShowVehicleModal(false); setIsEditingVehicle(false); setSelectedVehicleId(null); }} className="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
                         </div>
                         <div className="p-6 space-y-4">
                             <div>
@@ -525,11 +563,11 @@ const TransportManagement = ({ initialTab }) => {
                             </div>
 
                             <button
-                                onClick={handleAddVehicle}
+                                onClick={handleSaveVehicle}
                                 disabled={isSubmitting}
                                 className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
                             >
-                                {isSubmitting ? 'Saving...' : 'Add Vehicle'}
+                                {isSubmitting ? 'Saving...' : (isEditingVehicle ? 'Save Changes' : 'Add Vehicle')}
                             </button>
                         </div>
                     </div>

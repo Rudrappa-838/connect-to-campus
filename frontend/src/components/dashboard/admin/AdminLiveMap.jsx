@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -76,13 +76,78 @@ const createUserLocationIcon = () => {
     });
 };
 
-const MapFlyTo = ({ target }) => {
-    const map = useMap();
-    useEffect(() => {
-        if (target?.lat && target?.lng) {
-            map.flyTo([target.lat, target.lng], 16, { animate: true, duration: 1.0 });
+// Automatically disperse vehicles that share the exact same or overlapping coordinates (e.g. testing from same device or depot)
+const getDispersedLiveVehicles = (vehicles) => {
+    const CLUSTER_THRESHOLD = 0.00045; // ~45 meters
+    const OFFSET_DISTANCE = 0.00042;   // ~45 meters offset so badges don't cover each other
+
+    const clusters = [];
+
+    vehicles.forEach(v => {
+        const lat = parseFloat(v.current_lat);
+        const lng = parseFloat(v.current_lng);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        let addedToCluster = false;
+        for (const cluster of clusters) {
+            const center = cluster.center;
+            const dist = Math.hypot(lat - center.lat, lng - center.lng);
+            if (dist < CLUSTER_THRESHOLD) {
+                cluster.vehicles.push(v);
+                addedToCluster = true;
+                break;
+            }
         }
-    }, [target, map]);
+
+        if (!addedToCluster) {
+            clusters.push({
+                center: { lat, lng },
+                vehicles: [v]
+            });
+        }
+    });
+
+    const result = [];
+    clusters.forEach(cluster => {
+        const count = cluster.vehicles.length;
+        if (count === 1) {
+            result.push({
+                ...cluster.vehicles[0],
+                display_lat: parseFloat(cluster.vehicles[0].current_lat),
+                display_lng: parseFloat(cluster.vehicles[0].current_lng)
+            });
+        } else {
+            // Multiple buses at identical coordinates: distribute around center so all badges & icons are visible
+            cluster.vehicles.forEach((v, idx) => {
+                const angle = (2 * Math.PI * idx) / count + (Math.PI / 4);
+                const cosLat = Math.cos((cluster.center.lat * Math.PI) / 180);
+                const dLat = Math.sin(angle) * (OFFSET_DISTANCE * 0.75);
+                const dLng = Math.cos(angle) * (OFFSET_DISTANCE / (cosLat || 1));
+                result.push({
+                    ...v,
+                    display_lat: cluster.center.lat + dLat,
+                    display_lng: cluster.center.lng + dLng,
+                    _isDispersed: true
+                });
+            });
+        }
+    });
+
+    return result;
+};
+
+// Map Controller for single bus focus and multi-bus fleet bounds
+const MapViewController = ({ target, bounds, fitTrigger }) => {
+    const map = useMap();
+
+    useEffect(() => {
+        if (fitTrigger && bounds && bounds.isValid && bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16, animate: true, duration: 1.0 });
+        } else if (target?.lat && target?.lng) {
+            map.flyTo([target.lat, target.lng], target.zoom || 16, { animate: true, duration: 1.0 });
+        }
+    }, [target, fitTrigger, map]);
+
     return null;
 };
 
@@ -93,15 +158,15 @@ const MapFlyTo = ({ target }) => {
 // GPS update interval (~1s) so the bus appears to glide continuously.
 // Also calculates bearing from old→new position if heading is unavailable.
 // ─────────────────────────────────────────────────────────────────────────────
-const SmoothBusMarker = ({ vehicle, isSelected }) => {
+const SmoothBusMarker = ({ vehicle, isSelected, onSelect }) => {
     const markerRef = useRef(null);
     const animFrameRef = useRef(null);
     const fromPosRef = useRef(null);    // [lat, lng] animation start
     const toPosRef = useRef(null);      // [lat, lng] animation target
     const animStartRef = useRef(null);  // timestamp when animation began
 
-    const lat = parseFloat(vehicle.current_lat);
-    const lng = parseFloat(vehicle.current_lng);
+    const lat = parseFloat(vehicle.display_lat ?? vehicle.current_lat);
+    const lng = parseFloat(vehicle.display_lng ?? vehicle.current_lng);
 
     // Calculate compass bearing from point A to point B (degrees 0-360)
     const calcBearing = (aLat, aLng, bLat, bLng) => {
@@ -180,10 +245,20 @@ const SmoothBusMarker = ({ vehicle, isSelected }) => {
         return () => {
             if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
         };
-    }, [vehicle.current_lat, vehicle.current_lng, vehicle.speed, vehicle.heading, vehicle.status, isSelected]);
+    }, [lat, lng, vehicle.speed, vehicle.heading, vehicle.status, isSelected]);
 
     if (isNaN(lat) || isNaN(lng)) return null;
-    return <Marker ref={markerRef} position={[lat, lng]} icon={icon} />;
+    return (
+        <Marker
+            ref={markerRef}
+            position={[lat, lng]}
+            icon={icon}
+            zIndexOffset={isSelected ? 2000 : 100}
+            eventHandlers={{
+                click: () => onSelect && onSelect(vehicle),
+            }}
+        />
+    );
 };
 
 
@@ -198,6 +273,11 @@ const AdminLiveMap = () => {
     const [connected, setConnected] = useState(false);
     const [flyTarget, setFlyTarget] = useState(null);
     const [selectedId, setSelectedId] = useState(null);
+    const selectedIdRef = useRef(null);
+    useEffect(() => {
+        selectedIdRef.current = selectedId;
+    }, [selectedId]);
+    const [fitTrigger, setFitTrigger] = useState(0);
     const [updateLog, setUpdateLog] = useState({});
     const [userLocation, setUserLocation] = useState(null);
     const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
@@ -326,8 +406,8 @@ const AdminLiveMap = () => {
                     vehicle_number: data.vehicleNumber,
                     driver_name: data.driverName,
                     driver_phone: data.driverPhone || prev[data.vehicleId]?.driver_phone,
-                    current_route_name: data.routeName || prev[data.vehicleId]?.current_route_name,
-                    current_route_id: data.routeId || prev[data.vehicleId]?.current_route_id,
+                    current_route_name: data.routeName || (isActive ? prev[data.vehicleId]?.current_route_name : null),
+                    current_route_id: data.routeId || (isActive ? prev[data.vehicleId]?.current_route_id : null),
                     current_lat: !isNaN(parseFloat(data.lat)) ? parseFloat(data.lat) : prev[data.vehicleId]?.current_lat,
                     current_lng: !isNaN(parseFloat(data.lng)) ? parseFloat(data.lng) : prev[data.vehicleId]?.current_lng,
                     speed: parseFloat(data.speed || 0),
@@ -339,9 +419,11 @@ const AdminLiveMap = () => {
             }));
             setUpdateLog(prev => ({ ...prev, [data.vehicleId]: now }));
 
-            // When an active GPS coordinate arrives, follow the bus smoothly on the map
-            if (isActive && !isNaN(parseFloat(data.lat)) && !isNaN(parseFloat(data.lng))) {
-                setFlyTarget({ lat: parseFloat(data.lat), lng: parseFloat(data.lng) });
+            // ── MULTI-BUS STABILITY ──
+            // Only follow camera if user explicitly selected this specific bus!
+            // This prevents the camera from bouncing back and forth between multiple buses running simultaneously!
+            if (selectedIdRef.current === data.vehicleId && isActive && !isNaN(parseFloat(data.lat)) && !isNaN(parseFloat(data.lng))) {
+                setFlyTarget({ lat: parseFloat(data.lat), lng: parseFloat(data.lng), zoom: 16 });
             }
         });
     };
@@ -365,22 +447,52 @@ const AdminLiveMap = () => {
         return false;
     });
 
-    // Auto-center directly on the active bus when map loads or when driver starts trip
-    const hasAutoCenteredOnBus = useRef(false);
-    useEffect(() => {
-        if (!hasAutoCenteredOnBus.current && liveVehicles.length > 0) {
-            const firstLive = liveVehicles[0];
-            if (firstLive?.current_lat && firstLive?.current_lng) {
-                hasAutoCenteredOnBus.current = true;
-                setFlyTarget({ lat: firstLive.current_lat, lng: firstLive.current_lng });
-            }
-        }
+    // Disperse any vehicles that share the exact same or overlapping coordinates (e.g. testing from same device or depot)
+    const dispersedVehicles = useMemo(() => {
+        return getDispersedLiveVehicles(liveVehicles);
     }, [liveVehicles]);
 
+    // Auto-fit all active buses on initial load, or focus single bus
+    const hasAutoCenteredOnBus = useRef(false);
+    useEffect(() => {
+        if (!hasAutoCenteredOnBus.current && dispersedVehicles.length > 0) {
+            hasAutoCenteredOnBus.current = true;
+            if (dispersedVehicles.length === 1) {
+                const firstLive = dispersedVehicles[0];
+                const fLat = firstLive?.display_lat ?? firstLive?.current_lat;
+                const fLng = firstLive?.display_lng ?? firstLive?.current_lng;
+                if (fLat && fLng) {
+                    setFlyTarget({ lat: fLat, lng: fLng, zoom: 16 });
+                }
+            } else {
+                // Multiple running buses: fit bounds so admin sees all of them together
+                setFitTrigger(prev => prev + 1);
+            }
+        }
+    }, [dispersedVehicles.length]);
+
+    // Bounding box containing all active buses
+    const fleetBounds = (dispersedVehicles.length > 0)
+        ? L.latLngBounds(dispersedVehicles.map(v => [v.display_lat ?? v.current_lat, v.display_lng ?? v.current_lng]))
+        : null;
+
+    const handleFitAllFleet = useCallback(() => {
+        setSelectedId(null);
+        setFitTrigger(prev => prev + 1);
+    }, []);
+
     const handleVehicleClick = (v) => {
-        if (!v.current_lat || !v.current_lng) return;
-        setSelectedId(v.id);
-        setFlyTarget({ lat: v.current_lat, lng: v.current_lng });
+        const targetLat = v.display_lat ?? v.current_lat;
+        const targetLng = v.display_lng ?? v.current_lng;
+        if (!targetLat || !targetLng) return;
+        if (selectedId === v.id) {
+            // Toggling off focuses back to whole fleet
+            setSelectedId(null);
+            setFitTrigger(prev => prev + 1);
+        } else {
+            setSelectedId(v.id);
+            setFlyTarget({ lat: parseFloat(targetLat), lng: parseFloat(targetLng), zoom: 16 });
+        }
     };
 
     const getTimeSince = (vehicleId) => {
@@ -466,7 +578,7 @@ const AdminLiveMap = () => {
                                 />
                             )}
 
-                            <MapFlyTo target={flyTarget} />
+                            <MapViewController target={flyTarget} bounds={fleetBounds} fitTrigger={fitTrigger} />
 
                             {/* User's Exact Current Location Marker */}
                             {userLocation && (
@@ -480,17 +592,43 @@ const AdminLiveMap = () => {
                             )}
 
                             {/* Ola-style Smooth Moving Bus Markers */}
-                            {liveVehicles.map(v => (
+                            {dispersedVehicles.map(v => (
                                 <SmoothBusMarker
                                     key={v.id}
                                     vehicle={v}
                                     isSelected={selectedId === v.id}
+                                    onSelect={handleVehicleClick}
                                 />
                             ))}
                         </MapContainer>
 
-                        {/* Map Style Selector - Layered above Leaflet tiles and panes */}
-                        <div className="absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl border border-slate-200/80 flex gap-1 text-xs font-bold pointer-events-auto">
+                        {/* Top Left Following Bus Focus Indicator */}
+                        {selectedId && vehicleMap[selectedId] && (
+                            <div className="absolute top-4 left-4 z-[1000] bg-slate-900/95 backdrop-blur-md text-white px-3.5 py-2 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center gap-3 text-xs font-bold pointer-events-auto">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                                    <span>Focus: <strong className="text-yellow-400">{vehicleMap[selectedId].vehicle_number}</strong></span>
+                                </div>
+                                <button
+                                    onClick={handleFitAllFleet}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded-xl text-[11px] font-black transition-all active:scale-95 shadow-sm"
+                                >
+                                    Show All Fleet ✕
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Map Controls: View All Fleet + Style Selector */}
+                        <div className="absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl border border-slate-200/80 flex flex-wrap gap-1 text-xs font-bold pointer-events-auto">
+                            {liveVehicles.length > 0 && (
+                                <button
+                                    onClick={handleFitAllFleet}
+                                    className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${!selectedId ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-100'}`}
+                                    title="Fit all running buses on the screen"
+                                >
+                                    <span>👁️ All Fleet ({liveVehicles.length})</span>
+                                </button>
+                            )}
                             <button
                                 onClick={() => setMapType('streets')}
                                 className={`px-3 py-1.5 rounded-xl transition-all ${mapType === 'streets' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
