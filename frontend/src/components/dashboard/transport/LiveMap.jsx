@@ -250,6 +250,9 @@ const LiveMap = ({ vehicles = [] }) => {
                         current_lng: data.lng,
                         speed: data.speed,
                         heading: data.heading,
+                        // Always update driver_name from broadcast — it carries the ACTUAL
+                        // logged-in driver's name, not the statically-assigned one
+                        driver_name: data.driverName || v.driver_name,
                         current_route_name: data.routeName || v.current_route_name,
                         current_route_id: data.routeId || v.current_route_id,
                         status: data.status,

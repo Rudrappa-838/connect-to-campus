@@ -527,6 +527,36 @@ exports.updateLocation = async (req, res) => {
         const vehicle = result.rows[0];
         vehicle._source = 'mobile';
 
+        // ─── Use the ACTUAL logged-in driver's name for the broadcast ─────────
+        // The vehicle's driver_name is a static field set during vehicle config.
+        // When a different driver starts a trip (e.g. Rudrappa drives Route 2
+        // which was configured with Ramesh), the map must show "Rudrappa", not "Ramesh".
+        try {
+            const driverEmail = req.user?.email;
+            const driverLinkedId = req.user?.linkedId;
+            if (driverEmail || driverLinkedId) {
+                let staffRes;
+                if (driverLinkedId) {
+                    staffRes = await pool.query(
+                        'SELECT name FROM staff WHERE id = $1 AND school_id = $2 LIMIT 1',
+                        [driverLinkedId, school_id]
+                    );
+                }
+                if (!staffRes || staffRes.rows.length === 0) {
+                    staffRes = await pool.query(
+                        'SELECT name FROM staff WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND school_id = $2 LIMIT 1',
+                        [driverEmail, school_id]
+                    );
+                }
+                if (staffRes.rows.length > 0 && staffRes.rows[0].name) {
+                    vehicle._actual_driver_name = staffRes.rows[0].name;
+                }
+            }
+        } catch (nameErr) {
+            // Non-fatal — fall back to vehicle's static driver_name
+            console.warn('Could not resolve actual driver name:', nameErr.message);
+        }
+
         // Broadcast exact position to all connected dashboards
         broadcastLocation(school_id, vehicle);
 

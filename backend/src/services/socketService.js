@@ -78,7 +78,7 @@ const broadcastLocation = (schoolId, vehicleData) => {
     io.to(room).emit('vehicle:location', {
         vehicleId: vehicleData.id,
         vehicleNumber: vehicleData.vehicle_number,
-        driverName: vehicleData.driver_name,
+        driverName: vehicleData._actual_driver_name || vehicleData.driver_name,
         driverPhone: vehicleData.driver_phone,
         routeName: vehicleData.current_route_name || vehicleData.route_name || null,
         routeId: vehicleData.current_route_id || vehicleData.route_id || null,
