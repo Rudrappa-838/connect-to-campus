@@ -22,6 +22,8 @@
 # Keep Capacitor Plugins
 -keep class com.capacitorjs.plugins.** { *; }
 -keep class com.google.firebase.** { *; }
+-keep class com.rudrappa.connect2campus.** { *; }
+-keepclassmembers class com.rudrappa.connect2campus.** { *; }
 
 # Keep Android Support Libraries
 -keep class androidx.** { *; }

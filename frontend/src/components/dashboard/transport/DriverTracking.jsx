@@ -6,10 +6,13 @@ import api from '../../../api/axios';
 import toast from 'react-hot-toast';
 import { Geolocation } from '@capacitor/geolocation';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { Capacitor } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+
+const BackgroundLocation = registerPlugin('BackgroundLocation');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BACKGROUND GPS STRATEGY
@@ -94,6 +97,7 @@ const DriverTracking = ({ onBack }) => {
     const isTrackingRef = useRef(false);
     const pendingUpdateRef = useRef(null);
     const lastKnownGpsRef = useRef(null);   // Stores last valid GPS fix for heartbeat fallback
+    const bgLocationListenerRef = useRef(null); // Native Android Background Service listener
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -174,6 +178,10 @@ const DriverTracking = ({ onBack }) => {
 
         return () => {
             if (appListener) appListener.remove();
+            if (bgLocationListenerRef.current) {
+                try { bgLocationListenerRef.current.remove(); } catch (e) {}
+                bgLocationListenerRef.current = null;
+            }
             document.removeEventListener('visibilitychange', handleVisibility);
             window.removeEventListener('focus', handleVisibility);
         };
@@ -411,8 +419,83 @@ const DriverTracking = ({ onBack }) => {
     // ─── Actual tracking start ─────────────────────────────────────────────────
     const beginTracking = async () => {
         try {
+            toast.loading('Acquiring GPS...', { id: 'gps-start' });
+
+            // ─── NATIVE ANDROID FOREGROUND SERVICE ───────────────────────────────
+            // When running in the Android release app (AAB/APK), we start our custom
+            // native Android Foreground Service with FOREGROUND_SERVICE_LOCATION and
+            // PARTIAL_WAKE_LOCK. This ensures that when the driver turns off the screen
+            // or takes a phone call, GPS continues sending updates directly from the
+            // native background thread without being throttled or stopped by Android.
+            if (Capacitor.isNativePlatform()) {
+                try {
+                    const perm = await Geolocation.checkPermissions();
+                    if (perm.location !== 'granted') {
+                        const req = await Geolocation.requestPermissions({ permissions: ['location'] });
+                        if (req.location !== 'granted') {
+                            setError('PERMISSION_DENIED');
+                            toast.error('Location permission is required for live tracking.', { id: 'gps-start' });
+                            return;
+                        }
+                    }
+
+                    // Request notification permission for the persistent foreground notification
+                    try {
+                        const notifPerm = await LocalNotifications.checkPermissions();
+                        if (notifPerm.display !== 'granted') {
+                            await LocalNotifications.requestPermissions();
+                        }
+                    } catch (e) {}
+
+                    // Get auth token
+                    let token = localStorage.getItem('token');
+                    try {
+                        const pref = await Preferences.get({ key: 'token' });
+                        if (pref?.value) token = pref.value;
+                    } catch (e) {}
+
+                    const activeRouteObj = routes.find(r => String(r.id) === String(selectedRoute));
+                    const activeVehObj = vehicles.find(v => String(v.id) === String(selectedVehicle));
+
+                    // Start native Android Foreground Service
+                    await BackgroundLocation.startTracking({
+                        apiUrl: api.defaults.baseURL || 'https://connect2campus.co.in/api',
+                        token: token || '',
+                        vehicleId: String(selectedVehicle),
+                        routeId: activeRouteObj ? String(activeRouteObj.id) : null,
+                        routeName: activeRouteObj ? activeRouteObj.route_name : null,
+                        vehicleNumber: activeVehObj ? activeVehObj.vehicle_number : ''
+                    });
+
+                    // Remove old listener if any
+                    if (bgLocationListenerRef.current) {
+                        try { bgLocationListenerRef.current.remove(); } catch (e) {}
+                    }
+
+                    // Attach listener to update React speedometer, map, and counters in real-time
+                    bgLocationListenerRef.current = await BackgroundLocation.addListener('onLocationUpdate', (data) => {
+                        const { latitude, longitude, speed, heading } = data;
+                        if (latitude && longitude) {
+                            setLastPosition([latitude, longitude]);
+                            setCurrentSpeed(speed ? Math.round(speed * 3.6) : 0);
+                            setCurrentHeading(heading || 0);
+                            setLastUpdated(new Date());
+                            setUpdateCount(prev => prev + 1);
+                        }
+                    });
+
+                    setIsTracking(true);
+                    requestWakeLock();
+                    toast.success("Let's Drive! Persistent GPS Live Tracking Active 🚀", { id: 'gps-start' });
+                    return;
+                } catch (nativeErr) {
+                    console.warn('[GPS] Native BackgroundLocation failed, falling back to web watchPosition:', nativeErr);
+                    // Fall back to web watchPosition below
+                }
+            }
+
+            // ─── WEB / BROWSER FALLBACK ──────────────────────────────────────────
             if (isMobileApp) {
-                // Request only ACCESS_FINE_LOCATION (not background — not in manifest)
                 const perm = await Geolocation.checkPermissions();
                 if (perm.location !== 'granted') {
                     const req = await Geolocation.requestPermissions({ permissions: ['location'] });
@@ -422,8 +505,6 @@ const DriverTracking = ({ onBack }) => {
                     }
                 }
             }
-
-            toast.loading('Acquiring GPS...', { id: 'gps-start' });
 
             // Initial immediate fix — get first position fast with fallback
             try {
@@ -435,7 +516,6 @@ const DriverTracking = ({ onBack }) => {
                         maximumAge: 0
                     });
                 } catch (highAccErr) {
-                    // Fallback to standard accuracy on web/laptops if high accuracy times out
                     initPos = await Geolocation.getCurrentPosition({
                         enableHighAccuracy: false,
                         timeout: 8000,
@@ -480,6 +560,19 @@ const DriverTracking = ({ onBack }) => {
 
     // ─── Stop tracking ─────────────────────────────────────────────────────────
     const stopTracking = async () => {
+        // Stop native Android Foreground Service
+        if (Capacitor.isNativePlatform()) {
+            if (bgLocationListenerRef.current) {
+                try { bgLocationListenerRef.current.remove(); } catch (e) {}
+                bgLocationListenerRef.current = null;
+            }
+            try {
+                await BackgroundLocation.stopTracking();
+            } catch (e) {
+                console.warn('Error stopping native BackgroundLocation:', e);
+            }
+        }
+
         // Stop Layer 1: native watchPosition
         if (watchIdRef.current !== null) {
             try { await Geolocation.clearWatch({ id: watchIdRef.current }); } catch (err) {}

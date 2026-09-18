@@ -45,17 +45,23 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Background Location Foreground Service for persistent bus GPS tracking -->
+        <service
+            android:name=".BackgroundLocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
     </application>
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <!-- ACCESS_BACKGROUND_LOCATION intentionally removed: Google Play policy requires this
-         only when the app EXPLICITLY requests "Allow all the time" via a compliant
-         native foreground service. Our approach uses a persistent LocalNotification
-         (ongoing=true) which keeps the OS GPS service alive without needing background
-         location permission. Removing this avoids the Prominent Disclosure policy violation. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     
