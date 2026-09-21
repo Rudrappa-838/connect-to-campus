@@ -299,9 +299,9 @@ const StaffDashboard = () => {
         setShowLogoutModal(true);
     };
 
-    const handleConfirmLogout = () => {
+    const handleConfirmLogout = async () => {
         if (isDriver) stopTracking();
-        logout();
+        await logout();
         navigate('/');
     };
 

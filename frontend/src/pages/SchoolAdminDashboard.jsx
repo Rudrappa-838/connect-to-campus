@@ -197,8 +197,8 @@ const SchoolAdminDashboard = () => {
         setShowLogoutModal(true);
     };
 
-    const handleConfirmLogout = () => {
-        logout();
+    const handleConfirmLogout = async () => {
+        await logout();
         navigate('/');
     };
 

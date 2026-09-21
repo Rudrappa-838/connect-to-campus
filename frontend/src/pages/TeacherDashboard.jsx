@@ -100,8 +100,8 @@ const TeacherDashboard = () => {
         setShowLogoutModal(true);
     };
 
-    const handleConfirmLogout = () => {
-        logout();
+    const handleConfirmLogout = async () => {
+        await logout();
         navigate('/');
     };
 

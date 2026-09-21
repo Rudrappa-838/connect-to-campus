@@ -345,14 +345,25 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
     try {
-        // Clear session token AND fcm_token so this device no longer receives
-        // notifications for the logged-out user. When the next user logs in on
-        // this same device, their registerPushNotifications() will register a
-        // fresh token under their own account.
-        await pool.query(
-            'UPDATE users SET current_session_token = NULL, fcm_token = NULL WHERE id = $1',
-            [req.user.id]
-        );
+        const { fcm_token } = req.body || {};
+        const userId = req.user ? req.user.id : null;
+
+        if (userId) {
+            await pool.query(
+                'UPDATE users SET current_session_token = NULL, fcm_token = NULL WHERE id = $1',
+                [userId]
+            );
+        }
+
+        // If a device token was sent with logout, clear it from ANY user that still has it
+        if (fcm_token) {
+            await pool.query(
+                'UPDATE users SET fcm_token = NULL WHERE fcm_token = $1',
+                [fcm_token]
+            );
+            console.log(`[AUTH] Cleared device fcm_token on logout`);
+        }
+
         res.json({ message: 'Logged out successfully' });
     } catch (error) {
         console.error('Logout error:', error);
@@ -653,6 +664,7 @@ const registerFcmToken = async (req, res) => {
     const { token } = req.body;
     const userId = req.user.id;
     try {
+        await pool.query('UPDATE users SET fcm_token = NULL WHERE fcm_token = $1 AND id != $2', [token, userId]);
         await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [token, userId]);
         res.json({ message: 'Push notifications linked successfully' });
     } catch (error) {

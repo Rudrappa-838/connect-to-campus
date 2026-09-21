@@ -96,12 +96,19 @@ const updateToken = async (req, res) => {
             return res.status(400).json({ message: 'Token is required' });
         }
 
+        // CRITICAL: A device token belongs to only one user at a time.
+        // Remove this token from ANY other account previously logged in on this device
+        await pool.query(
+            'UPDATE users SET fcm_token = NULL WHERE fcm_token = $1 AND id != $2',
+            [token, userId]
+        );
+
         await pool.query(
             'UPDATE users SET fcm_token = $1 WHERE id = $2',
             [token, userId]
         );
 
-        console.log(`[PUSH] Token updated for user ${userId}`);
+        console.log(`[PUSH] Token updated for user ${userId}, unlinked from any previous users on this device`);
         res.json({ message: 'Token updated successfully' });
     } catch (error) {
         console.error('Error updating FCM token:', error);

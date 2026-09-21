@@ -51,8 +51,14 @@ export const registerPushNotifications = async (userId) => {
         PushNotifications.addListener('registration', async (token) => {
             console.log('Push Registration Success, token:', token.value, 'for userId:', userId);
             try {
-                // Store token in localStorage for backup
+                // Store token in localStorage and Preferences for backup/logout access
                 localStorage.setItem('fcm_token', token.value);
+                if (Capacitor.isNativePlatform()) {
+                    try {
+                        const { Preferences } = await import('@capacitor/preferences');
+                        await Preferences.set({ key: 'fcm_token', value: token.value });
+                    } catch (pe) { /* ignore */ }
+                }
                 // Always send with current userId so the token is tied to the right account
                 await api.post('/notifications/token', { token: token.value, userId });
             } catch (err) {

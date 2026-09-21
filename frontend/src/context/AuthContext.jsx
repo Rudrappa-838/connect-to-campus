@@ -49,12 +49,21 @@ export const AuthProvider = ({ children }) => {
         const currentUser = userRef.current; // Use stable ref
         try {
             if (!isRemote && !isAutoLogout) {
-                // On native: remove all push notification listeners BEFORE clearing session.
-                // This immediately stops any in-flight notification from being shown for the old user.
+                let currentFcmToken = localStorage.getItem('fcm_token');
+
+                // On native: remove all push notification listeners AND delivered notifications BEFORE clearing session.
+                // This immediately clears notifications from the notification shade and stops notifications for the old user.
                 if (Capacitor.isNativePlatform()) {
+                    try {
+                        const { Preferences } = await import('@capacitor/preferences');
+                        const { value } = await Preferences.get({ key: 'fcm_token' });
+                        if (value) currentFcmToken = value;
+                    } catch (e) { /* ignore */ }
+
                     try {
                         const { PushNotifications } = await import('@capacitor/push-notifications');
                         await PushNotifications.removeAllListeners();
+                        await PushNotifications.removeAllDeliveredNotifications();
                     } catch (e) { /* ignore if plugin unavailable */ }
                 }
 
@@ -65,7 +74,8 @@ export const AuthProvider = ({ children }) => {
                     channel.close();
                 } catch (e) { console.warn('BroadcastChannel suppressed inside logout'); }
 
-                await api.post('/auth/logout');
+                // Notify backend to clear session and unlink device FCM token
+                await api.post('/auth/logout', { fcm_token: currentFcmToken });
             }
         } catch (error) {
             console.error("Logout API failed", error);
@@ -79,6 +89,8 @@ export const AuthProvider = ({ children }) => {
             // Clear from both storages (safe for all roles)
             await removeStorageItem('token');
             await removeStorageItem('user');
+            await removeStorageItem('fcm_token');
+            localStorage.removeItem('fcm_token');
 
             setAuthToken(null);
             setUser(null);
