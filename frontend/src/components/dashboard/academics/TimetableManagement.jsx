@@ -13,6 +13,7 @@ const TimetableManagement = ({ config }) => {
     const [editingSlot, setEditingSlot] = useState(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [pendingChanges, setPendingChanges] = useState([]);
+    const [subjects, setSubjects] = useState([]); // Fetched from API
 
     // Auto-gen configuration
     const [autoGenConfig, setAutoGenConfig] = useState({
@@ -31,13 +32,33 @@ const TimetableManagement = ({ config }) => {
     const [teachers, setTeachers] = useState([]);
 
     const sections = config?.classes?.find(c => c.class_id === parseInt(selectedClass))?.sections || [];
-    const classSubjects = config?.classes?.find(c => c.class_id === parseInt(selectedClass))?.subjects || [];
 
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     useEffect(() => {
         fetchTeachers();
     }, []);
+
+    // Fetch subjects from API whenever class changes
+    useEffect(() => {
+        if (selectedClass) {
+            fetchSubjects();
+        } else {
+            setSubjects([]);
+        }
+    }, [selectedClass]);
+
+    const fetchSubjects = async () => {
+        try {
+            const res = await api.get(`/classes/${selectedClass}/subjects`);
+            setSubjects(res.data || []);
+        } catch (error) {
+            console.error('Error fetching subjects:', error);
+            // Fallback to config subjects
+            const configSubjects = config?.classes?.find(c => c.class_id === parseInt(selectedClass))?.subjects || [];
+            setSubjects(configSubjects);
+        }
+    };
 
     useEffect(() => {
         if (selectedClass) {
@@ -74,8 +95,8 @@ const TimetableManagement = ({ config }) => {
     };
 
     const handleOpenAutoGen = () => {
-        // Initialize with class subjects and their teachers
-        const initialSubjects = classSubjects.map(sub => {
+        // Initialize with class subjects and their teachers (use API-fetched subjects)
+        const initialSubjects = subjects.map(sub => {
             const teacher = teachers.find(t => t.subject_specialization === sub.name);
             return {
                 subject_id: sub.id,
@@ -144,8 +165,8 @@ const TimetableManagement = ({ config }) => {
         }
 
         // Get subject and teacher names for display
-        const subject = classSubjects.find(s => s.id === editingSlot.subject_id);
-        const teacher = teachers.find(t => t.id === editingSlot.teacher_id);
+        const subject = subjects.find(s => parseInt(s.id) === parseInt(editingSlot.subject_id));
+        const teacher = teachers.find(t => parseInt(t.id) === parseInt(editingSlot.teacher_id));
 
         const updatedSlot = {
             ...editingSlot,
@@ -525,33 +546,41 @@ const TimetableManagement = ({ config }) => {
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Subject</label>
                                 <select
-                                    value={editingSlot.subject_id}
-                                    onChange={(e) => setEditingSlot({ ...editingSlot, subject_id: parseInt(e.target.value) })}
-                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+                                    value={editingSlot.subject_id || ''}
+                                    onChange={(e) => {
+                                        const newSubjectId = parseInt(e.target.value);
+                                        // Auto-clear teacher when subject changes
+                                        setEditingSlot({ ...editingSlot, subject_id: newSubjectId, teacher_id: null });
+                                    }}
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                                 >
                                     <option value="">Select Subject</option>
-                                    {classSubjects.map(sub => (
+                                    {subjects.map(sub => (
                                         <option key={sub.id} value={sub.id}>{sub.name}</option>
                                     ))}
                                 </select>
+                                {subjects.length === 0 && (
+                                    <p className="text-xs text-amber-600 mt-1">⚠️ No subjects found for this class</p>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Teacher</label>
                                 <select
                                     value={editingSlot.teacher_id || ''}
                                     onChange={(e) => setEditingSlot({ ...editingSlot, teacher_id: e.target.value ? parseInt(e.target.value) : null })}
-                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                                 >
                                     <option value="">Unassigned</option>
                                     {teachers
                                         .filter(t => {
-                                            const currentSubject = classSubjects.find(s => s.id === editingSlot.subject_id);
+                                            const currentSubject = subjects.find(s => parseInt(s.id) === parseInt(editingSlot.subject_id));
                                             return currentSubject && t.subject_specialization && t.subject_specialization.toLowerCase() === currentSubject.name.toLowerCase();
                                         })
                                         .map(t => (
                                             <option key={t.id} value={t.id}>{t.name}</option>
                                         ))}
                                 </select>
+                                <p className="text-xs text-slate-400 mt-1">Only teachers matching the selected subject are shown</p>
                             </div>
                         </div>
                         <div className="px-6 py-4 border-t border-gray-200 bg-slate-50 flex justify-end gap-3">

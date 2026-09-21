@@ -33,8 +33,9 @@ const ExamSchedule = ({ config }) => {
     const [editExamData, setEditExamData] = useState({ id: null, name: '', max_marks: 100, min_marks: 35, start_month: 1, end_month: 12 });
 
     // Single Schedule Item Edit
-    const [editItem, setEditItem] = useState(null); // { id, date, startTime, endTime, components: [], subject_name, max_marks }
+    const [editItem, setEditItem] = useState(null); // { id, date, startTime, endTime, components: [], subject_name, subject_id, class_id, max_marks }
     const [showEditItemModal, setShowEditItemModal] = useState(false);
+    const [editItemSubjects, setEditItemSubjects] = useState([]); // Subjects available for the class being edited
 
     // Add Class Modal State
     const [showAddClassModal, setShowAddClassModal] = useState(false);
@@ -457,7 +458,8 @@ const ExamSchedule = ({ config }) => {
                     max_marks: sub.max_marks,
                     min_marks: sub.min_marks,
                     components: sub.components,
-                    target_batch: sub.target_batch
+                    target_batch: sub.target_batch,
+                    topic: (sub.topicEnabled && sub.topic) ? sub.topic.trim() : null
                 });
             });
         });
@@ -573,7 +575,8 @@ const ExamSchedule = ({ config }) => {
                     max_marks: sub.max_marks,
                     min_marks: sub.min_marks,
                     components: sub.components,
-                    target_batch: sub.target_batch
+                    target_batch: sub.target_batch,
+                    topic: (sub.topicEnabled && sub.topic) ? sub.topic.trim() : null
                 });
             });
         });
@@ -594,7 +597,8 @@ const ExamSchedule = ({ config }) => {
                 max_marks: item.max_marks || 100,
                 min_marks: item.min_marks || 35,
                 components: item.components || [],
-                target_batch: item.target_batch || null
+                target_batch: item.target_batch || null,
+                topic: item.topic || null
             }));
             await api.post('/exam-schedule/save', { schedules: payload, delete_existing: true });
             setShowAutoModal(false);
@@ -691,6 +695,7 @@ const ExamSchedule = ({ config }) => {
                     min_marks: tmpl.min_marks,
                     components: tmpl.components ? JSON.parse(JSON.stringify(tmpl.components)) : [], // Deep copy
                     target_batch: tmpl.target_batch,
+                    topic: tmpl.topic || null,
  
                     data_new: true // Mark as unsaved
                 });
@@ -731,7 +736,8 @@ const ExamSchedule = ({ config }) => {
                 max_marks: item.max_marks || 100,
                 min_marks: item.min_marks || 35,
                 components: item.components || [],
-                target_batch: item.target_batch || null
+                target_batch: item.target_batch || null,
+                topic: item.topic || null
             }));
 
             await api.post('/exam-schedule/save', {
@@ -781,7 +787,10 @@ const ExamSchedule = ({ config }) => {
                     end_time: editItem.endTime,
                     components: editItem.components,
                     max_marks: parseFloat(editItem.max_marks) || 0,
-                    min_marks: parseFloat(editItem.min_marks) || 0
+                    min_marks: parseFloat(editItem.min_marks) || 0,
+                    subject_id: editItem.subject_id || s.subject_id,
+                    subject_name: editItem.subject_name || s.subject_name,
+                    topic: editItem.topic !== undefined ? editItem.topic : s.topic
                 } : s
             ));
             toast.success('Schedule updated locally (Unsaved)');
@@ -797,15 +806,32 @@ const ExamSchedule = ({ config }) => {
                 components: editItem.components || [],
                 max_marks: parseFloat(editItem.max_marks) || 0,
                 min_marks: parseFloat(editItem.min_marks) || 0,
+                subject_id: editItem.subject_id || null,
+                topic: editItem.topic !== undefined ? (editItem.topic.trim() || null) : null,
                 ids: editItem.ids && editItem.ids.length > 0 ? editItem.ids : [editItem.id]
             };
             console.log("Sending Payload:", payload);
 
             await api.put(`/exam-schedule/${editItem.id}`, payload);
 
+            // Update local state with new subject name & topic
+            setSchedule(prev => prev.map(s =>
+                (editItem.ids || [editItem.id]).includes(s.id) ? {
+                    ...s,
+                    exam_date: editItem.date,
+                    start_time: editItem.startTime,
+                    end_time: editItem.endTime,
+                    subject_id: editItem.subject_id || s.subject_id,
+                    subject_name: editItem.subject_name || s.subject_name,
+                    max_marks: parseFloat(editItem.max_marks) || s.max_marks,
+                    min_marks: parseFloat(editItem.min_marks) || s.min_marks,
+                    components: editItem.components,
+                    topic: editItem.topic !== undefined ? (editItem.topic.trim() || null) : s.topic
+                } : s
+            ));
+
             toast.success('Schedule updated successfully');
             setShowEditItemModal(false);
-            fetchExistingSchedule(); // Refresh list
         } catch (error) {
             console.error("Update failed:", error.response?.data || error);
             const msg = error.response?.data?.message || 'Failed to update schedule';
@@ -1233,6 +1259,7 @@ const ExamSchedule = ({ config }) => {
                                 <th className="p-3 border-b">Date</th>
                                 <th className="p-3 border-b">Time</th>
                                 <th className="p-3 border-b">Subject</th>
+                                <th className="p-3 border-b">Topic</th>
                                 <th className="p-3 border-b">Action</th>
                             </tr>
                         </thead>
@@ -1287,21 +1314,32 @@ const ExamSchedule = ({ config }) => {
                                         </div>
                                     </td>
                                     <td className="p-3 font-bold">{group.subject_name}</td>
+                                    <td className="p-3 text-xs text-slate-500">{group.topic || <span className="italic text-slate-300">—</span>}</td>
                                     <td className="p-3">
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => {
+                                                    const grp = group;
+                                                    // Fetch subjects for this class
+                                                    const classId = grp.class_id;
+                                                    api.get(`/classes/${classId}/subjects`)
+                                                        .then(res => setEditItemSubjects(res.data || []))
+                                                        .catch(() => setEditItemSubjects([]));
+
                                                     setEditItem({
-                                                        id: group.ids[0],
-                                                        ids: group.ids,
-                                                        data_new: group.data_new,
-                                                        date: group.exam_date,
-                                                        startTime: group.start_time,
-                                                        endTime: group.end_time,
-                                                        components: group.components || [],
-                                                        subject_name: group.subject_name,
-                                                        max_marks: group.max_marks || 100,
-                                                        min_marks: group.min_marks || 35
+                                                        id: grp.ids[0],
+                                                        ids: grp.ids,
+                                                        data_new: grp.data_new,
+                                                        date: grp.exam_date,
+                                                        startTime: grp.start_time,
+                                                        endTime: grp.end_time,
+                                                        components: grp.components || [],
+                                                        subject_id: grp.subject_id,
+                                                        subject_name: grp.subject_name,
+                                                        class_id: grp.class_id,
+                                                        max_marks: grp.max_marks || 100,
+                                                        min_marks: grp.min_marks || 35,
+                                                        topic: grp.topic || ''
                                                     });
                                                     setShowEditItemModal(true);
                                                 }}
@@ -1381,6 +1419,7 @@ const ExamSchedule = ({ config }) => {
                                         <th className="border border-black px-2 py-1 font-bold text-center w-32">Date</th>
                                         <th className="border border-black px-2 py-1 font-bold text-center w-32">Time</th>
                                         <th className="border border-black px-2 py-1 font-bold">Subject</th>
+                                        <th className="border border-black px-2 py-1 font-bold">Topic / Portion</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1391,6 +1430,7 @@ const ExamSchedule = ({ config }) => {
                                                 {formatTime12Hour(item.start_time)} - {formatTime12Hour(item.end_time)}
                                             </td>
                                             <td className="border border-black px-2 py-1 font-bold">{item.subject_name}</td>
+                                            <td className="border border-black px-2 py-1 text-sm">{item.topic || '-'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -1480,6 +1520,7 @@ const ExamSchedule = ({ config }) => {
                                                 />
                                             </th>
                                             <th className="p-3 border-b">Subject</th>
+                                            <th className="p-3 border-b">Topic (optional)</th>
                                             <th className="p-3 border-b">Exam Date</th>
                                             <th className="p-3 border-b">Start Time</th>
                                             <th className="p-3 border-b">End Time</th>
@@ -1521,6 +1562,36 @@ const ExamSchedule = ({ config }) => {
                                                         />
                                                     </td>
                                                     <td className="p-3 font-medium">{sub.name}</td>
+                                                    {/* Topic column */}
+                                                    <td className="p-3">
+                                                        <div className="flex flex-col gap-1.5 min-w-[160px]">
+                                                            <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs text-slate-600">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={!!cfg.topicEnabled}
+                                                                    disabled={!cfg.selected}
+                                                                    onChange={(e) => setSubjectConfigs({
+                                                                        ...subjectConfigs,
+                                                                        [sub.id]: { ...cfg, topicEnabled: e.target.checked, topic: e.target.checked ? (cfg.topic || '') : '' }
+                                                                    })}
+                                                                    className="w-3.5 h-3.5 text-indigo-600 rounded"
+                                                                />
+                                                                Add Topic
+                                                            </label>
+                                                            {cfg.topicEnabled && cfg.selected && (
+                                                                <input
+                                                                    type="text"
+                                                                    value={cfg.topic || ''}
+                                                                    onChange={(e) => setSubjectConfigs({
+                                                                        ...subjectConfigs,
+                                                                        [sub.id]: { ...cfg, topic: e.target.value }
+                                                                    })}
+                                                                    placeholder="e.g. Chapters 1-5"
+                                                                    className="border border-indigo-300 rounded px-2 py-1 text-xs w-full focus:ring-1 focus:ring-indigo-400 outline-none"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </td>
                                                     <td className="p-3">
                                                         <input
                                                             type="date"
@@ -1610,7 +1681,7 @@ const ExamSchedule = ({ config }) => {
                                         })}
                                         {availableSubjects.length === 0 && (
                                             <tr>
-                                                <td colSpan="5" className="p-8 text-center text-slate-400">
+                                                <td colSpan="9" className="p-8 text-center text-slate-400">
                                                     No subjects found. Please select classes first.
                                                 </td>
                                             </tr>
@@ -1900,6 +1971,39 @@ const ExamSchedule = ({ config }) => {
                                 <button onClick={() => setShowEditItemModal(false)}><X size={20} /></button>
                             </div>
                             <div className="p-6 space-y-4">
+
+                                {/* Subject Selector */}
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Subject</label>
+                                    <select
+                                        value={editItem.subject_id || ''}
+                                        onChange={(e) => {
+                                            const newSubId = parseInt(e.target.value);
+                                            const sub = editItemSubjects.find(s => s.id === newSubId);
+                                            setEditItem({ ...editItem, subject_id: newSubId, subject_name: sub?.name || editItem.subject_name });
+                                        }}
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    >
+                                        <option value="">-- Keep current subject --</option>
+                                        {editItemSubjects.map(sub => (
+                                            <option key={sub.id} value={sub.id}>{sub.name}</option>
+                                        ))}
+                                    </select>
+                                    {editItemSubjects.length === 0 && (
+                                        <p className="text-xs text-slate-400 mt-1">Loading subjects...</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Topic (optional)</label>
+                                    <input
+                                        type="text"
+                                        value={editItem.topic || ''}
+                                        onChange={(e) => setEditItem({ ...editItem, topic: e.target.value })}
+                                        placeholder="e.g. Chapters 1-5, Algebra & Geometry"
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
 
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-1">Exam Date</label>

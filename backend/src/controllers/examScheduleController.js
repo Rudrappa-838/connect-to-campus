@@ -21,7 +21,7 @@ exports.getExamSchedule = async (req, res) => {
         const { class_id, section_id, exam_type_id } = req.query;
 
         let query = `
-            SELECT es.*, sub.name as subject_name, c.name as class_name, s.name as section_name, et.name as exam_type_name
+            SELECT es.*, es.topic, sub.name as subject_name, c.name as class_name, s.name as section_name, et.name as exam_type_name
             FROM exam_schedules es
             JOIN subjects sub ON es.subject_id = sub.id
             JOIN classes c ON es.class_id = c.id
@@ -133,8 +133,8 @@ exports.saveExamSchedule = async (req, res) => {
                             `UPDATE exam_schedules SET 
                                 exam_date = $1, start_time = $2, end_time = $3, 
                                 components = $4, max_marks = $5, min_marks = $6,
-                                target_batch = $7, updated_at = NOW()
-                             WHERE id = $8`,
+                                target_batch = $7, topic = $8, updated_at = NOW()
+                             WHERE id = $9`,
                             [
                                 schedule.exam_date || null,
                                 schedule.start_time || null,
@@ -143,14 +143,15 @@ exports.saveExamSchedule = async (req, res) => {
                                 schedule.max_marks || 100,
                                 schedule.min_marks || 35,
                                 schedule.target_batch || null,
+                                schedule.topic || null,
                                 existingId
                             ]
                         );
                     } else {
                         const insertQ = `
                             INSERT INTO exam_schedules 
-                            (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks, target_batch)
-                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                            (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks, target_batch, topic)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                         `;
                         return client.query(insertQ, [
                             school_id,
@@ -164,7 +165,8 @@ exports.saveExamSchedule = async (req, res) => {
                             JSON.stringify(schedule.components || []),
                             schedule.max_marks || 100,
                             schedule.min_marks || 35,
-                            schedule.target_batch || null
+                            schedule.target_batch || null,
+                            schedule.topic || null
                         ]);
                     }
                 });
@@ -188,8 +190,8 @@ exports.saveExamSchedule = async (req, res) => {
             const insertPromises = schedules.map(schedule => {
                 return client.query(
                     `INSERT INTO exam_schedules 
-                     (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks, target_batch)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                     (school_id, exam_type_id, class_id, section_id, subject_id, exam_date, start_time, end_time, components, max_marks, min_marks, target_batch, topic)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
                     [
                         school_id,
                         schedule.exam_type_id,
@@ -202,7 +204,8 @@ exports.saveExamSchedule = async (req, res) => {
                         JSON.stringify(schedule.components || []),
                         schedule.max_marks || 100,
                         schedule.min_marks || 35,
-                        schedule.target_batch || null
+                        schedule.target_batch || null,
+                        schedule.topic || null
                     ]
                 );
             });
@@ -223,69 +226,115 @@ exports.saveExamSchedule = async (req, res) => {
 
 // Update Single Exam Schedule Item
 exports.updateExamScheduleItem = async (req, res) => {
+    const client = await pool.connect();
     try {
         const { id } = req.params;
         const school_id = req.user.schoolId;
-        let { exam_date, start_time, end_time, components, max_marks, min_marks, ids } = req.body;
+        let { exam_date, start_time, end_time, components, max_marks, min_marks, ids, subject_id, topic } = req.body;
 
         const itemId = parseInt(id);
         exam_date = exam_date || null;
         start_time = start_time || null;
         end_time = end_time || null;
+        const newSubjectId = subject_id ? parseInt(subject_id) : null;
 
-        let result;
+        await client.query('BEGIN');
 
-        if (ids && Array.isArray(ids) && ids.length > 0) {
-            const parsedIds = ids.map(i => parseInt(i)).filter(i => !isNaN(i));
-            result = await pool.query(
-                `UPDATE exam_schedules 
-                 SET exam_date = $1, start_time = $2, end_time = $3, 
-                     components = $4, max_marks = $5, min_marks = $6, updated_at = NOW()
-                 WHERE id = ANY($7::int[]) AND school_id = $8
-                 RETURNING *`,
-                [
-                    exam_date, 
-                    start_time, 
-                    end_time, 
-                    typeof components === 'string' ? components : JSON.stringify(components || []), 
-                    parseFloat(max_marks) || 100, 
-                    parseFloat(min_marks) || 35, 
-                    parsedIds, 
-                    school_id
-                ]
-            );
-        } else {
-            result = await pool.query(
-                `UPDATE exam_schedules 
-                 SET exam_date = $1, start_time = $2, end_time = $3, 
-                     components = $4, max_marks = $5, min_marks = $6, updated_at = NOW()
-                 WHERE id = $7 AND school_id = $8
-                 RETURNING *`,
-                [
-                    exam_date, 
-                    start_time, 
-                    end_time, 
-                    typeof components === 'string' ? components : JSON.stringify(components || []), 
-                    parseFloat(max_marks) || 100, 
-                    parseFloat(min_marks) || 35, 
-                    itemId, 
-                    school_id
-                ]
-            );
-        }
+        // --- Step 1: Fetch the existing schedule rows BEFORE update ---
+        // We need old subject_id(s), class_id, section_id, exam_type_id to migrate marks
+        const targetIds = (ids && Array.isArray(ids) && ids.length > 0)
+            ? ids.map(i => parseInt(i)).filter(i => !isNaN(i))
+            : [itemId];
 
-        if (!result.rows || result.rows.length === 0) {
+        const existingRows = await client.query(
+            `SELECT id, subject_id, class_id, section_id, exam_type_id
+             FROM exam_schedules
+             WHERE id = ANY($1::int[]) AND school_id = $2`,
+            [targetIds, school_id]
+        );
+
+        if (existingRows.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ message: 'Schedule item not found' });
         }
+
+        // --- Step 2: Update exam_schedules ---
+        const updateTopicClause = topic !== undefined ? 'topic = $10,' : '';
+        const queryParams = [
+            exam_date,
+            start_time,
+            end_time,
+            typeof components === 'string' ? components : JSON.stringify(components || []),
+            parseFloat(max_marks) || 100,
+            parseFloat(min_marks) || 35,
+            targetIds,
+            school_id,
+            newSubjectId
+        ];
+        if (topic !== undefined) {
+            queryParams.push(topic && topic.trim() ? topic.trim() : null);
+        }
+
+        const result = await client.query(
+            `UPDATE exam_schedules 
+             SET exam_date = $1, start_time = $2, end_time = $3, 
+                 components = $4, max_marks = $5, min_marks = $6,
+                 subject_id = COALESCE($9, subject_id),
+                 ${updateTopicClause} updated_at = NOW()
+             WHERE id = ANY($7::int[]) AND school_id = $8
+             RETURNING *`,
+            queryParams
+        );
+
+        // --- Step 3: Migrate marks if subject changed ---
+        if (newSubjectId) {
+            for (const existingRow of existingRows.rows) {
+                const oldSubjectId = existingRow.subject_id;
+
+                // Only migrate if subject actually changed
+                if (oldSubjectId && oldSubjectId !== newSubjectId) {
+                    const { class_id, section_id, exam_type_id } = existingRow;
+
+                    // Re-key marks from old subject_id → new subject_id
+                    // ON CONFLICT: if marks already exist for new subject, skip (keep existing new-subject marks)
+                    await client.query(
+                        `UPDATE marks
+                         SET subject_id = $1
+                         WHERE school_id = $2
+                           AND subject_id = $3
+                           AND class_id = $4
+                           AND exam_type_id = $5
+                           AND ($6::int IS NULL OR section_id = $6)
+                           AND NOT EXISTS (
+                               SELECT 1 FROM marks m2
+                               WHERE m2.school_id = marks.school_id
+                                 AND m2.student_id = marks.student_id
+                                 AND m2.subject_id = $1
+                                 AND m2.exam_type_id = marks.exam_type_id
+                                 AND m2.year = marks.year
+                           )`,
+                        [newSubjectId, school_id, oldSubjectId, class_id, exam_type_id, section_id || null]
+                    );
+
+                    console.log(`[ExamSchedule] Migrated marks: subject ${oldSubjectId} → ${newSubjectId} for class ${class_id}, section ${section_id}, exam_type ${exam_type_id}`);
+                }
+            }
+        }
+
+        await client.query('COMMIT');
 
         const item = {
             ...result.rows[0],
             exam_date: formatLocalDateString(result.rows[0].exam_date)
         };
 
-        res.json({ message: 'Schedule updated successfully', item: item });
+        res.json({ message: 'Schedule updated successfully', item });
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error updating schedule item:', error);
         res.status(500).json({ message: 'Server error updating schedule item', error: error.message });
+    } finally {
+        client.release();
     }
 };
+

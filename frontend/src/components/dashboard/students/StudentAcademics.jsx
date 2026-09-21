@@ -619,6 +619,7 @@ const StudentAcademics = () => {
                                                         <th className="p-4">Date</th>
                                                         <th className="p-4">Time</th>
                                                         <th className="p-4">Subject</th>
+                                                        <th className="p-4">Topic / Portion</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
@@ -630,6 +631,16 @@ const StudentAcademics = () => {
                                                                 {formatTime12Hour(item.start_time)} - {formatTime12Hour(item.end_time)}
                                                             </td>
                                                             <td className="p-4 font-bold text-indigo-600">{item.subject_name}</td>
+                                                            <td className="p-4 text-slate-700">
+                                                                {item.topic ? (
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-medium text-xs border border-indigo-100/80">
+                                                                        <BookOpen size={13} className="text-indigo-500 flex-shrink-0" />
+                                                                        <span>{item.topic}</span>
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-slate-400 text-xs italic">—</span>
+                                                                )}
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
