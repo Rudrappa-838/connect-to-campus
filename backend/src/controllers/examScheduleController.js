@@ -133,7 +133,7 @@ exports.saveExamSchedule = async (req, res) => {
                             `UPDATE exam_schedules SET 
                                 exam_date = $1, start_time = $2, end_time = $3, 
                                 components = $4, max_marks = $5, min_marks = $6,
-                                target_batch = $7, topic = $8, updated_at = NOW()
+                                target_batch = $7, topic = $8
                              WHERE id = $9`,
                             [
                                 schedule.exam_date || null,
@@ -259,7 +259,7 @@ exports.updateExamScheduleItem = async (req, res) => {
         }
 
         // --- Step 2: Update exam_schedules ---
-        const updateTopicClause = topic !== undefined ? 'topic = $10,' : '';
+        const updateTopicClause = topic !== undefined ? ', topic = $10' : '';
         const queryParams = [
             exam_date,
             start_time,
@@ -279,8 +279,8 @@ exports.updateExamScheduleItem = async (req, res) => {
             `UPDATE exam_schedules 
              SET exam_date = $1, start_time = $2, end_time = $3, 
                  components = $4, max_marks = $5, min_marks = $6,
-                 subject_id = COALESCE($9, subject_id),
-                 ${updateTopicClause} updated_at = NOW()
+                 subject_id = COALESCE($9, subject_id)
+                 ${updateTopicClause}
              WHERE id = ANY($7::int[]) AND school_id = $8
              RETURNING *`,
             queryParams

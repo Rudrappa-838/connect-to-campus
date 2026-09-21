@@ -154,6 +154,7 @@ const startServer = async () => {
                         ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS min_marks NUMERIC(5,2) DEFAULT 35;
                         ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS target_batch VARCHAR(100);
                         ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS topic TEXT;
+                        ALTER TABLE exam_schedules ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
                         ALTER TABLE exam_schedules ALTER COLUMN section_id DROP NOT NULL;
                         ALTER TABLE exam_schedules ALTER COLUMN exam_date DROP NOT NULL;
                         ALTER TABLE exam_schedules ALTER COLUMN start_time DROP NOT NULL;
