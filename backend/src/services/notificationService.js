@@ -132,7 +132,7 @@ const sendPushNotification = async (recipientId, title, body, roleHint = null, a
                 const unreadRes = await client.query('SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false', [dbUserId]);
                 const badgeCount = parseInt(unreadRes.rows[0].count);
 
-                await sendRealPush(token, title, body, { role: finalRole }, badgeCount);
+                await sendRealPush(token, title, body, { role: finalRole, userId: String(dbUserId) }, badgeCount);
             }
 
             console.log(`[REAL PUSH] Processed for User ID: ${dbUserId}`);

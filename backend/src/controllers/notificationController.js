@@ -75,7 +75,7 @@ const createNotification = async (userId, title, message, type = 'INFO', data = 
             const badgeCount = parseInt(unreadRes.rows[0].count) || 1;
 
             // FIRE AND FORGET - Don't block the response
-            sendPushNotification(token, title, message, { ...data, type }, badgeCount)
+            sendPushNotification(token, title, message, { ...data, type, userId: String(userId) }, badgeCount)
                 .catch(err => console.error('Push delivery failed:', err));
         }
 

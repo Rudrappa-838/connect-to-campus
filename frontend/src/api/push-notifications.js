@@ -9,7 +9,6 @@ export const registerPushNotifications = async (userId) => {
     try {
         // 0. Remove ALL previous listeners first (critical for multi-user on same device)
         //    Without this, every login stacks new listeners → duplicate notifications
-        //    for both old and new user simultaneously.
         await PushNotifications.removeAllListeners();
 
         // 1. Request Permission
@@ -29,12 +28,8 @@ export const registerPushNotifications = async (userId) => {
             return;
         }
 
-        // 2. Register with FCM (Firebase)
-        await PushNotifications.register();
-
-        // 3. Create High Importance Channel for Android (Critical for tray visibility)
+        // 2. Create High Importance Channel for Android (Critical for tray visibility)
         if (Capacitor.getPlatform() === 'android') {
-            // DO NOT delete channel on every launch. This causes Android system to detach background delivery from FCM if app is killed shortly after.
             await PushNotifications.createChannel({
                 id: 'school_notifications',
                 name: 'School Notifications',
@@ -46,37 +41,44 @@ export const registerPushNotifications = async (userId) => {
             });
         }
 
-        // 4. Token Registration Listener — bound to current userId
-        //    This fires after PushNotifications.register() completes.
-        PushNotifications.addListener('registration', async (token) => {
-            console.log('Push Registration Success, token:', token.value, 'for userId:', userId);
+        // Helper to sync token to backend and update local caches
+        const syncToken = async (fcmToken) => {
+            if (!fcmToken || !userId) return;
             try {
-                // Store token in localStorage and Preferences for backup/logout access
-                localStorage.setItem('fcm_token', token.value);
-                if (Capacitor.isNativePlatform()) {
-                    try {
-                        const { Preferences } = await import('@capacitor/preferences');
-                        await Preferences.set({ key: 'fcm_token', value: token.value });
-                    } catch (pe) { /* ignore */ }
-                }
-                // Always send with current userId so the token is tied to the right account
-                await api.post('/notifications/token', { token: token.value, userId });
+                localStorage.setItem('fcm_token', fcmToken);
+                try {
+                    const { Preferences } = await import('@capacitor/preferences');
+                    await Preferences.set({ key: 'fcm_token', value: fcmToken });
+                } catch (pe) { /* ignore */ }
+                await api.post('/notifications/token', { token: fcmToken, userId });
+                console.log(`[PUSH] Device token linked to userId ${userId}`);
             } catch (err) {
                 console.error('Failed to sync push token with backend:', err);
             }
+        };
+
+        // 3. Token Registration Listener (MUST be registered BEFORE PushNotifications.register())
+        PushNotifications.addListener('registration', async (token) => {
+            console.log('Push Registration Success, token:', token.value, 'for userId:', userId);
+            await syncToken(token.value);
         });
 
-        // 5. Registration Error Listener
+        // 4. Registration Error Listener
         PushNotifications.addListener('registrationError', (error) => {
             console.error('Error on push registration:', error);
         });
 
-        // 6. Push Notification Received Listener (Foreground)
+        // 5. Push Notification Received Listener (Foreground)
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
             console.log('Push received in foreground:', notification);
 
-            // On Android, foreground push notifications are often not shown in the system tray automatically.
-            // We force it using LocalNotifications.
+            // Safety check: If payload specifies a target userId, ignore if it doesn't match active user
+            const payloadUserId = notification.data?.userId || notification.data?.user_id;
+            if (payloadUserId && String(payloadUserId) !== String(userId)) {
+                console.warn(`[PUSH IGNORED] Notification for user ${payloadUserId} does not match active user ${userId}`);
+                return;
+            }
+
             if (Capacitor.getPlatform() === 'android') {
                 LocalNotifications.schedule({
                     notifications: [
@@ -95,10 +97,27 @@ export const registerPushNotifications = async (userId) => {
             }
         });
 
-        // 7. Push Notification Action Listener
+        // 6. Push Notification Action Listener
         PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
             console.log('Push action performed:', notification);
         });
+
+        // 7. Check if device already has a cached token from previous run
+        //    (Capacitor's register() does not always re-trigger 'registration' if token hasn't changed)
+        let existingToken = localStorage.getItem('fcm_token');
+        if (!existingToken) {
+            try {
+                const { Preferences } = await import('@capacitor/preferences');
+                const { value } = await Preferences.get({ key: 'fcm_token' });
+                existingToken = value;
+            } catch (e) { /* ignore */ }
+        }
+        if (existingToken) {
+            await syncToken(existingToken);
+        }
+
+        // 8. Register with FCM (Firebase)
+        await PushNotifications.register();
 
     } catch (error) {
         console.error('Push notification setup failed:', error);
