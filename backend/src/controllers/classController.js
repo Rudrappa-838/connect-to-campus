@@ -219,13 +219,14 @@ exports.getSubjects = async (req, res) => {
 // Fetch summary of all distinct subjects in a school with class count and marks count
 exports.getSchoolSubjectsSummary = async (req, res) => {
     try {
-        let schoolId = req.user.schoolId;
-        if (req.user.role === 'SUPER_ADMIN') {
-            schoolId = req.params.schoolId || req.query.schoolId || req.headers['x-school-id'] || schoolId;
+        let schoolId = req.query.schoolId || req.params.schoolId || req.headers['x-school-id'] || req.user.schoolId;
+        if (req.user.role !== 'SUPER_ADMIN' && req.user.schoolId) {
+            schoolId = req.user.schoolId;
         }
 
-        if (!schoolId) {
-            return res.status(400).json({ message: 'School ID is required to fetch subject summary.' });
+        const targetSchoolId = parseInt(schoolId, 10);
+        if (!targetSchoolId || isNaN(targetSchoolId)) {
+            return res.status(400).json({ message: 'Valid school ID is required to fetch subject summary.' });
         }
 
         const query = `
@@ -240,24 +241,16 @@ exports.getSchoolSubjectsSummary = async (req, res) => {
                     'code', s.code, 
                     'type', s.type
                 )) as class_details,
-                (
-                    SELECT COUNT(*)::int 
-                    FROM marks m 
-                    WHERE m.subject_id IN (
-                        SELECT s2.id 
-                        FROM subjects s2 
-                        JOIN classes c2 ON s2.class_id = c2.id 
-                        WHERE c2.school_id = $1 AND LOWER(TRIM(s2.name)) = LOWER(TRIM(s.name))
-                    )
-                ) as marks_count
+                COUNT(DISTINCT m.id)::int as marks_count
             FROM subjects s
             JOIN classes c ON s.class_id = c.id
-            WHERE c.school_id = $1
+            LEFT JOIN marks m ON m.subject_id = s.id
+            WHERE c.school_id = $1 AND s.name IS NOT NULL AND TRIM(s.name) != ''
             GROUP BY s.name
             ORDER BY s.name ASC
         `;
 
-        const result = await pool.query(query, [schoolId]);
+        const result = await pool.query(query, [targetSchoolId]);
         res.json(result.rows);
     } catch (error) {
         console.error('Error fetching subjects summary:', error);
