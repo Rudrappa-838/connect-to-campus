@@ -557,191 +557,83 @@ const SuperAdminDashboard = () => {
 
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-indigo-500/10 transition-colors"></div>
 
-                                <div className="flex justify-between items-start mb-6 relative">
-                                    <div className="flex items-center gap-3">
-                                        <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 group-hover:border-indigo-500/30 transition-colors">
+                                <div className="flex justify-between items-start mb-4 relative gap-3">
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 group-hover:border-indigo-500/30 transition-colors shrink-0">
                                             <School className="text-indigo-400 w-6 h-6" />
                                         </div>
-                                        <div>
-                                            <h3 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">{school.name}</h3>
-                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation(); // Prevent card hover effect interference if any
-                                                        handleToggleService(school);
-                                                    }}
-                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.is_active
-                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
-                                                        : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
-                                                        }`}
-                                                    title={school.is_active ? "Click to Disable Service" : "Click to Enable Service"}
-                                                >
-                                                    <Power size={10} className={school.is_active ? "text-emerald-500" : "text-red-500"} />
-                                                    {school.is_active ? 'Service Online' : 'Service Offline'}
-                                                </button>
-                                                 <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleToggleFeature(school, 'has_hostel', 'Hostel');
-                                                    }}
-                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_hostel !== false
-                                                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'
-                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
-                                                        }`}
-                                                    title={school.has_hostel !== false ? "Disable Hostel" : "Enable Hostel"}
-                                                >
-                                                    <Home size={10} />
-                                                    {school.has_hostel !== false ? 'Hostel ON' : 'Hostel OFF'}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleToggleFeature(school, 'has_neet_exams', 'NEET Bank');
-                                                    }}
-                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_neet_exams
-                                                        ? 'bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20'
-                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
-                                                        }`}
-                                                    title={school.has_neet_exams ? "Disable NEET Bank" : "Enable NEET Bank"}
-                                                >
-                                                    <Database size={10} />
-                                                    {school.has_neet_exams ? 'NEET ON' : 'NEET OFF'}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleToggleFeature(school, 'has_face_enrollment', 'Face Enroll');
-                                                    }}
-                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_face_enrollment
-                                                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'
-                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
-                                                        }`}
-                                                    title={school.has_face_enrollment ? "Disable Face Enrollment" : "Enable Face Enrollment"}
-                                                >
-                                                    <UserCheck size={10} />
-                                                    {school.has_face_enrollment ? 'ENROLL ON' : 'ENROLL OFF'}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleToggleFeature(school, 'has_face_scanner', 'Face Scanner');
-                                                    }}
-                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_face_scanner
-                                                        ? 'bg-pink-500/10 text-pink-400 border-pink-500/20 hover:bg-pink-500/20'
-                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
-                                                        }`}
-                                                    title={school.has_face_scanner ? "Disable Face Scanner" : "Enable Face Scanner"}
-                                                >
-                                                    <ScanLine size={10} />
-                                                    {school.has_face_scanner ? 'SCANNER ON' : 'SCANNER OFF'}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleToggleFeature(school, 'has_biometric', 'Biometric');
-                                                    }}
-                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_biometric
-                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
-                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
-                                                        }`}
-                                                    title={school.has_biometric ? "Disable Biometric Access" : "Enable Biometric Access"}
-                                                >
-                                                    <Shield size={10} />
-                                                    {school.has_biometric ? 'BIOMETRIC ON' : 'BIOMETRIC OFF'}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleToggleFeature(school, 'has_subject_combinations', 'Subject Combination');
-                                                    }}
-                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_subject_combinations
-                                                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'
-                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
-                                                        }`}
-                                                    title={school.has_subject_combinations ? "Disable Subject Combinations" : "Enable Subject Combinations"}
-                                                >
-                                                    <Layers size={10} />
-                                                    {school.has_subject_combinations ? 'COMBO ON' : 'COMBO OFF'}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleToggleFeature(school, 'has_exam_batches', 'Exam Batches');
-                                                    }}
-                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_exam_batches
-                                                        ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20'
-                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
-                                                        }`}
-                                                    title={school.has_exam_batches ? "Disable Exam Batches" : "Enable Exam Batches"}
-                                                >
-                                                    <Layers size={10} />
-                                                    {school.has_exam_batches ? 'BATCH ON' : 'BATCH OFF'}
-                                                </button>
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h3 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors truncate">{school.name}</h3>
+                                                <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${school.institution_type === 'COLLEGE' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                                                    {school.institution_type === 'COLLEGE' ? 'College' : 'School'}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                    {/* Action Buttons: ALWAYS VISIBLE on every card */}
+                                    <div className="flex items-center gap-1.5 shrink-0">
                                         {viewMode === 'active' ? (
                                             <>
-                                                <button
-                                                    onClick={() => handleEditSchool(school)}
-                                                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleViewDetails(school.id)}
-                                                    className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
-                                                    title="View Details"
-                                                >
-                                                    <Eye size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteSchool(school)}
-                                                    className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                                                    title="Delete School"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
                                                 <button
                                                     onClick={() => {
                                                         setRenameSubjectModalSchool(school);
                                                         setRenameInitialSubject(null);
                                                     }}
-                                                    className="p-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors"
+                                                    className="p-2 text-amber-400 hover:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-lg transition-colors shadow-xs"
                                                     title="Rename Subjects (Marks Preserved)"
                                                 >
                                                     <BookOpen size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => setManageClassesSchoolId(school.id)}
-                                                    className="p-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded-lg transition-colors"
+                                                    className="p-2 text-purple-400 hover:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg transition-colors"
                                                     title="Manage Classes & Subjects"
                                                 >
                                                     <Layers size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleViewDetails(school.id)}
+                                                    className="p-2 text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-lg transition-colors"
+                                                    title="View Details"
+                                                >
+                                                    <Eye size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleEditSchool(school)}
+                                                    className="p-2 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 rounded-lg transition-colors"
+                                                    title="Edit School"
+                                                >
+                                                    <Edit2 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteSchool(school)}
+                                                    className="p-2 text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg transition-colors"
+                                                    title="Delete School"
+                                                >
+                                                    <Trash2 size={16} />
                                                 </button>
                                             </>
                                         ) : (
                                             <>
                                                 <button
                                                     onClick={() => handleRestoreSchool(school)}
-                                                    className="p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                                                    className="p-2 text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors"
                                                     title="Restore School"
                                                 >
                                                     <RotateCcw size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => handleViewDetails(school.id)}
-                                                    className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                                                    className="p-2 text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-lg transition-colors"
                                                     title="View Details"
                                                 >
                                                     <Eye size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => handlePermanentDeleteSchool(school)}
-                                                    className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                    className="p-2 text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg transition-colors"
                                                     title="Permanent Delete (Cannot be undone!)"
                                                 >
                                                     <Trash2 size={16} />
@@ -749,6 +641,122 @@ const SuperAdminDashboard = () => {
                                             </>
                                         )}
                                     </div>
+                                </div>
+
+                                {/* Feature Toggles Row */}
+                                <div className="flex items-center gap-2 mb-5 flex-wrap">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleService(school);
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.is_active
+                                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                                            : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+                                            }`}
+                                        title={school.is_active ? "Click to Disable Service" : "Click to Enable Service"}
+                                    >
+                                        <Power size={10} className={school.is_active ? "text-emerald-500" : "text-red-500"} />
+                                        {school.is_active ? 'Service Online' : 'Service Offline'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleFeature(school, 'has_hostel', 'Hostel');
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_hostel !== false
+                                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'
+                                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                            }`}
+                                        title={school.has_hostel !== false ? "Disable Hostel" : "Enable Hostel"}
+                                    >
+                                        <Home size={10} />
+                                        {school.has_hostel !== false ? 'Hostel ON' : 'Hostel OFF'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleFeature(school, 'has_neet_exams', 'NEET Bank');
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_neet_exams
+                                            ? 'bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20'
+                                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                            }`}
+                                        title={school.has_neet_exams ? "Disable NEET Bank" : "Enable NEET Bank"}
+                                    >
+                                        <Database size={10} />
+                                        {school.has_neet_exams ? 'NEET ON' : 'NEET OFF'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleFeature(school, 'has_face_enrollment', 'Face Enroll');
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_face_enrollment
+                                            ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'
+                                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                            }`}
+                                        title={school.has_face_enrollment ? "Disable Face Enrollment" : "Enable Face Enrollment"}
+                                    >
+                                        <UserCheck size={10} />
+                                        {school.has_face_enrollment ? 'ENROLL ON' : 'ENROLL OFF'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleFeature(school, 'has_face_scanner', 'Face Scanner');
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_face_scanner
+                                            ? 'bg-pink-500/10 text-pink-400 border-pink-500/20 hover:bg-pink-500/20'
+                                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                            }`}
+                                        title={school.has_face_scanner ? "Disable Face Scanner" : "Enable Face Scanner"}
+                                    >
+                                        <ScanLine size={10} />
+                                        {school.has_face_scanner ? 'SCANNER ON' : 'SCANNER OFF'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleFeature(school, 'has_biometric', 'Biometric');
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_biometric
+                                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                            }`}
+                                        title={school.has_biometric ? "Disable Biometric Access" : "Enable Biometric Access"}
+                                    >
+                                        <Shield size={10} />
+                                        {school.has_biometric ? 'BIOMETRIC ON' : 'BIOMETRIC OFF'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleFeature(school, 'has_subject_combinations', 'Subject Combination');
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_subject_combinations
+                                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'
+                                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                            }`}
+                                        title={school.has_subject_combinations ? "Disable Subject Combinations" : "Enable Subject Combinations"}
+                                    >
+                                        <Layers size={10} />
+                                        {school.has_subject_combinations ? 'COMBO ON' : 'COMBO OFF'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleFeature(school, 'has_exam_batches', 'Exam Batches');
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all ${school.has_exam_batches
+                                            ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20'
+                                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20'
+                                            }`}
+                                        title={school.has_exam_batches ? "Disable Exam Batches" : "Enable Exam Batches"}
+                                    >
+                                        <Layers size={10} />
+                                        {school.has_exam_batches ? 'BATCH ON' : 'BATCH OFF'}
+                                    </button>
                                 </div>
 
                                 <div className="space-y-3 mb-6 relative">
