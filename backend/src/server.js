@@ -80,6 +80,11 @@ const startServer = async () => {
             `);
 
             await client.query(`
+                ALTER TABLE subjects ADD COLUMN IF NOT EXISTS code VARCHAR(50);
+                ALTER TABLE subjects ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'Theory';
+            `);
+
+            await client.query(`
                 DO $$ 
                 BEGIN 
                     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'notifications') THEN

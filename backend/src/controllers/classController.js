@@ -237,9 +237,7 @@ exports.getSchoolSubjectsSummary = async (req, res) => {
                 jsonb_agg(DISTINCT jsonb_build_object(
                     'id', s.id, 
                     'class_id', c.id, 
-                    'class_name', c.name, 
-                    'code', s.code, 
-                    'type', s.type
+                    'class_name', c.name
                 )) as class_details,
                 COUNT(DISTINCT m.id)::int as marks_count
             FROM subjects s
