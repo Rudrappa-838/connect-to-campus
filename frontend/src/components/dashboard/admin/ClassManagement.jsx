@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, Plus, Edit2, Trash2, X, ChevronDown, ChevronRight, Save, BookOpen } from 'lucide-react';
+import { Layers, Plus, Edit2, Trash2, X, ChevronDown, ChevronRight, Save, BookOpen, ShieldCheck } from 'lucide-react';
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
+import RenameSubjectModal from './RenameSubjectModal';
 
 const SectionManager = ({ classId }) => {
     const [sections, setSections] = useState([]);
@@ -131,7 +132,7 @@ const SectionManager = ({ classId }) => {
     );
 };
 
-const SubjectManager = ({ classId }) => {
+const SubjectManager = ({ classId, schoolId, onSubjectRenamed }) => {
     const [subjects, setSubjects] = useState([]);
     const [subLoading, setSubLoading] = useState(true);
     const [editingSubject, setEditingSubject] = useState(null);
@@ -179,7 +180,7 @@ const SubjectManager = ({ classId }) => {
             setSubType('Theory');
             fetchSubjects();
         } catch (error) {
-            toast.error('Failed to add subject');
+            toast.error(error.response?.data?.message || 'Failed to add subject');
         }
     };
 
@@ -187,27 +188,35 @@ const SubjectManager = ({ classId }) => {
         if (!editingSubject || !editingSubject.name.trim()) return;
 
         try {
-            await api.put(`/classes/${classId}/subjects/${editingSubject.id}`, {
-                name: editingSubject.name,
+            const payload = {
+                name: editingSubject.name.trim(),
                 code: editingSubject.code,
-                type: editingSubject.type
-            });
-            toast.success('Subject updated');
+                type: editingSubject.type,
+                renameAllClasses: !!editingSubject.renameAllClasses,
+                schoolId
+            };
+
+            const res = await api.put(`/classes/${classId}/subjects/${editingSubject.id}`, payload);
+            toast.success(res.data?.message || 'Subject updated! All marks preserved.');
             setEditingSubject(null);
             fetchSubjects();
+            if (editingSubject.renameAllClasses && onSubjectRenamed) {
+                onSubjectRenamed();
+            }
         } catch (error) {
-            toast.error('Failed to update subject');
+            console.error(error);
+            toast.error(error.response?.data?.message || 'Failed to update subject');
         }
     };
 
     const handleDeleteSubject = async (subId) => {
-        if (!window.confirm('Delete this subject?')) return;
+        if (!window.confirm('Delete this subject? If marks exist, they will be protected.')) return;
         try {
             await api.delete(`/classes/${classId}/subjects/${subId}`);
             toast.success('Subject deleted');
             fetchSubjects();
         } catch (error) {
-            toast.error('Failed to delete subject');
+            toast.error(error.response?.data?.message || 'Failed to delete subject');
         }
     };
 
@@ -250,8 +259,22 @@ const SubjectManager = ({ classId }) => {
                                         className="border border-indigo-300 rounded px-2 py-1 text-xs flex-1 outline-none"
                                         placeholder="Code (opt)"
                                     />
-                                    <button onClick={handleUpdateSubject} className="text-green-600 hover:text-green-800"><Save size={16} /></button>
-                                    <button onClick={() => setEditingSubject(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+                                    <button onClick={handleUpdateSubject} className="text-green-600 hover:text-green-800" title="Save changes"><Save size={16} /></button>
+                                    <button onClick={() => setEditingSubject(null)} className="text-slate-400 hover:text-slate-600" title="Cancel"><X size={16} /></button>
+                                </div>
+                                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                                    <label className="flex items-center gap-1.5 text-indigo-600 font-medium cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editingSubject.renameAllClasses || false}
+                                            onChange={(e) => setEditingSubject({ ...editingSubject, renameAllClasses: e.target.checked })}
+                                            className="rounded text-indigo-600 focus:ring-0"
+                                        />
+                                        <span className="text-[11px]">Rename in ALL classes</span>
+                                    </label>
+                                    <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                                        <ShieldCheck size={12} className="text-emerald-600" /> Marks preserved
+                                    </span>
                                 </div>
                             </div>
                         ) : (
@@ -333,6 +356,8 @@ const ClassManagement = ({ schoolId }) => {
     const [expandedClass, setExpandedClass] = useState(null);
     const [editingClass, setEditingClass] = useState(null);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showRenameModal, setShowRenameModal] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     // Form States
     const [newClassName, setNewClassName] = useState('');
@@ -387,11 +412,11 @@ const ClassManagement = ({ schoolId }) => {
         }
     };
 
-    const handleDeleteClass = async (id, name) => {
-        if (!window.confirm(`Are you sure you want to delete "${name}"? This requires the class to be empty (no students).`)) return;
+    const handleDeleteClass = async (classId, className) => {
+        if (!window.confirm(`Are you sure you want to delete Class "${className}"? This will move students to Unassigned bin.`)) return;
 
         try {
-            await api.delete(`/classes/${id}`);
+            await api.delete(`/classes/${classId}`);
             toast.success('Class deleted');
             fetchClasses();
         } catch (error) {
@@ -403,7 +428,7 @@ const ClassManagement = ({ schoolId }) => {
         <div className="space-y-6">
             {/* Header */}
             <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-2xl shadow-lg p-6 text-white">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
                             <Layers className="w-8 h-8" />
@@ -413,13 +438,23 @@ const ClassManagement = ({ schoolId }) => {
                             <p className="text-indigo-100 text-sm">Create and organize classes, sections, and subjects</p>
                         </div>
                     </div>
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="bg-white text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg"
-                    >
-                        <Plus size={20} />
-                        New Class
-                    </button>
+                    <div className="flex items-center gap-2.5">
+                        <button
+                            onClick={() => setShowRenameModal(true)}
+                            className="bg-white/15 hover:bg-white/25 border border-white/25 text-white px-4 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-md backdrop-blur-xs text-sm"
+                            title="Rename subjects across classes safely without affecting marks"
+                        >
+                            <BookOpen size={18} />
+                            Rename Subject
+                        </button>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="bg-white text-indigo-600 hover:bg-indigo-50 px-5 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg text-sm"
+                        >
+                            <Plus size={20} />
+                            New Class
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -480,7 +515,15 @@ const ClassManagement = ({ schoolId }) => {
                                 <div className="px-4 pb-4 border-t border-slate-100 bg-slate-50/50">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <SectionManager classId={cls.id} />
-                                        <SubjectManager classId={cls.id} />
+                                        <SubjectManager
+                                            classId={cls.id}
+                                            schoolId={schoolId}
+                                            onSubjectRenamed={() => {
+                                                fetchClasses();
+                                                setRefreshKey(k => k + 1);
+                                            }}
+                                            key={`${cls.id}-${refreshKey}`}
+                                        />
                                     </div>
                                 </div>
                             )}
@@ -525,6 +568,17 @@ const ClassManagement = ({ schoolId }) => {
                     </div>
                 </div>
             )}
+
+            {/* Rename Subject School-wide Modal */}
+            <RenameSubjectModal
+                isOpen={showRenameModal}
+                onClose={() => setShowRenameModal(false)}
+                schoolId={schoolId}
+                onRenamed={() => {
+                    fetchClasses();
+                    setRefreshKey(k => k + 1);
+                }}
+            />
         </div>
     );
 };

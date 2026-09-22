@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
-import { Plus, School, LogOut, ChevronDown, Check, Trash2, X, Eye, Edit2, Search, Filter, Shield, Info, MapPin, Phone, Mail, Users, Power, RotateCcw, Home, Layers, Database, UserCheck, ScanLine } from 'lucide-react';
+import { Plus, School, LogOut, ChevronDown, Check, Trash2, X, Eye, Edit2, Search, Filter, Shield, Info, MapPin, Phone, Mail, Users, Power, RotateCcw, Home, Layers, Database, UserCheck, ScanLine, BookOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 import ClassManagement from '../components/dashboard/admin/ClassManagement';
+import RenameSubjectModal from '../components/dashboard/admin/RenameSubjectModal';
 
 // Predefined Options
 const PREDEFINED_CLASSES = Array.from({ length: 12 }, (_, i) => `Class ${i + 1}`);
@@ -24,6 +25,8 @@ const SuperAdminDashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState('active'); // 'active' or 'deleted'
     const [manageClassesSchoolId, setManageClassesSchoolId] = useState(null);
+    const [renameSubjectModalSchool, setRenameSubjectModalSchool] = useState(null);
+    const [renameInitialSubject, setRenameInitialSubject] = useState(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -701,6 +704,16 @@ const SuperAdminDashboard = () => {
                                                     title="Delete School"
                                                 >
                                                     <Trash2 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setRenameSubjectModalSchool(school);
+                                                        setRenameInitialSubject(null);
+                                                    }}
+                                                    className="p-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors"
+                                                    title="Rename Subjects (Marks Preserved)"
+                                                >
+                                                    <BookOpen size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => setManageClassesSchoolId(school.id)}
@@ -1426,9 +1439,21 @@ const SuperAdminDashboard = () => {
                             </div>
 
                             <div>
-                                <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                                    <School size={16} className="text-indigo-400" /> Academic Structure
-                                </h3>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                        <School size={16} className="text-indigo-400" /> Academic Structure
+                                    </h3>
+                                    <button
+                                        onClick={() => {
+                                            setRenameSubjectModalSchool(viewSchool);
+                                            setRenameInitialSubject(null);
+                                        }}
+                                        className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+                                        title="Rename subject in this school while keeping marks safe"
+                                    >
+                                        <BookOpen size={13} /> Rename Subject
+                                    </button>
+                                </div>
                                 <div className="space-y-3">
                                     {viewSchool.classes && viewSchool.classes.map(cls => (
                                         <div key={cls.class_id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 hover:border-indigo-500/30 transition-colors">
@@ -1449,7 +1474,17 @@ const SuperAdminDashboard = () => {
                                                     <span className="text-xs font-bold text-slate-500 w-16 px-1">SUBJECTS</span>
                                                     <div className="flex flex-wrap gap-1">
                                                         {Array.isArray(cls.subjects) && cls.subjects.length > 0 ? cls.subjects.map(s => (
-                                                            <span key={s.id} className="px-1.5 py-0.5 bg-slate-900 text-slate-300 rounded text-xs border border-slate-800">{s.name}</span>
+                                                            <span
+                                                                key={s.id}
+                                                                onClick={() => {
+                                                                    setRenameSubjectModalSchool(viewSchool);
+                                                                    setRenameInitialSubject(s.name);
+                                                                }}
+                                                                className="px-1.5 py-0.5 bg-slate-900 text-slate-300 hover:text-amber-300 hover:border-amber-500/40 rounded text-xs border border-slate-800 cursor-pointer transition-colors"
+                                                                title={`Click to rename "${s.name}" (Marks safe)`}
+                                                            >
+                                                                {s.name}
+                                                            </span>
                                                         )) : <span className="text-slate-600 italic">None</span>}
                                                     </div>
                                                 </div>
@@ -1505,6 +1540,25 @@ const SuperAdminDashboard = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Rename Subject Modal */}
+            {renameSubjectModalSchool && (
+                <RenameSubjectModal
+                    isOpen={!!renameSubjectModalSchool}
+                    onClose={() => {
+                        setRenameSubjectModalSchool(null);
+                        setRenameInitialSubject(null);
+                    }}
+                    schoolId={renameSubjectModalSchool.id}
+                    initialSubject={renameInitialSubject}
+                    onRenamed={async () => {
+                        await fetchSchools();
+                        if (viewSchool && viewSchool.id === renameSubjectModalSchool.id) {
+                            handleViewDetails(viewSchool.id);
+                        }
+                    }}
+                />
             )}
 
         </div>

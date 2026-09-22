@@ -426,14 +426,31 @@ const updateSchool = async (req, res) => {
                 const currentSubjects = currentSubjectsRes.rows;
 
                 // Handle subject deletions if allowDeletions is true (case-insensitive comparison)
+                // SAFETY: Never delete subjects that have marks entered to preserve academic data!
                 if (allowDeletions) {
-                    const targetSubjectsLower = targetSubjects.map(n => n.toLowerCase());
+                    const targetSubjectsLower = targetSubjects.map(n => typeof n === 'string' ? n.toLowerCase() : (n.name || '').toLowerCase());
                     const subjectsToDelete = currentSubjects.filter(curr => !targetSubjectsLower.includes(curr.name.toLowerCase()));
 
                     if (subjectsToDelete.length > 0) {
                         const subjectIds = subjectsToDelete.map(s => s.id);
-                        console.log(`[UPDATE SCHOOL] Deleting Subjects: ${subjectsToDelete.map(s => s.name).join(', ')}`);
-                        await client.query('DELETE FROM subjects WHERE id = ANY($1::int[])', [subjectIds]);
+                        
+                        // Check which subjects have marks entered
+                        const marksInUse = await client.query(
+                            'SELECT DISTINCT subject_id FROM marks WHERE subject_id = ANY($1::int[])',
+                            [subjectIds]
+                        );
+                        const protectedSubjectIds = new Set(marksInUse.rows.map(r => r.subject_id));
+
+                        const safeToDeleteIds = subjectIds.filter(id => !protectedSubjectIds.has(id));
+                        if (safeToDeleteIds.length > 0) {
+                            console.log(`[UPDATE SCHOOL] Deleting Subjects without marks: ${safeToDeleteIds.join(', ')}`);
+                            await client.query('DELETE FROM subjects WHERE id = ANY($1::int[])', [safeToDeleteIds]);
+                        }
+
+                        const preserved = subjectsToDelete.filter(s => protectedSubjectIds.has(s.id));
+                        if (preserved.length > 0) {
+                            console.warn(`[UPDATE SCHOOL] Protected ${preserved.length} subject(s) with existing marks from deletion: ${preserved.map(s => s.name).join(', ')}`);
+                        }
                     }
                 }
 
