@@ -52,6 +52,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
         attendance_id: '',
         roll_number: '',
         custom_roll_number: '',
+        enrollment_number: '',
+        sats_number: '',
         admission_date: new Date().toISOString().split('T')[0]
     });
 
@@ -317,6 +319,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             attendance_id: student.attendance_id || '',
             roll_number: student.roll_number || '',
             custom_roll_number: student.custom_roll_number || '',
+            enrollment_number: student.enrollment_number || '',
+            sats_number: student.sats_number || '',
             admission_date: student.admission_date ? student.admission_date.split('T')[0] : ''
         });
         setShowModal(true);
@@ -346,6 +350,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
             attendance_id: autoAttendanceId, // Auto preset
             roll_number: '',
             custom_roll_number: '',
+            enrollment_number: '',
+            sats_number: '',
             admission_date: new Date().toISOString().split('T')[0]
         });
         setShowModal(true);
@@ -812,10 +818,10 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                         onClick={() => {
                             import('xlsx').then(xlsx => {
                                 const headers = [
-                                    ['First Name', 'Middle Name', 'Last Name', 'Gender', 'Date of Birth', 'Class', 'Section', 'Father\'s Name', 'Mother\'s Name', 'Mobile Number', 'Email Address', 'Address']
+                                    ['First Name', 'Middle Name', 'Last Name', 'Gender', 'Date of Birth', 'Class', 'Section', 'Father\'s Name', 'Mother\'s Name', 'Mobile Number', 'Email Address', 'Address', 'Enrollment Number', 'SATS Number']
                                 ];
                                 const data = [
-                                    ['John', 'D', 'Doe', 'Male', '2010-05-15', 'Class 10', 'A', 'Richard Doe', 'Jane Doe', '9876543210', 'student@example.com', '123 Main St']
+                                    ['John', 'D', 'Doe', 'Male', '2010-05-15', 'Class 10', 'A', 'Richard Doe', 'Jane Doe', '9876543210', 'student@example.com', '123 Main St', 'ENR2026001', 'SATS987654']
                                 ];
                                 const ws = xlsx.utils.aoa_to_sheet([...headers, ...data]);
 
@@ -971,6 +977,12 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                                     {student.custom_roll_number && (
                                                         <div className="text-[10px] text-amber-600 font-mono font-medium bg-amber-50 inline-block px-1.5 py-0.5 rounded border border-amber-100">Custom Roll: {student.custom_roll_number}</div>
                                                     )}
+                                                    {student.enrollment_number && (
+                                                        <div className="text-[10px] text-purple-600 font-mono font-medium bg-purple-50 inline-block px-1.5 py-0.5 rounded border border-purple-100">Enr: {student.enrollment_number}</div>
+                                                    )}
+                                                    {student.sats_number && (
+                                                        <div className="text-[10px] text-teal-600 font-mono font-medium bg-teal-50 inline-block px-1.5 py-0.5 rounded border border-teal-100">SATS: {student.sats_number}</div>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="p-4">
@@ -1118,8 +1130,8 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                         <form onSubmit={handleSubmit} autoComplete="off" className="p-6 grid grid-cols-2 gap-4 overflow-y-auto">
 
                             <div className="col-span-2">
-                                <h3 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-3">System Identifiers</h3>
-                                <div className="grid grid-cols-3 gap-4 mb-4">
+                                <h3 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-3">System & Academic Identifiers</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                                     <div className="col-span-1">
                                         <label className="label">Roll Number</label>
                                         <input
@@ -1146,8 +1158,34 @@ const StudentManagement = ({ config, prefillData, isPromotionView, defaultViewMo
                                             onChange={e => setFormData({ ...formData, custom_roll_number: e.target.value })}
                                         />
                                     </div>
+                                    <div className="col-span-1">
+                                        <label className="label">Enrollment Number <span className="text-[10px] text-slate-400 font-normal">(Optional)</span></label>
+                                        <input
+                                            type="text"
+                                            className="input"
+                                            id="student-enrollment-no"
+                                            name="enrollment_number"
+                                            placeholder="Enrollment / Reg No"
+                                            autoComplete="off"
+                                            value={formData.enrollment_number || ''}
+                                            onChange={e => setFormData({ ...formData, enrollment_number: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="label">SATS Number <span className="text-[10px] text-slate-400 font-normal">(Optional)</span></label>
+                                        <input
+                                            type="text"
+                                            className="input"
+                                            id="student-sats-no"
+                                            name="sats_number"
+                                            placeholder="SATS Number"
+                                            autoComplete="off"
+                                            value={formData.sats_number || ''}
+                                            onChange={e => setFormData({ ...formData, sats_number: e.target.value })}
+                                        />
+                                    </div>
                                     {isEditing && (
-                                        <div className="col-span-1">
+                                        <div className="col-span-2">
                                             <label className="label">Admission No (Student ID)</label>
                                             <input
                                                 className="input bg-slate-50"

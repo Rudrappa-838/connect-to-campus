@@ -203,6 +203,8 @@ const startServer = async () => {
                          ALTER TABLE students ADD COLUMN IF NOT EXISTS rfid_card_id VARCHAR(100);
                          ALTER TABLE students ADD COLUMN IF NOT EXISTS biometric_template_format VARCHAR(50) DEFAULT 'face-api-js';
                          ALTER TABLE students ADD COLUMN IF NOT EXISTS custom_roll_number VARCHAR(100);
+                         ALTER TABLE students ADD COLUMN IF NOT EXISTS enrollment_number VARCHAR(50);
+                         ALTER TABLE students ADD COLUMN IF NOT EXISTS sats_number VARCHAR(50);
                          ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
                     END IF;
 

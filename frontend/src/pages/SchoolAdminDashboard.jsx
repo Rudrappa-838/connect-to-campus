@@ -71,6 +71,7 @@ import GradeManagement from '../components/dashboard/academics/GradeManagement';
 import TopperList from '../components/dashboard/academics/TopperList';
 import StudentOverallResult from '../components/dashboard/academics/StudentOverallResult';
 import AllTestsReport from '../components/dashboard/academics/AllTestsReport';
+import HallTicketGenerator from '../components/dashboard/academics/HallTicketGenerator';
 
 // Hostel Components
 import HostelOverview from '../components/dashboard/hostel/HostelOverview';
@@ -375,6 +376,7 @@ const SchoolAdminDashboard = () => {
                     >
                         <NavSubButton active={activeTab === 'timetable'} onClick={() => handleTabChange('timetable')} label="Timetable" />
                         <NavSubButton active={activeTab === 'exam-schedule'} onClick={() => handleTabChange('exam-schedule')} label="Exam Schedule" />
+                        <NavSubButton active={activeTab === 'hall-ticket'} onClick={() => handleTabChange('hall-ticket')} label="Hall Ticket" />
                         <NavSubButton active={activeTab === 'grading'} onClick={() => handleTabChange('grading')} label="Grade Configuration" />
                         <NavSubButton active={activeTab === 'marks'} onClick={() => handleTabChange('marks')} label="Marks" />
                         <NavSubButton active={activeTab === 'topper-list'} onClick={() => handleTabChange('topper-list')} label="Topper List" />
@@ -605,6 +607,7 @@ const SchoolAdminDashboard = () => {
                         {activeTab === 'topper-list' && <TopperList config={academicConfig} />}
                         {activeTab === 'student-overall' && <StudentOverallResult config={academicConfig} />}
                         {activeTab === 'exam-schedule' && <ExamSchedule config={academicConfig} />}
+                        {activeTab === 'hall-ticket' && <HallTicketGenerator config={academicConfig} />}
                         {activeTab === 'all-tests' && <AllTestsReport config={academicConfig} />}
                         {activeTab === 'grading' && <GradeManagement />}
                         {activeTab === 'question-generator' && <QuestionPaperGenerator config={academicConfig} />}
@@ -751,6 +754,7 @@ const getTabTitle = (tab, getLabel = (k, d) => d) => {
         'marks': 'Marks Management',
         'topper-list': 'Class Toppers',
         'exam-schedule': 'Exam Schedule',
+        'hall-ticket': 'Hall Ticket Generator',
         'all-tests': 'All Exams Marksheet',
         'grading': 'Grade Configuration',
         'question-bank': 'NEET & JEE Master Bank',

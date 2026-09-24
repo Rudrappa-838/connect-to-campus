@@ -32,6 +32,7 @@ import FaceEnrollment from '../components/dashboard/biometric/FaceEnrollment';
 import FaceAttendanceScanner from '../components/dashboard/biometric/FaceAttendanceScanner';
 import MarksManagement from '../components/dashboard/academics/MarksManagement';
 import ExamSchedule from '../components/dashboard/academics/ExamSchedule';
+import HallTicketGenerator from '../components/dashboard/academics/HallTicketGenerator';
 import { MobileHeader, MobileFooter } from '../components/layout/MobileAppFiles';
 import { Capacitor } from '@capacitor/core';
 import OutPassManager from '../components/dashboard/common/OutPassManager';
@@ -242,6 +243,7 @@ const TeacherDashboard = () => {
                             <NavButton active={activeTab === 'attendance-reports'} onClick={() => handleTabChange('attendance-reports')} icon={ClipboardList} label="Attendance Reports" />
                             <NavButton active={activeTab === 'marks-management'} onClick={() => handleTabChange('marks-management')} icon={ClipboardList} label="Marks Management" />
                             <NavButton active={activeTab === 'exam-schedule'} onClick={() => handleTabChange('exam-schedule')} icon={Calendar} label="Schedule Exams" />
+                            <NavButton active={activeTab === 'hall-ticket'} onClick={() => handleTabChange('hall-ticket')} icon={Award} label="Hall Ticket" />
                         </>
                     )}
                     
@@ -366,6 +368,7 @@ const TeacherDashboard = () => {
                                 {activeTab === 'attendance-reports' && hasAttendanceAccess && <StudentAttendanceReports config={attendanceConfig} />}
                                 {activeTab === 'marks-management' && hasAttendanceAccess && <MarksManagement config={attendanceConfig} />}
                                 {activeTab === 'exam-schedule' && hasAttendanceAccess && <ExamSchedule config={attendanceConfig} />}
+                                {activeTab === 'hall-ticket' && hasAttendanceAccess && <HallTicketGenerator config={attendanceConfig} />}
 
                                 {activeTab === 'my-attendance' && <TeacherMyAttendance />}
                                 {activeTab === 'salary' && <TeacherMySalary />}
@@ -553,6 +556,7 @@ const getTabTitle = (tab) => {
         case 'attendance-reports': return 'Student Attendance Reports';
         case 'marks-management': return 'Marks Management';
         case 'exam-schedule': return 'Schedule Exams';
+        case 'hall-ticket': return 'Hall Ticket Generator';
         case 'my-attendance': return 'My Daily Attendance';
         case 'salary': return 'My Details & Salary Info';
         case 'timetable': return 'Class Timetable';

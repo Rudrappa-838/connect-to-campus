@@ -17,7 +17,8 @@ exports.addStudent = async (req, res) => {
             name, gender: raw_gender, dob, age,
             class_id, section_id,
             father_name, mother_name, contact_number, email, address,
-            attendance_id, admission_date, custom_roll_number
+            attendance_id, admission_date, custom_roll_number,
+            enrollment_number, sats_number
         } = req.body;
         const school_id = req.user.schoolId;
 
@@ -37,6 +38,8 @@ exports.addStudent = async (req, res) => {
         const safe_father = father_name || '';
         const safe_dob = dob === '' ? null : dob;
         const safe_admission_date = admission_date === '' ? null : admission_date;
+        const safe_enrollment_number = (enrollment_number === '' || enrollment_number === 'null' || enrollment_number === undefined) ? null : enrollment_number.toString().trim();
+        const safe_sats_number = (sats_number === '' || sats_number === 'null' || sats_number === undefined) ? null : sats_number.toString().trim();
 
         // 0. Duplicate Check (Name + Father Name + DOB)
         const dbDuplicateCheck = await client.query(
@@ -114,10 +117,11 @@ exports.addStudent = async (req, res) => {
         const result = await client.query(
             `INSERT INTO public.students 
             (school_id, name, first_name, last_name, admission_no, roll_number, custom_roll_number, gender, dob, age, class_id, section_id, 
-             father_name, mother_name, contact_number, email, address, attendance_id, admission_date) 
-            VALUES ($1, $2, $3, $4, $5, $6, $19, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
+             father_name, mother_name, contact_number, email, address, attendance_id, admission_date, enrollment_number, sats_number) 
+            VALUES ($1, $2, $3, $4, $5, $6, $19, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $20, $21) RETURNING *`,
             [school_id, name, first_name, last_name, admission_no, roll_number, gender, safe_dob, safe_age, safe_class_id, safe_section_id,
-                safe_father, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date || new Date(), custom_roll_number]
+                safe_father, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date || new Date(), custom_roll_number,
+                safe_enrollment_number, safe_sats_number]
         );
         const newStudent = result.rows[0];
 
@@ -276,6 +280,8 @@ exports.bulkUploadStudents = async (req, res) => {
                 const email = (getValue(row, 'Email Address', 'Email') || '').toString().trim();
                 const address = (getValue(row, 'Address') || '').toString().trim();
                 let admissionNo = getValue(row, 'Admission No')?.toString().trim();
+                const enrollmentNumber = (getValue(row, 'Enrollment No', 'Enrollment Number', 'Enrollment') || '').toString().trim() || null;
+                const satsNumber = (getValue(row, 'SATS No', 'SATS Number', 'SATS') || '').toString().trim() || null;
 
                 // 2. Strict Validation
                 if (!name) throw new Error('First Name (or Student Name) is required as per template');
@@ -393,10 +399,10 @@ exports.bulkUploadStudents = async (req, res) => {
                 const instRes = await client.query(
                     `INSERT INTO public.students 
                     (school_id, name, first_name, last_name, admission_no, roll_number, gender, dob, class_id, section_id, 
-                     father_name, mother_name, contact_number, email, address, attendance_id, admission_date, status) 
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'Active') RETURNING id`,
+                     father_name, mother_name, contact_number, email, address, attendance_id, admission_date, status, enrollment_number, sats_number) 
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'Active', $18, $19) RETURNING id`,
                     [school_id, name, db_first_name, db_last_name, admissionNo, rollNumber, gender, dob, classId, sectionId,
-                        fatherName, motherName, contact, email, address, attendanceId, admissionDate]
+                        fatherName, motherName, contact, email, address, attendanceId, admissionDate, enrollmentNumber, satsNumber]
                 );
                 console.log('Insert Success:', instRes.rows[0].id);
 
@@ -492,7 +498,7 @@ exports.getStudents = async (req, res) => {
         }
         if (search) {
             params.push(`%${search}%`);
-            query += ` AND (s.name ILIKE $${params.length} OR s.admission_no ILIKE $${params.length})`;
+            query += ` AND (s.name ILIKE $${params.length} OR s.admission_no ILIKE $${params.length} OR s.enrollment_number ILIKE $${params.length} OR s.sats_number ILIKE $${params.length})`;
         }
 
         // Add sorting and pagination - Order by roll number (ascending) for proper display
@@ -517,7 +523,7 @@ exports.getStudents = async (req, res) => {
         }
         if (search) {
             countParams.push(`%${search}%`);
-            countQuery += ` AND (name ILIKE $${countParams.length} OR admission_no ILIKE $${countParams.length})`;
+            countQuery += ` AND (name ILIKE $${countParams.length} OR admission_no ILIKE $${countParams.length} OR enrollment_number ILIKE $${countParams.length} OR sats_number ILIKE $${countParams.length})`;
         }
 
         const countResult = await pool.query(countQuery, countParams);
@@ -546,7 +552,8 @@ exports.updateStudent = async (req, res) => {
             name, gender: raw_gender, dob, age,
             class_id, section_id,
             father_name, mother_name, contact_number, email, address,
-            attendance_id, admission_date, status, admission_no, roll_number, custom_roll_number
+            attendance_id, admission_date, status, admission_no, roll_number, custom_roll_number,
+            enrollment_number, sats_number
         } = req.body;
 
         const gender = raw_gender ? (raw_gender.trim().charAt(0).toUpperCase() + raw_gender.trim().slice(1).toLowerCase()) : '';
@@ -571,6 +578,8 @@ exports.updateStudent = async (req, res) => {
         const safe_class_id = (class_id === '' || class_id === 'null' || class_id === undefined) ? null : class_id;
         const safe_attendance_id = (attendance_id === '' || attendance_id === 'null' || attendance_id === undefined) ? null : attendance_id;
         const safe_admission_date = (admission_date === '' || admission_date === 'null' || admission_date === undefined) ? null : admission_date;
+        const safe_enrollment_number = (enrollment_number === '' || enrollment_number === 'null' || enrollment_number === undefined) ? null : enrollment_number.toString().trim();
+        const safe_sats_number = (sats_number === '' || sats_number === 'null' || sats_number === undefined) ? null : sats_number.toString().trim();
 
         const safe_admission_no = (admission_no === '' || admission_no === 'null' || admission_no === undefined) ? null : admission_no;
 
@@ -613,12 +622,14 @@ exports.updateStudent = async (req, res) => {
             name = $1, gender = $2, dob = $3, age = $4, class_id = $5, section_id = $6, 
             father_name = $7, mother_name = $8, contact_number = $9, email = $10, address = $11, attendance_id = $12, admission_date = $13,
             first_name = $14, last_name = $15, status = $16, admission_no = COALESCE($19, admission_no),
-            roll_number = COALESCE($20, roll_number), custom_roll_number = $21
+            roll_number = COALESCE($20, roll_number), custom_roll_number = $21,
+            enrollment_number = $22, sats_number = $23
             WHERE id = $17 AND school_id = $18 RETURNING *`,
             [name, gender, safe_dob, safe_age, safe_class_id, safe_section_id,
                 father_name, mother_name, contact_number, email, address, safe_attendance_id, safe_admission_date,
                 first_name, last_name, status,
-                id, req.user.schoolId, safe_admission_no, final_roll_number, custom_roll_number]
+                id, req.user.schoolId, safe_admission_no, final_roll_number, custom_roll_number,
+                safe_enrollment_number, safe_sats_number]
         );
 
         if (result.rows.length === 0) {
