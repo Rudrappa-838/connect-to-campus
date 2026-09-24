@@ -32,7 +32,7 @@ const HallTicketGenerator = ({ config }) => {
     const [trustName, setTrustName] = useState(() => localStorage.getItem('ht_trust_name') || '');
     const [collegeCode, setCollegeCode] = useState(() => localStorage.getItem('ht_college_code') || '');
     const [diseCode, setDiseCode] = useState(() => localStorage.getItem('ht_dise_code') || '');
-    const [examTitle, setExamTitle] = useState(() => localStorage.getItem('ht_exam_title') || 'Mid-Term Exam â€“ October-2026');
+    const [examTitle, setExamTitle] = useState(() => localStorage.getItem('ht_exam_title') || 'Mid-Term Exam Ã¢â‚¬â€œ October-2026');
     const [printLayout, setPrintLayout] = useState('2-per-page'); // '2-per-page' | '1-per-page'
 
     // School Profile details
@@ -149,8 +149,8 @@ const HallTicketGenerator = ({ config }) => {
             if (exam) {
                 const now = new Date();
                 const monthYear = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-                const suggested = `${exam.name} â€“ ${monthYear}`;
-                if (!examTitle || examTitle === 'Mid-Term Exam â€“ October-2026') {
+                const suggested = `${exam.name} Ã¢â‚¬â€œ ${monthYear}`;
+                if (!examTitle || examTitle === 'Mid-Term Exam Ã¢â‚¬â€œ October-2026') {
                     setExamTitle(suggested);
                 }
             }
@@ -365,8 +365,8 @@ const HallTicketGenerator = ({ config }) => {
                             <div class="ht-banner-title">Examination Hall Ticket</div>
                         </div>
                         <div class="ht-codes-col">
-                            ${collegeCode ? `<div class="ht-code-line">COLLEGE CODE ${collegeCode}</div>` : ''}
-                            ${diseCode ? `<div class="ht-code-line ht-dise-line">Dise code:${diseCode}</div>` : ''}
+                            ${collegeCode ? `<div class="ht-code-line">COLLEGE CODE : ${collegeCode}</div>` : ''}
+                            ${diseCode ? `<div class="ht-code-line">Dise Code : ${diseCode}</div>` : ''}
                         </div>
                     </div>
 
@@ -565,18 +565,18 @@ const HallTicketGenerator = ({ config }) => {
                     margin-top: 2px;
                 }
                 .ht-codes-col {
-                    width: 140px;
+                    width: 150px;
                     flex-shrink: 0;
                     text-align: right;
-                    font-size: 10px;
+                    font-size: 13px;
                     font-weight: bold;
                 }
                 .ht-code-line {
                     color: #000000;
-                    margin-bottom: 3px;
+                    margin-bottom: 4px;
                 }
                 .ht-dise-line {
-                    font-size: 9.5px;
+                    font-size: 12px;
                 }
                 /* CANDIDATE BOX */
                 .ht-candidate-box {
@@ -888,7 +888,7 @@ const HallTicketGenerator = ({ config }) => {
                             type="text"
                             value={trustName}
                             onChange={e => setTrustName(e.target.value)}
-                            placeholder="e.g. VARADA HASTA SHIKSHANA SANSTHE MATTIKATTI Â®"
+                            placeholder="e.g. VARADA HASTA SHIKSHANA SANSTHE MATTIKATTI Ã‚Â®"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-400"
                         />
                     </div>
@@ -900,7 +900,7 @@ const HallTicketGenerator = ({ config }) => {
                             type="text"
                             value={examTitle}
                             onChange={e => setExamTitle(e.target.value)}
-                            placeholder="e.g. Mid-Term Exam â€“ October-2026"
+                            placeholder="e.g. Mid-Term Exam Ã¢â‚¬â€œ October-2026"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-400"
                         />
                     </div>
@@ -1162,18 +1162,18 @@ const HallTicketGenerator = ({ config }) => {
                                         {schoolInfo.address || 'Address'}, {schoolInfo.contact_number ? 'MobileNo.:' + schoolInfo.contact_number : ''}
                                     </div>
                                     <div className="text-[11px] font-bold text-black mt-0.5">
-                                        {examTitle || 'Mid-Term Exam â€“ October-2026'}
+                                        {examTitle || 'Mid-Term Exam Ã¢â‚¬â€œ October-2026'}
                                     </div>
                                     <div className="text-[12px] font-black text-black tracking-wide mt-0.5">
                                         Examination Hall Ticket
                                     </div>
                                 </div>
-                                <div className="w-32 shrink-0 text-right text-[10px] font-bold">
+                                <div className="w-36 shrink-0 text-right text-[13px] font-bold">
                                     {collegeCode && (
-                                        <div className="text-black">COLLEGE CODE {collegeCode}</div>
+                                        <div className="text-black">COLLEGE CODE : {collegeCode}</div>
                                     )}
                                     {diseCode && (
-                                        <div className="text-black text-[9px]">Dise code:{diseCode}</div>
+                                        <div className="text-black">Dise Code : {diseCode}</div>
                                     )}
                                 </div>
                             </div>
