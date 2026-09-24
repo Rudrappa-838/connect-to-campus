@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
 import {
@@ -337,6 +337,10 @@ const HallTicketGenerator = ({ config }) => {
     // Printable HTML Generation (Exact match to sample image)
     const generateHallTicketHTML = (studentList) => {
         const isTwoPerPage = printLayout === '2-per-page';
+        const isThreePerPage = printLayout === '3-per-page';
+        const ticketsPerPage = isThreePerPage ? 3 : (isTwoPerPage ? 2 : 1);
+
+        const ticketClass = isThreePerPage ? 'ticket-three-per-page' : (isTwoPerPage ? 'ticket-two-per-page' : 'ticket-single-page');
 
         const ticketsHTML = studentList.map((stu, index) => {
             const rollNo = stu.custom_roll_number || (stu.roll_number ? String(stu.roll_number).padStart(2, '0') : '-');
@@ -345,10 +349,10 @@ const HallTicketGenerator = ({ config }) => {
             const stuClass = stu.class_name || currentClassName;
             const stuSection = stu.section_name || currentSectionName;
 
-            const isEven = (index + 1) % 2 === 0;
+            const isPageBreak = (index + 1) % ticketsPerPage === 0;
 
             return `
-            <div class="hall-ticket-wrapper ${isTwoPerPage ? 'ticket-two-per-page' : 'ticket-single-page'}">
+            <div class="hall-ticket-wrapper ${ticketClass}">
                 <div class="hall-ticket-box">
                     <!-- HEADER SECTION -->
                     <div class="ht-header">
@@ -444,7 +448,7 @@ const HallTicketGenerator = ({ config }) => {
                     </div>
                 </div>
             </div>
-            ${isTwoPerPage && isEven ? '<div class="page-break"></div>' : (!isTwoPerPage ? '<div class="page-break"></div>' : '')}
+            ${isPageBreak && index < studentList.length - 1 ? '<div class="page-break"></div>' : (!isPageBreak && ticketsPerPage === 1 && index < studentList.length - 1 ? '<div class="page-break"></div>' : '')}
             `;
         }).join('');
 
@@ -477,7 +481,12 @@ const HallTicketGenerator = ({ config }) => {
                 }
                 .ticket-two-per-page {
                     height: 48.5%;
-                    margin-bottom: 12px;
+                    margin-bottom: 10px;
+                    page-break-inside: avoid;
+                }
+                .ticket-three-per-page {
+                    height: 31.5%;
+                    margin-bottom: 8px;
                     page-break-inside: avoid;
                 }
                 .ticket-single-page {
@@ -861,6 +870,7 @@ const HallTicketGenerator = ({ config }) => {
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400 cursor-pointer"
                         >
                             <option value="2-per-page">2 Tickets / Page (A4)</option>
+                            <option value="3-per-page">3 Tickets / Page (A4)</option>
                             <option value="1-per-page">1 Ticket / Page (A4)</option>
                         </select>
                     </div>
