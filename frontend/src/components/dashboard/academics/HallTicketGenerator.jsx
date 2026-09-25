@@ -380,8 +380,8 @@ const HallTicketGenerator = ({ config }) => {
                             <div class="ht-banner-title">Examination Hall Ticket</div>
                         </div>
                         <div class="ht-codes-col">
-                            ${collegeCode ? `<div class="ht-code-line">COLLEGE CODE : ${collegeCode}</div>` : ''}
-                            ${diseCode ? `<div class="ht-code-line">Dise Code : ${diseCode}</div>` : ''}
+                            ${collegeCode ? `<div class="ht-code-line"><span class="ht-code-label">College Code</span><span class="ht-code-sep"> : </span><span class="ht-code-value">${collegeCode}</span></div>` : ''}
+                            ${diseCode ? `<div class="ht-code-line"><span class="ht-code-label">DISE Code</span><span class="ht-code-sep"> : </span><span class="ht-code-value">${diseCode}</span></div>` : ''}
                         </div>
                     </div>
 
@@ -522,15 +522,15 @@ const HallTicketGenerator = ({ config }) => {
                     margin-bottom: 8px;
                 }
                 .ht-logo-col {
-                    width: 75px;
+                    width: 110px;
                     flex-shrink: 0;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                 }
                 .ht-logo-img {
-                    max-width: 65px;
-                    max-height: 65px;
+                    max-width: 100px;
+                    max-height: 90px;
                     object-fit: contain;
                 }
                 .ht-logo-placeholder {
@@ -587,18 +587,37 @@ const HallTicketGenerator = ({ config }) => {
                     margin-top: 2px;
                 }
                 .ht-codes-col {
-                    width: 150px;
+                    width: 165px;
                     flex-shrink: 0;
                     text-align: right;
-                    font-size: 13px;
-                    font-weight: bold;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: flex-end;
+                    justify-content: center;
+                    gap: 5px;
                 }
                 .ht-code-line {
-                    color: #000000;
-                    margin-bottom: 4px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-end;
+                    white-space: nowrap;
                 }
-                .ht-dise-line {
-                    font-size: 12px;
+                .ht-code-label {
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #000000;
+                }
+                .ht-code-sep {
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #000000;
+                }
+                .ht-code-value {
+                    font-size: 11px;
+                    font-weight: 800;
+                    color: #000000;
+                    font-family: 'Courier New', Courier, monospace;
+                    letter-spacing: 0.3px;
                 }
                 /* CANDIDATE BOX */
                 .ht-candidate-box {
@@ -1187,11 +1206,11 @@ const HallTicketGenerator = ({ config }) => {
                         <div className="border-2 border-black p-4 bg-white text-black shadow-inner rounded-sm overflow-x-auto text-[12px] font-sans">
                             {/* Header */}
                             <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-2">
-                                <div className="w-16 shrink-0 flex items-center justify-center">
+                                <div className="w-24 shrink-0 flex items-center justify-center">
                                     {schoolInfo.logo ? (
-                                        <img src={schoolInfo.logo} alt="Logo" className="max-w-[55px] max-h-[55px] object-contain" />
+                                        <img src={schoolInfo.logo} alt="Logo" className="max-w-[95px] max-h-[85px] object-contain" />
                                     ) : (
-                                        <div className="w-12 h-12 rounded-full border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-gray-500">
+                                        <div className="w-16 h-14 rounded-full border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-gray-500">
                                             LOGO
                                         </div>
                                     )}
@@ -1215,12 +1234,20 @@ const HallTicketGenerator = ({ config }) => {
                                         Examination Hall Ticket
                                     </div>
                                 </div>
-                                <div className="w-36 shrink-0 text-right text-[13px] font-bold">
+                                <div className="w-40 shrink-0 text-right">
                                     {collegeCode && (
-                                        <div className="text-black">COLLEGE CODE : {collegeCode}</div>
+                                        <div className="text-black text-[11px] font-bold whitespace-nowrap">
+                                            <span>College Code</span>
+                                            <span> : </span>
+                                            <span className="font-mono font-extrabold">{collegeCode}</span>
+                                        </div>
                                     )}
                                     {diseCode && (
-                                        <div className="text-black">Dise Code : {diseCode}</div>
+                                        <div className="text-black text-[11px] font-bold whitespace-nowrap mt-1">
+                                            <span>DISE Code</span>
+                                            <span> : </span>
+                                            <span className="font-mono font-extrabold">{diseCode}</span>
+                                        </div>
                                     )}
                                 </div>
                             </div>
