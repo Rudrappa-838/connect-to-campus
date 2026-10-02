@@ -193,12 +193,27 @@ const login = async (req, res) => {
         // ─── Flavored APK School Lock ─────────────────────────────────────────
         // If a school_id is passed (from a branded school APK), ensure the user
         // belongs to exactly that school. This blocks users from other schools.
+        // It accepts either the internal DB id or the 6-digit school_code.
         // The main C2C app does NOT send school_id, so it is unaffected.
         if (requestedSchoolId) {
             const reqId = String(requestedSchoolId).trim();
             const userSchoolId = user.school_id ? String(user.school_id).trim() : null;
-            if (!userSchoolId || userSchoolId !== reqId) {
-                console.log(`[LOGIN] School lock rejected: user school_id=${userSchoolId}, requested=${reqId}`);
+
+            let targetSchoolId = reqId;
+            try {
+                const schoolMatch = await pool.query(
+                    'SELECT id FROM schools WHERE school_code = $1 OR id::text = $1',
+                    [reqId]
+                );
+                if (schoolMatch.rows.length > 0) {
+                    targetSchoolId = String(schoolMatch.rows[0].id);
+                }
+            } catch (err) {
+                console.error('[LOGIN] Error resolving school_id:', err);
+            }
+
+            if (!userSchoolId || (userSchoolId !== targetSchoolId && userSchoolId !== reqId)) {
+                console.log(`[LOGIN] School lock rejected: user school_id=${userSchoolId}, targetSchoolId=${targetSchoolId}, requested=${reqId}`);
                 return res.status(401).json({ message: 'Invalid credentials or role mismatch' });
             }
         }
