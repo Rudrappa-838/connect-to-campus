@@ -16,9 +16,18 @@ const Login = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [showQR, setShowQR] = useState(false);
     const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [schoolConfig, setSchoolConfig] = useState(null); // Flavor school lock
     const { login } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Load school_config.json if this is a flavored school APK (e.g. Darti)
+    React.useEffect(() => {
+        fetch('/school_config.json')
+            .then(r => r.ok ? r.json() : null)
+            .then(cfg => { if (cfg?.school_id) setSchoolConfig(cfg); })
+            .catch(() => {}); // Not present = C2C default, ignore
+    }, []);
 
     // Detect if running in mobile app (Capacitor or WebView with param)
 
@@ -100,7 +109,8 @@ const Login = () => {
         abortControllerRef.current = new AbortController();
 
         try {
-            const result = await login(emailVal, passwordVal, role);
+            // If this is a flavored school APK, pass the school_id to lock login to that school only
+            const result = await login(emailVal, passwordVal, role, schoolConfig?.school_id || null);
             console.log('Login: API Result:', result);
 
             if (abortControllerRef.current?.signal.aborted) return;

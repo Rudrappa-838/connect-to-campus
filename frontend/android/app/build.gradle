@@ -16,6 +16,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // ─── School Flavors ──────────────────────────────────────────────────────
+    // Each school gets its own APK with separate app name, icon & school_id.
+    // The main C2C app (no flavor) is completely untouched.
+    flavorDimensions "school"
+    productFlavors {
+        // Default C2C flavor — existing app, no changes
+        c2c {
+            dimension "school"
+            applicationId "com.rudrappa.connect2campus"
+            versionNameSuffix ""
+        }
+        // Darti School — separate APK
+        darti {
+            dimension "school"
+            applicationId "com.darti.connect2campus"
+            versionName "1.0.1"
+            versionCode 2
+        }
+    }
     signingConfigs {
         release {
             storeFile file('new_play_store_key.jks')

@@ -36,14 +36,35 @@ const AppUpdateChecker = () => {
 
         setIsChecking(true);
         try {
-            // Get native versionCode from the app
+            // Get native versionCode and package info
             let currentVersionCode = 44;
+            let appId = 'com.rudrappa.connect2campus';
             try {
                 const info = await App.getInfo();
                 currentVersionCode = parseInt(info.build, 10) || 44;
+                if (info?.id) appId = info.id;
             } catch (e) {
                 console.warn('Could not get native app info', e);
             }
+
+            // CRITICAL: If this is a branded school app (e.g. Darti: com.darti.connect2campus),
+            // it has its own release cycle and must NOT be blocked by C2C version 47!
+            if (appId && appId !== 'com.rudrappa.connect2campus') {
+                console.log('[UpdateChecker] Branded school app detected (' + appId + '), skipping C2C version check.');
+                return;
+            }
+
+            // Also check for school_config.json (flavor lock)
+            try {
+                const cfgRes = await fetch('/school_config.json');
+                if (cfgRes.ok) {
+                    const cfg = await cfgRes.json();
+                    if (cfg?.school_id) {
+                        console.log('[UpdateChecker] Custom school_config detected, skipping C2C version check.');
+                        return;
+                    }
+                }
+            } catch (e) {}
 
             const res = await axios.get(`${APP_VERSION_URL}?t=${Date.now()}`, { timeout: 8000 });
             const { minimum_version, latest_version, update_message } = res.data;
@@ -89,8 +110,13 @@ const AppUpdateChecker = () => {
         };
     }, [checkVersion]);
 
-    const openPlayStore = () => {
-        window.open(PLAY_STORE_URL, '_system');
+    const openPlayStore = async () => {
+        let appId = 'com.rudrappa.connect2campus';
+        try {
+            const info = await App.getInfo();
+            if (info?.id) appId = info.id;
+        } catch (e) {}
+        window.open(`https://play.google.com/store/apps/details?id=${appId}`, '_system');
     };
 
     // "Later" — hide for now, but set flag so it shows again when app is resumed

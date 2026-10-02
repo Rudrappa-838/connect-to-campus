@@ -165,7 +165,7 @@ const findAuthUser = async (checkEmails, role, originalInput, isEmail, extraCond
 };
 
 const login = async (req, res) => {
-    const { password, role } = req.body;
+    const { password, role, school_id: requestedSchoolId } = req.body;
     let { email } = req.body; // Can be Email or ID (Admission No / Emp ID)
 
     if (email) email = email.trim();
@@ -188,6 +188,19 @@ const login = async (req, res) => {
 
         if (!validPassword) {
             return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // ─── Flavored APK School Lock ─────────────────────────────────────────
+        // If a school_id is passed (from a branded school APK), ensure the user
+        // belongs to exactly that school. This blocks users from other schools.
+        // The main C2C app does NOT send school_id, so it is unaffected.
+        if (requestedSchoolId) {
+            const reqId = String(requestedSchoolId).trim();
+            const userSchoolId = user.school_id ? String(user.school_id).trim() : null;
+            if (!userSchoolId || userSchoolId !== reqId) {
+                console.log(`[LOGIN] School lock rejected: user school_id=${userSchoolId}, requested=${reqId}`);
+                return res.status(401).json({ message: 'Invalid credentials or role mismatch' });
+            }
         }
 
         // Role verification (Redundant due to SQL filter but good for safety/custom logic)

@@ -101,9 +101,9 @@ export const AuthProvider = ({ children }) => {
         }
     }, [removeStorageItem]);
 
-    const login = async (email, password, role) => {
+    const login = async (email, password, role, schoolId = null) => {
         try {
-            const response = await api.post('/auth/login', { email, password, role });
+            const response = await api.post('/auth/login', { email, password, role, ...(schoolId ? { school_id: schoolId } : {}) });
             const { token, user: loggedInUser } = response.data;
 
             if (loggedInUser.mustChangePassword && !['SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(loggedInUser.role)) {
